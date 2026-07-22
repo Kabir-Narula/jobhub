@@ -153,7 +153,7 @@ async function gptRecruiterNames(company: string, domain: string): Promise<{ fir
   try {
     const { openai, model, parseJson } = await import("@/lib/tailor/research");
     const res = await openai().chat.completions.create({
-      model: model(),
+      model: model("cheap"),
       messages: [
         {
           role: "system",

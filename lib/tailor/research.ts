@@ -26,7 +26,8 @@ export function openai(): OpenAI {
   return client;
 }
 
-export function model(): string {
+export function model(tier: "quality" | "cheap" = "quality"): string {
+  if (tier === "cheap") return process.env.OPENAI_MODEL_MINI || process.env.OPENAI_MODEL || "gpt-4o-mini";
   return process.env.OPENAI_MODEL || "gpt-4o";
 }
 
@@ -122,7 +123,7 @@ export async function researchCompany(input: {
   ].join("\n");
 
   const res = await openai().chat.completions.create({
-    model: model(),
+    model: model("cheap"),
     messages: [
       { role: "system", content: "You are a meticulous company researcher. Output valid JSON only." },
       { role: "user", content: prompt },

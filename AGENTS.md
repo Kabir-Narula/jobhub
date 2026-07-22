@@ -17,7 +17,7 @@ Single-user job aggregation + application tracking + LaTeX resume tailoring. See
 - `normalizeForTectonic()` must be applied to any master .tex at import time (seed + `/api/masters`).
 - `fixEmptyLineBreaks()` runs inside `compileLatex` — required for masters that pdfLaTeX tolerated but XeTeX halts on.
 - Source adapters: `lib/sources/*`, one shared `NormalizedJob` schema; failures isolated per source in `lib/poll.ts`. LinkedIn best-effort (disable `LINKEDIN_ADAPTER=off`). Workday: `limit` hard-capped at 20 by the API; boardToken = `host/tenant/site`.
-- LLM: `OPENAI_API_KEY` + `OPENAI_MODEL` + optional `OPENAI_BASE_URL` (any OpenAI-compatible API; Kimi uses `https://api.kimi.com/coding/v1` + `k3`). gpt-5.x rejects custom `temperature` — don't set it. `parseJson()` in research.ts tolerates ```json fenced replies (Kimi k3 sometimes fences).
+- LLM: two tiers via `OPENAI_MODEL` (quality: main resume pass + ATS boost) and `OPENAI_MODEL_MINI` (cheap: research, shorten/expand, contacts, email). Any OpenAI-compatible API (`OPENAI_BASE_URL`; Kimi = `https://api.kimi.com/coding/v1` + `k3`). gpt-5.x rejects custom `temperature` — don't set it. `parseJson()` in research.ts tolerates ```json fenced replies.
 - Contacts: `lib/contacts/hunter.ts` (Hunter.io domain-search + verifier, role-ranked). Cached per company (sibling jobs reuse) to conserve the 25/month free quota. Route: `/api/contacts/find`.
 - Verify changes with `npx tsc --noEmit`, `npx eslint .`, `npx tsx scripts/test-compile.ts`, `npx tsx scripts/test-tailor.ts` (fill % + frozen sections), and `node scripts/e2e-ui.mjs` (dev server running).
 

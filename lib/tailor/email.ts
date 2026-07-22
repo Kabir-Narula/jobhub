@@ -52,7 +52,7 @@ export async function draftOutreachEmail(input: DraftInput): Promise<EmailDraft>
   };
 
   const res = await openai().chat.completions.create({
-    model: model(),
+    model: model("cheap"),
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: JSON.stringify(user) },

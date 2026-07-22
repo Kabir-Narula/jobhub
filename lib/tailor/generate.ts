@@ -137,7 +137,7 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
   };
 
   const res = await openai().chat.completions.create({
-    model: model(),
+    model: model(input.shorten || input.expand ? "cheap" : "quality"),
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: JSON.stringify(user) },
