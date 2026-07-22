@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -43,6 +43,7 @@ interface DocOption {
  */
 export function ReturnPrompt() {
   const router = useRouter();
+  const pathname = usePathname();
   const [pending, setPending] = useState<PendingJob | null>(null);
   const [step, setStep] = useState<"ask" | "form">("ask");
   const [notes, setNotes] = useState("");
@@ -84,6 +85,12 @@ export function ReturnPrompt() {
       window.removeEventListener("focus", onVis);
     };
   }, [check]);
+
+  // Also re-check whenever we land on /jobs — covers Next.js preserving
+  // client state across soft navigation (no remount, no focus event).
+  useEffect(() => {
+    if (pathname === "/jobs") check();
+  }, [pathname, check]);
 
   async function onYes() {
     setStep("form");

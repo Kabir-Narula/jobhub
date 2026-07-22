@@ -30,7 +30,7 @@ interface Props {
 export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJobIds, filters }: Props) {
   const router = useRouter();
   const [jobs, setJobs] = useState(initialJobs);
-  const [selected, setSelected] = useState(0);
+  const [selected, setSelected] = useState(-1); // no highlight until j/k is used
   const [refreshing, setRefreshing] = useState(false);
   const searchRef = useRef<HTMLInputElement | null>(null);
 
@@ -39,7 +39,7 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
   if (prevJobs !== initialJobs) {
     setPrevJobs(initialJobs);
     setJobs(initialJobs);
-    setSelected(0);
+    setSelected(-1);
   }
 
   const apply = useCallback((job: Job) => {
@@ -123,13 +123,13 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
       if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
       if (document.querySelector('[role="dialog"], [data-slot="popover-content"]')) return;
 
-      const job = jobs[selected];
+      const job = selected >= 0 ? jobs[selected] : undefined;
       switch (e.key) {
         case "j":
-          setSelected((s) => Math.min(s + 1, jobs.length - 1));
+          setSelected((s) => (s < 0 ? 0 : Math.min(s + 1, jobs.length - 1)));
           break;
         case "k":
-          setSelected((s) => Math.max(s - 1, 0));
+          setSelected((s) => (s < 0 ? 0 : Math.max(s - 1, 0)));
           break;
         case "a":
           if (job) apply(job);
@@ -154,6 +154,7 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
   }, [jobs, selected, apply, toggleSave, toggleDismiss, refreshing, refresh]);
 
   useEffect(() => {
+    if (selected < 0) return;
     const job = jobs[selected];
     if (!job) return;
     document
