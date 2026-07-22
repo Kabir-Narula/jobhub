@@ -6,6 +6,7 @@ import type { AppStatus } from "@prisma/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AppTable } from "./app-table";
 import { AppKanban } from "./app-kanban";
+import { AnimatedNumber } from "@/components/animated-number";
 import type { AppWithJob } from "./types";
 
 export type { AppWithJob };
@@ -63,11 +64,11 @@ export function TrackerClient({
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-lg border border-[#e6e3db] bg-white p-3">
           <p className="text-xs text-[#8b877a]">Applications</p>
-          <p className="mt-1 text-2xl font-semibold text-[#1c1b17]">{analytics.total}</p>
+          <p className="mt-1 text-2xl font-semibold text-[#1c1b17]"><AnimatedNumber value={analytics.total} /></p>
         </div>
         <div className="rounded-lg border border-[#e6e3db] bg-white p-3">
           <p className="text-xs text-[#8b877a]">Response rate</p>
-          <p className="mt-1 text-2xl font-semibold text-[#c2410c]">{analytics.responseRate}%</p>
+          <p className="mt-1 text-2xl font-semibold text-[#c2410c]"><AnimatedNumber value={analytics.responseRate} />%</p>
         </div>
         <div className="rounded-lg border border-[#e6e3db] bg-white p-3">
           <p className="text-xs text-[#8b877a]">Avg days to response</p>

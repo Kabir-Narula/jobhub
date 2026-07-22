@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Job } from "@prisma/client";
 import { toast } from "sonner";
+import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { JobCard } from "./job-card";
 import { JobsHeader, type FilterState } from "./jobs-header";
@@ -209,19 +210,31 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
           </div>
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
+        <motion.div
+          className="flex flex-col gap-2"
+          initial="hidden"
+          animate="show"
+          variants={{ show: { transition: { staggerChildren: 0.035 } } }}
+        >
           {jobs.map((job, i) => (
-            <JobCard
+            <motion.div
               key={job.id}
-              job={job}
-              selected={i === selected}
-              applied={appliedSet.has(job.id)}
-              onApply={apply}
-              onToggleSave={toggleSave}
-              onToggleDismiss={toggleDismiss}
-            />
+              variants={{
+                hidden: { opacity: 0, y: 10 },
+                show: { opacity: 1, y: 0, transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } },
+              }}
+            >
+              <JobCard
+                job={job}
+                selected={i === selected}
+                applied={appliedSet.has(job.id)}
+                onApply={apply}
+                onToggleSave={toggleSave}
+                onToggleDismiss={toggleDismiss}
+              />
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       )}
 
       <ReturnPrompt />

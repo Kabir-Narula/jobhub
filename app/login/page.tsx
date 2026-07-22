@@ -34,7 +34,11 @@ export default function LoginPage() {
       {/* ambient warmth */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(45%_35%_at_50%_30%,rgba(194,65,12,0.08),transparent)]"
+        className="pointer-events-none absolute inset-0 animate-[pulse_6s_ease-in-out_infinite] bg-[radial-gradient(45%_35%_at_50%_30%,rgba(194,65,12,0.10),transparent)]"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 animate-[pulse_9s_ease-in-out_infinite_reverse] bg-[radial-gradient(30%_25%_at_70%_70%,rgba(194,65,12,0.06),transparent)]"
       />
       <div className="relative w-full max-w-xs">
         <div className="mb-8 flex flex-col items-center gap-3">

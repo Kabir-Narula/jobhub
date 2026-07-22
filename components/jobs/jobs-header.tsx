@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -80,6 +80,7 @@ export function JobsHeader({
   const router = useRouter();
   const searchParams = useSearchParams();
   const [q, setQ] = useState(filters.q);
+  const [scrolled, setScrolled] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Sync external filter state (render-phase adjustment, no effect needed).
@@ -88,6 +89,13 @@ export function JobsHeader({
     setPrevQ(filters.q);
     setQ(filters.q);
   }
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const push = useCallback(
     (patch: Record<string, string>) => {
@@ -112,7 +120,10 @@ export function JobsHeader({
   const countFor = (v: string) => (v === "" ? total : bucketCounts[v] ?? 0);
 
   return (
-    <div className="sticky top-0 z-30 -mx-8 border-b border-[#e6e3db] bg-[#f6f5f1]/85 px-8 py-3 backdrop-blur-md">
+    <div className={cn(
+      "sticky top-0 z-30 -mx-8 border-b bg-[#f6f5f1]/85 px-8 py-3 backdrop-blur-md transition-all duration-300",
+      scrolled ? "border-[#dedad0] shadow-[0_8px_24px_-16px_rgba(28,27,23,0.25)]" : "border-[#e6e3db]"
+    )}>
       <div className="flex items-center gap-3">
         {/* search */}
         <div className="relative w-72">

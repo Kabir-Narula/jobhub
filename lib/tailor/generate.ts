@@ -65,6 +65,13 @@ COVER LETTER (3-4 substantive paragraphs, skimmable in 20 seconds):
 - Middle: map the candidate's REAL experience and chosen projects to the posting's top 2-3 requirements, naming real technologies. Write like a person who ships code, not a template.
 - Final: one or two sentences — genuine interest in this team/product + low-friction close. No clichés, no "fast-paced environment".
 
+HUMAN VOICE / ANTI-AI-DETECTION (2026 recruiters actively screen for AI tells):
+- BANNED words and phrases (instant AI tell): spearheaded, spearhead, leveraged, leverage (as a verb), orchestrated, cutting-edge, robust, dynamic, results-oriented, synergize, transformative, pivotal, utilize, in order to, fast-paced, passionate, proven track record, best-in-class, seamless, seamlessly, state-of-the-art, innovative, world-class, adept at, instrumental in.
+- Vary sentence shapes naturally (mostly 10-22 words); do NOT make every bullet follow the same identical structure — identical rhythm is a known AI tell.
+- Every technology must appear attached to a concrete artifact (an endpoint, a queue, a schema, a migration, a dashboard) — never a bare name-drop. Skills listed in the skills section must also appear in at least one bullet when they matter to the posting (recruiters cross-check).
+- Entry-level must SOUND entry-level: no "architected", no "led", no mastery/expert framing, no leadership scope.
+- One uniform tone across the whole resume: plain, direct engineering fact. If a phrase sounds like marketing copy, rewrite it as plain fact.
+
 Output valid JSON only. Plain text everywhere: no markdown, no LaTeX, no backslashes, no asterisks, no pipe characters, no "~". Plain hyphens and quotes only.`;
 
 interface GenerateInput {

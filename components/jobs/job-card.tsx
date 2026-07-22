@@ -106,7 +106,7 @@ export function JobCard({ job, selected, applied = false, onApply, onToggleSave,
               <CheckCircle2 className="size-3" /> Applied
             </Button>
           ) : (
-            <Button size="sm" onClick={() => onApply(job)} className="h-7 bg-[#c2410c] text-xs font-medium text-[#fdf8f3] hover:bg-[#9a3412]">
+            <Button size="sm" onClick={() => onApply(job)} className="h-7 bg-[#c2410c] text-xs font-medium text-[#fdf8f3] transition-transform duration-100 hover:bg-[#9a3412] active:scale-95">
               <ExternalLink className="size-3" /> Apply
             </Button>
           )}
