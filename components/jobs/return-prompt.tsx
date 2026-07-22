@@ -53,7 +53,9 @@ export function ReturnPrompt() {
   const lastCheck = useRef(0);
 
   const check = useCallback(async () => {
-    if (Date.now() - lastCheck.current < 10_000) return;
+    // Anti-spam throttle (rapid focus toggles); short enough that a real
+    // apply -> return round trip is never swallowed.
+    if (Date.now() - lastCheck.current < 1_500) return;
     lastCheck.current = Date.now();
     try {
       const res = await fetch("/api/jobs/pending-return");
@@ -68,6 +70,10 @@ export function ReturnPrompt() {
   }, []);
 
   useEffect(() => {
+    // Check on mount: in-app navigation (tailor -> back to jobs, sidebar)
+    // never fires visibility/focus events, so this is the only catch.
+    check();
+
     function onVis() {
       if (document.visibilityState === "visible") check();
     }
