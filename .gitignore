@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# tectonic binary (downloaded per-platform by scripts/setup-tectonic.mjs)
+/bin/
+
+# local test artifacts
+/tmp-isolate/
+/scripts/output/
+*.local.pdf

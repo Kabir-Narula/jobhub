@@ -1,0 +1,178 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum WorkMode {
+  REMOTE
+  HYBRID
+  ONSITE
+  UNKNOWN
+}
+
+enum LocationBucket {
+  TORONTO
+  GTA_COMMUTE
+  REMOTE
+}
+
+enum Seniority {
+  NEW_GRAD
+  MID
+  SENIOR
+}
+
+enum RoleCategory {
+  SWE
+  DATA_ML
+  INFRA
+  CONSULTING_TECH
+  OTHER
+}
+
+enum AppStatus {
+  APPLIED
+  INTERVIEWING
+  OFFER
+  REJECTED
+  GHOSTED
+}
+
+enum DocKind {
+  RESUME
+  COVER
+}
+
+enum DocStatus {
+  DRAFT
+  FINAL
+}
+
+enum AtsType {
+  GREENHOUSE
+  LEVER
+  ASHBY
+  SMARTRECRUITERS
+  WORKDAY
+}
+
+model Job {
+  id                    String          @id @default(cuid())
+  fingerprint           String          @unique
+  title                 String
+  company               String
+  locationRaw           String          @default("")
+  city                  String          @default("")
+  workMode              WorkMode        @default(UNKNOWN)
+  bucket                LocationBucket
+  seniority             Seniority       @default(MID)
+  category              RoleCategory    @default(OTHER)
+  source                String
+  sourceId              String          @default("")
+  sourceUrl             String
+  applyUrl              String
+  description           String          @default("")
+  salaryMin             Int?
+  salaryMax             Int?
+  salaryCurrency        String?
+  postedAt              DateTime?
+  firstSeenAt           DateTime        @default(now())
+  lastSeenAt            DateTime        @default(now())
+  isActive              Boolean         @default(true)
+  savedAt               DateTime?
+  dismissedAt           DateTime?
+  viewedAt              DateTime?
+  applyPromptDismissedAt DateTime?
+  companyResearch       Json?
+  researchedAt          DateTime?
+  contacts              Json?
+  contactsAt            DateTime?
+  applications          Application[]
+  documents             DocumentVersion[]
+
+  @@index([bucket, isActive])
+  @@index([postedAt])
+  @@index([dismissedAt])
+}
+
+model Application {
+  id               String           @id @default(cuid())
+  jobId            String
+  job              Job              @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  status           AppStatus        @default(APPLIED)
+  appliedAt        DateTime         @default(now())
+  notes            String           @default("")
+  responseAt       DateTime?
+  researchNotes    String           @default("")
+  resumeVersionId  String?          @unique
+  coverVersionId   String?          @unique
+  resumeVersion    DocumentVersion? @relation("AppResume", fields: [resumeVersionId], references: [id])
+  coverVersion     DocumentVersion? @relation("AppCover", fields: [coverVersionId], references: [id])
+  documents        DocumentVersion[] @relation("AppDocuments")
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@index([status])
+}
+
+model DocumentVersion {
+  id              String       @id @default(cuid())
+  jobId           String
+  job             Job          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  applicationId   String?
+  application     Application? @relation("AppDocuments", fields: [applicationId], references: [id], onDelete: SetNull)
+  kind            DocKind
+  version         Int
+  texContent      String
+  pdfStoragePath  String       @default("")
+  diffFromMaster  String       @default("")
+  pageCount       Int          @default(0)
+  matchScore      Int?
+  status          DocStatus    @default(DRAFT)
+  titleChangeNote String       @default("")
+  createdAt       DateTime     @default(now())
+  resumeFor       Application? @relation("AppResume")
+  coverFor        Application? @relation("AppCover")
+
+  @@unique([jobId, kind, version])
+}
+
+model MasterTemplate {
+  id         String   @id @default(cuid())
+  kind       DocKind
+  texContent String
+  active     Boolean  @default(true)
+  uploadedAt DateTime @default(now())
+}
+
+model CompanySource {
+  id         String  @id @default(cuid())
+  name       String
+  atsType    AtsType
+  boardToken String
+  enabled    Boolean @default(true)
+  lastError  String  @default("")
+
+  @@unique([atsType, boardToken])
+}
+
+model PollRun {
+  id         String    @id @default(cuid())
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  trigger    String    @default("cron")
+  results    Json      @default("[]")
+  newJobs    Int       @default(0)
+  totalSeen  Int       @default(0)
+  ok         Boolean   @default(false)
+}
+
+model Setting {
+  key   String @id
+  value String @default("")
+}
