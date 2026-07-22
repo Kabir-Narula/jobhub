@@ -534,8 +534,10 @@ export function TailorClient({
                       fill {d.fillPct}%
                     </Badge>
                   )}
-                  {d.score !== null && (
-                    <Badge variant="outline" className="border-[#c2410c]/40 text-[#c2410c]">ATS {d.score}%</Badge>
+                  {d.label === "Resume" && (
+                    <Badge variant="outline" className="border-[#c2410c]/40 text-[#c2410c]">
+                      {d.score === null ? "ATS —" : `ATS ${d.score}%`}
+                    </Badge>
                   )}
                 </div>
               </div>

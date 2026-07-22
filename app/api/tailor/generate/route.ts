@@ -107,6 +107,17 @@ export async function POST(request: Request) {
   const job = await prisma.job.findUnique({ where: { id: jobId } });
   if (!job) return NextResponse.json({ error: "job not found" }, { status: 404 });
 
+  // Jobs without a stored JD (Simplify rows, LinkedIn cards) get hydrated
+  // on demand — without it the tailor and ATS score have nothing to work from.
+  if (job.description.trim().length < 200) {
+    const { hydrateJobDescription } = await import("@/lib/sources/hydrate");
+    const hydrated = await hydrateJobDescription(job).catch(() => "");
+    if (hydrated) {
+      job.description = hydrated;
+      await prisma.job.update({ where: { id: job.id }, data: { description: hydrated } });
+    }
+  }
+
   const [resumeMaster, coverMaster] = await Promise.all([
     prisma.masterTemplate.findFirst({ where: { kind: "RESUME", active: true } }),
     prisma.masterTemplate.findFirst({ where: { kind: "COVER", active: true } }),
@@ -209,7 +220,7 @@ export async function POST(request: Request) {
 
   // --- ATS optimization loop: score, weave claimable missing terms, re-score ---
   let score = matchScore(job.description, resumeTex, job.company);
-  if (score < 70) {
+  if (score !== null && score < 70) {
     const missing = missingTerms(job.description, resumeTex, 25, job.company);
     if (missing.length > 0) {
       const boosted = await generateContent({ entries: parsedResume.entries, skills: skillsSection, job: jobInput, research, boost: { missingTerms: missing } });
@@ -217,7 +228,7 @@ export async function POST(request: Request) {
       const boostedResult = await compileLatex(boostedTex);
       if (boostedResult.pageCount === 1) {
         const boostedScore = matchScore(job.description, boostedTex, job.company);
-        if (boostedScore > score) {
+        if (boostedScore !== null && (score === null || boostedScore > score)) {
           resumeTex = boostedTex;
           resumeResult = boostedResult;
           generated = boosted;

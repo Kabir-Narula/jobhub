@@ -112,9 +112,10 @@ function covered(term: string, plain: string, plainSquash: string): boolean {
   return words.every((w) => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i").test(plain));
 }
 
-export function matchScore(jobDescription: string, resumeTex: string, companyName = ""): number {
+export function matchScore(jobDescription: string, resumeTex: string, companyName = ""): number | null {
+  if (!jobDescription.trim()) return null; // no JD to score against — display as "—", not 0%
   const terms = jdTerms(jobDescription, 40, companyName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
-  if (terms.length === 0) return 0;
+  if (terms.length === 0) return null;
   const plain = plainTex(resumeTex);
   const plainSquash = plain.replace(/\s+/g, "");
   const hits = terms.filter((t) => covered(t, plain, plainSquash)).length;
