@@ -69,23 +69,46 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
-    toast.loading("Polling all sources…", { id: "poll" });
+    toast.loading("Starting poll…", { id: "poll" });
     try {
-      const res = await fetch("/api/jobs/refresh", { method: "POST" });
-      const summary = await res.json();
-      if (res.ok) {
-        toast.success(
-          `Done: ${summary.totalSeen} seen, ${summary.newJobs} new, ${summary.sourcesFailed} source(s) failed`,
-          { id: "poll" }
-        );
-        router.refresh();
-      } else {
-        toast.error("Poll failed", { id: "poll" });
-      }
+      await fetch("/api/jobs/refresh", { method: "POST" });
     } catch {
-      toast.error("Poll failed", { id: "poll" });
+      toast.error("Could not start the poll", { id: "poll" });
+      setRefreshing(false);
+      return;
     }
-    setRefreshing(false);
+
+    // Watch live progress until the run finishes.
+    const startedAt = Date.now();
+    const timer = setInterval(async () => {
+      try {
+        const res = await fetch("/api/jobs/poll-status");
+        const { polling, lastRun } = await res.json();
+        const done = lastRun?.results?.length ?? 0;
+        const total = 38;
+        if (polling || (lastRun && !lastRun.finishedAt)) {
+          toast.loading(
+            `Polling… ${done}/${total} sources, +${lastRun?.newJobs ?? 0} new`,
+            { id: "poll" }
+          );
+        } else {
+          clearInterval(timer);
+          toast.success(
+            `Done: ${lastRun?.totalSeen ?? 0} seen, +${lastRun?.newJobs ?? 0} new, ${lastRun?.results?.filter((r: { ok: boolean }) => !r.ok).length ?? 0} failed`,
+            { id: "poll" }
+          );
+          setRefreshing(false);
+          router.refresh();
+        }
+        if (Date.now() - startedAt > 10 * 60 * 1000) {
+          clearInterval(timer);
+          toast.error("Poll is taking unusually long — check the server logs", { id: "poll" });
+          setRefreshing(false);
+        }
+      } catch {
+        // transient read errors are ignored; next tick retries
+      }
+    }, 2500);
   }, [router]);
 
   // Keyboard shortcuts: j/k navigate, a apply, s save, d dismiss, / search, r refresh.

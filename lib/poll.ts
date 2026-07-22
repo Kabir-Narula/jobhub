@@ -17,10 +17,13 @@ export interface PollSummary {
   results: SourceResult[];
 }
 
+const INTERN_RE = /\b(intern(ship)?s?|co-?op|summer student|work term|placement (student|year))\b/i;
+
 /**
  * One poll cycle: fetch every adapter (failures isolated per source),
- * classify + filter + dedupe + upsert, deactivate listings that vanished
- * (only for sources that succeeded), record a PollRun for observability.
+ * classify + filter + dedupe + upsert (batched), deactivate listings that
+ * vanished (only for sources that succeeded), and record progress on the
+ * PollRun row after every source so the UI can show it live.
  */
 export async function runPoll(trigger: string): Promise<PollSummary> {
   const startedAt = new Date();
@@ -49,28 +52,31 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
   let newJobs = 0;
   let totalSeen = 0;
 
+  const checkpoint = async () => {
+    await prisma.pollRun
+      .update({ where: { id: run.id }, data: { results: results as never, newJobs, totalSeen } })
+      .catch(() => {});
+  };
+
   for (const res of settled) {
     let sourceNew = 0;
 
     if (res.ok) {
+      // 1) prepare rows (pure CPU)
+      const prepared = new Map<string, Record<string, unknown>>();
       for (const job of res.jobs) {
         try {
           const title = decodeEntities(job.title).trim();
           const company = decodeEntities(job.company).trim();
           const locationRaw = decodeEntities(job.locationRaw);
           if (!title || !company) continue;
-          // Full-time only: skip internships/co-ops entirely.
-          if (/\b(intern(ship)?s?|co-?op|summer student|work term|placement (student|year))\b/i.test(title)) continue;
-          // Work mode from explicit signals only (location text + source remote flag) — no description sniffing.
+          if (INTERN_RE.test(title)) continue;
           const { city, workMode, bucket } = parseLocation(locationRaw, job.remote);
-          if (!bucket) continue; // fails the Toronto/GTA/remote policy
-          const fingerprint = jobFingerprint({
-            company,
-            title,
-            city,
-            locationRaw,
-          });
-          const data = {
+          if (!bucket) continue;
+          const fingerprint = jobFingerprint({ company, title, city, locationRaw });
+          if (prepared.has(fingerprint)) continue;
+          prepared.set(fingerprint, {
+            fingerprint,
             title,
             company,
             locationRaw,
@@ -88,22 +94,53 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
             salaryMax: job.salaryMax ?? null,
             salaryCurrency: job.salaryCurrency ?? null,
             postedAt: job.postedAt,
-          };
-          const existing = await prisma.job.findUnique({ where: { fingerprint }, select: { id: true, postedAt: true } });
-          if (existing) {
-            await prisma.job.update({
-              where: { id: existing.id },
-              data: { lastSeenAt: new Date(), isActive: true, postedAt: existing.postedAt ?? data.postedAt },
-            });
-          } else {
-            await prisma.job.create({ data: { ...data, fingerprint } });
-            sourceNew++;
-          }
-          totalSeen++;
+          });
         } catch {
           // a single malformed record never aborts the source
         }
       }
+
+      // 2) batched writes: 1 existence check + createMany + updateMany
+      try {
+        const fps = [...prepared.keys()];
+        const existing = fps.length
+          ? await prisma.job.findMany({
+              where: { fingerprint: { in: fps } },
+              select: { fingerprint: true, postedAt: true },
+            })
+          : [];
+        const existingSet = new Set(existing.map((e) => e.fingerprint));
+
+        const toCreate = fps.filter((f) => !existingSet.has(f)).map((f) => prepared.get(f)!);
+        for (let i = 0; i < toCreate.length; i += 200) {
+          await prisma.job.createMany({ data: toCreate.slice(i, i + 200) as never });
+        }
+        sourceNew = toCreate.length;
+
+        const toTouch = fps.filter((f) => existingSet.has(f));
+        if (toTouch.length) {
+          await prisma.job.updateMany({
+            where: { fingerprint: { in: toTouch } },
+            data: { lastSeenAt: new Date(), isActive: true },
+          });
+        }
+
+        // postedAt backfill only where missing (rare, per-row is fine)
+        const missingPosted = existing.filter((e) => e.postedAt === null);
+        for (const e of missingPosted) {
+          const row = prepared.get(e.fingerprint);
+          if (row?.postedAt) {
+            await prisma.job.update({
+              where: { fingerprint: e.fingerprint },
+              data: { postedAt: row.postedAt as Date },
+            });
+          }
+        }
+        totalSeen += fps.length;
+      } catch {
+        // a batch failure never aborts other sources
+      }
+
       // Deactivate listings that disappeared — only for sources that succeeded.
       await prisma.job.updateMany({
         where: { source: res.name, isActive: true, lastSeenAt: { lt: startedAt } },
@@ -131,6 +168,7 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
       durationMs: res.ms,
     });
     newJobs += sourceNew;
+    await checkpoint(); // live progress for the UI
   }
 
   const finishedAt = new Date();
@@ -155,4 +193,21 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
     sourcesFailed: results.filter((r) => !r.ok).length,
     results,
   };
+}
+
+// ---------- fire-and-forget runner with a running-guard ----------
+
+let running: Promise<PollSummary> | null = null;
+
+/** Starts a poll in the background. Returns false if one is already running. */
+export function startPollInBackground(trigger: string): boolean {
+  if (running) return false;
+  running = runPoll(trigger).finally(() => {
+    running = null;
+  });
+  return true;
+}
+
+export function isPolling(): boolean {
+  return running !== null;
 }

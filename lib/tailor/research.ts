@@ -17,13 +17,28 @@ let client: OpenAI | null = null;
 export function openai(): OpenAI {
   if (!client) {
     if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not set");
-    client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    client = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      // OpenAI-compatible endpoint: api.openai.com or Kimi (api.kimi.com/coding).
+      baseURL: process.env.OPENAI_BASE_URL || undefined,
+    });
   }
   return client;
 }
 
 export function model(): string {
   return process.env.OPENAI_MODEL || "gpt-4o";
+}
+
+/** Tolerant JSON extraction: handles raw JSON and ```json fenced replies. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function parseJson(content: string): any {
+  const cleaned = content
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/, "")
+    .trim();
+  return JSON.parse(cleaned);
 }
 
 function slugify(company: string): string {
@@ -115,7 +130,7 @@ export async function researchCompany(input: {
     response_format: { type: "json_object" },
   });
 
-  const parsed = JSON.parse(res.choices[0]?.message?.content ?? "{}");
+  const parsed = parseJson(res.choices[0]?.message?.content ?? "{}");
   return {
     mission: String(parsed.mission ?? ""),
     product: String(parsed.product ?? ""),

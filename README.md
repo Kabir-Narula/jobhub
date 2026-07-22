@@ -13,7 +13,7 @@ outreach email to go with them.
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
 ![Prisma](https://img.shields.io/badge/Prisma-6-2D3748)
 ![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20Storage-3ECF8E)
-![OpenAI](https://img.shields.io/badge/OpenAI-gpt--5.5-412991)
+![LLM](https://img.shields.io/badge/LLM-OpenAI%20%2F%20Kimi-412991)
 ![LaTeX](https://img.shields.io/badge/LaTeX-Tectonic-008080)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
@@ -96,7 +96,7 @@ flowchart LR
 | UI | Tailwind v4 + shadcn/ui (Base UI), warm-paper theme, Space Grotesk + Inter |
 | DB | Supabase Postgres + Prisma 6 |
 | Storage | Supabase Storage (generated PDFs) |
-| LLM | OpenAI `gpt-5.5` (JSON mode only) |
+| LLM | Any OpenAI-compatible API — OpenAI (`gpt-5.5`) or Kimi (`k3` via `OPENAI_BASE_URL`), JSON mode only |
 | LaTeX | Tectonic static binary (`scripts/setup-tectonic.mjs`, per-platform) |
 | Scheduling | Vercel Cron (`/api/cron/poll`), optional Inngest, manual refresh |
 | Auth | Single-password gate (HMAC cookie via `proxy.ts`) |

@@ -151,7 +151,7 @@ function patternEmails(first: string, last: string, pattern: string | null, doma
 
 async function gptRecruiterNames(company: string, domain: string): Promise<{ first: string; last: string; role: string }[]> {
   try {
-    const { openai, model } = await import("@/lib/tailor/research");
+    const { openai, model, parseJson } = await import("@/lib/tailor/research");
     const res = await openai().chat.completions.create({
       model: model(),
       messages: [
@@ -167,7 +167,7 @@ async function gptRecruiterNames(company: string, domain: string): Promise<{ fir
       ],
       response_format: { type: "json_object" },
     });
-    const parsed = JSON.parse(res.choices[0]?.message?.content ?? "{}");
+    const parsed = parseJson(res.choices[0]?.message?.content ?? "{}");
     if (!Array.isArray(parsed.people)) return [];
     return parsed.people
       .filter((p: { first?: string; last?: string }) => p?.first && p?.last)

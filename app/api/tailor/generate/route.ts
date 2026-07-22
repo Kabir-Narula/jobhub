@@ -163,15 +163,20 @@ export async function POST(request: Request) {
     .filter((t) => t.changed);
 
   // --- assemble the full document: experience -> projects -> skills -> achievements ---
-  function buildTex(gen: GeneratedContent): string {
+  interface Clamps {
+    compactSkills?: number; // max items per skills line (0 = no clamp)
+    maxExpBullets?: number; // max bullets per experience entry (default 4)
+    maxProjBullets?: number; // max bullets per project (0 = no clamp)
+  }
+  function buildTex(gen: GeneratedContent, clamps: Clamps = {}): string {
     const updates: ResumeUpdate[] = gen.experience.map((g, i) => ({
       title: allowTitleChanges && g.titleChanged ? g.title : undefined,
       bullets: g.bullets.length ? g.bullets : parsedResume.entries[i].bullets,
     }));
-    let tex = assembleResume(parsedResume, updates);
+    let tex = assembleResume(parsedResume, updates, clamps.maxExpBullets ?? 4);
     const { entries: projectEntries } = resolveProjects(gen.projects);
-    tex = assembleProjectsSection(parseProjectsSection(tex), projectEntries);
-    tex = assembleSkillsSection(parseSkillsSection(tex), gen.skills ?? null);
+    tex = assembleProjectsSection(parseProjectsSection(tex), projectEntries, clamps.maxProjBullets ?? 0);
+    tex = assembleSkillsSection(parseSkillsSection(tex), gen.skills ?? null, clamps.compactSkills ?? 0);
     tex = insertAchievements(tex, ACHIEVEMENTS);
     return tex;
   }
@@ -179,9 +184,16 @@ export async function POST(request: Request) {
   let resumeTex = buildTex(generated);
   let resumeResult = await compileLatex(resumeTex);
 
-  for (let attempt = 0; attempt < 2 && resumeResult.pageCount > RESUME_PAGE_LIMIT; attempt++) {
-    const shortened = await generateContent({ entries: parsedResume.entries, skills: skillsSection, job: jobInput, research, shorten: true });
-    resumeTex = buildTex(shortened);
+  // Escalating compression ladder: LLM shorten → +skills clamp → +hard clamps.
+  const LADDER: { shorten: boolean; clamps: { compactSkills?: number; maxExpBullets?: number; maxProjBullets?: number } }[] = [
+    { shorten: true, clamps: {} },
+    { shorten: true, clamps: { compactSkills: 5 } },
+    { shorten: true, clamps: { compactSkills: 4, maxExpBullets: 3, maxProjBullets: 2 } },
+  ];
+  for (let attempt = 0; attempt < LADDER.length && resumeResult.pageCount > RESUME_PAGE_LIMIT; attempt++) {
+    const step = LADDER[attempt];
+    const shortened = await generateContent({ entries: parsedResume.entries, skills: skillsSection, job: jobInput, research, shorten: step.shorten });
+    resumeTex = buildTex(shortened, step.clamps);
     resumeResult = await compileLatex(resumeTex);
     if (resumeResult.pageCount <= RESUME_PAGE_LIMIT) {
       generated = shortened;
@@ -190,9 +202,29 @@ export async function POST(request: Request) {
   }
   if (resumeResult.pageCount > RESUME_PAGE_LIMIT) {
     return NextResponse.json(
-      { error: `Resume came out to ${resumeResult.pageCount} pages even after two compression passes — not saving. Try again.` },
+      { error: `Resume came out to ${resumeResult.pageCount} pages even after ${LADDER.length} compression passes — not saving. Try again.` },
       { status: 422 }
     );
+  }
+
+  // --- ATS optimization loop: score, weave claimable missing terms, re-score ---
+  let score = matchScore(job.description, resumeTex, job.company);
+  if (score < 70) {
+    const missing = missingTerms(job.description, resumeTex, 25, job.company);
+    if (missing.length > 0) {
+      const boosted = await generateContent({ entries: parsedResume.entries, skills: skillsSection, job: jobInput, research, boost: { missingTerms: missing } });
+      const boostedTex = buildTex(boosted);
+      const boostedResult = await compileLatex(boostedTex);
+      if (boostedResult.pageCount === 1) {
+        const boostedScore = matchScore(job.description, boostedTex, job.company);
+        if (boostedScore > score) {
+          resumeTex = boostedTex;
+          resumeResult = boostedResult;
+          generated = boosted;
+          score = boostedScore;
+        }
+      }
+    }
   }
 
   // --- closed-loop page fill: measure actual text coverage, expand if sparse ---
@@ -240,7 +272,6 @@ export async function POST(request: Request) {
   // --- diffs + score ---
   const resumeDiff = createTwoFilesPatch("master.tex", "tailored.tex", masterTex, resumeTex, "", "", { context: 2 });
   const coverDiff = createTwoFilesPatch("master.tex", "tailored.tex", coverMaster.texContent, coverTex, "", "", { context: 2 });
-  const score = matchScore(job.description, resumeTex, job.company);
   const missing = missingTerms(job.description, resumeTex, 12, job.company);
 
   // --- persist + upload ---

@@ -1,6 +1,7 @@
-import { model, openai, type CompanyResearch } from "./research";
+import { model, openai, parseJson, type CompanyResearch } from "./research";
 import type { ExperienceEntry, SkillsSection } from "./latex";
 import { projectBriefs } from "./projects";
+import { extraSkillsPool } from "./skills-extra";
 
 export interface GeneratedContent {
   experience: {
@@ -45,16 +46,16 @@ THE AUTHENTICITY BALANCE (the whole craft):
   Worked example for a Data & Analytics posting: "Redis-backed BullMQ worker queues with sync fallback" becomes "built resilient data pipelines processing heavy jobs asynchronously"; "pie charts and bar charts with month-over-month trends" becomes "built analytics dashboards visualizing spending trends"; "sentiment scoring and pattern detection with confidence scores" becomes "developed ML data pipelines producing scored analytics outputs". Apply this level of translation to EVERY bullet.
 - The hard line: never claim a named technology, platform, or tool that is not in the source material (e.g. if the posting wants Spark/Azure/Databricks and the candidate never used them, those words must NOT appear). Claim the transferable concept in the posting's language, never the specific unearned tool.
 - You MAY: select different real aspects of the work to highlight, reorder bullets by relevance, use the posting's exact vocabulary for things the candidate actually did, merge two small real things into one stronger bullet, and add real technical detail implied by the source (e.g. if the source says "FastAPI REST services", you may say "RESTful API endpoints in Python (FastAPI)").
-- You may NOT: invent employers, products, users, teams, budgets, or any NUMBER not present in the source material. No percentages, no counts, no scale claims unless the source states them. When in doubt, go qualitative-but-specific over quantitative-but-fake.
+- You may NOT: invent employers, products, users, teams, budgets, or any NUMBER not present in the source material. No percentages, no counts, no scale claims unless the source states them — that means never writing things like "40,000+ users", "465 requests", "99.9% uptime", or "3x faster". When in doubt, go qualitative-but-specific over quantitative-but-fake.
 - NEVER inflate seniority or ownership: an intern stays an intern, "worked on" never becomes "led" or "owned".
 
-JOB TITLES — you may reword them to match the posting's family, under strict rules:
-- Same seniority: never add Senior/Staff/Lead/Principal. A junior-level title stays junior-level.
-- Same truthful function: software engineering stays software engineering; do not turn an engineer into a "data scientist" or "consultant".
-- Prefer the posting's exact wording when it describes the same work (Developer vs Engineer, Backend/Full-Stack qualifier, Intern/Contract markers).
+JOB TITLES — the 2-of-3 rule:
+- For the TWO most relevant experience entries, you SHOULD reword the title toward the posting's family when it describes the same work: e.g. for a backend posting, "Software Engineer (Freelance)" becomes "Backend Software Developer (Freelance)"; for an ML posting, "... (Freelance)" becomes "Software Engineer, ML (Freelance)". Intern titles keep their intern marker.
+- Keep ONE entry's title completely original — a resume where every title mirrors the posting looks machine-tailored and recruiters discount it.
+- Hard rules still apply: never upgrade seniority (no Senior/Staff/Lead/Principal), never change the function family to something untrue (no "data scientist", no "consultant" unless the work was consulting).
 - Set "titleChanged": true whenever you reword.
 
-SKILLS SECTION: re-rank for THIS job. Within each line, order items by relevance to the posting. You may ONLY use items from the provided pool — never add one. Keep all four line labels. Keep the section rich (it helps fill the page) but most-relevant-first.
+SKILLS SECTION: build 4 rich lines (5-7 items per line) from the provided master lines PLUS the additional verified pool — choose the items most relevant to this posting and order by relevance. Only items from the two provided lists — never invent. Keep the four line labels, adjusting only which items each line carries.
 
 PROJECTS SECTION: choose the 2 projects from the library that best match this job (stack + domain). For each, return 2-3 bullets written from its real bullets for relevance — same facts, sharper framing, substantive length.
 
@@ -73,6 +74,8 @@ interface GenerateInput {
   shorten?: boolean;
   /** Opposite of shorten: the page was too empty — enrich and lengthen. */
   expand?: boolean;
+  /** ATS boost pass: weave these missing JD terms in where genuinely claimable. */
+  boost?: { missingTerms: string[] };
 }
 
 export async function generateContent(input: GenerateInput): Promise<GeneratedContent> {
@@ -89,7 +92,9 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
       ? "Same job, second pass: the resume overflowed one page. Compress: exactly 3 bullets per experience entry at 16-22 words each, only 2 bullets per project, drop the weakest 1-2 items from each skills line, cover letter to 3 paragraphs. All other rules still apply."
       : input.expand
         ? "Same job, but the resume came out TOO EMPTY (large gap at the bottom). Fill the page by ADDING bullets, not length: 4 short bullets per experience entry (1-2 lines each), 3 per project, skills section full. Keep every bullet punchy."
-        : "Tailor this candidate for this job: rewrite experience bullets from scratch (exactly 3 short punchy bullets per entry — the resume also has an achievements section, so space is tight), re-rank skills, choose the best 2 projects, write the cover letter.",
+        : input.boost
+          ? `Same job, ATS-boost pass: the draft scored low on keyword coverage. Weave these missing job-description terms into the resume WHERE GENUINELY CLAIMABLE from the source material (never a tool the candidate hasn't used): ${input.boost.missingTerms.join(", ")}. Work them into bullets via the vocabulary-translation rules and into the skills lines. Do NOT keyword-stuff: max one JD term per bullet, vary sentence shapes so it reads human, never as a list of synonyms. Rewrite everything fresh (all other rules apply).`
+          : "Tailor this candidate for this job: rewrite experience bullets from scratch (exactly 3 short punchy bullets per entry — the resume also has an achievements section, so space is tight), re-rank skills, choose the best 2 projects, write the cover letter.",
     job: {
       title: input.job.title,
       company: input.job.company,
@@ -108,6 +113,7 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
       : null,
     candidate_experience: experience,
     candidate_skills_lines: input.skills.lines,
+    additional_verified_skills_pool: extraSkillsPool(),
     candidate_project_library: projectBriefs(),
     output_schema: {
       experience: [
@@ -138,7 +144,7 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
     response_format: { type: "json_object" },
   });
 
-  const parsed = JSON.parse(res.choices[0]?.message?.content ?? "{}") as GeneratedContent;
+  const parsed = parseJson(res.choices[0]?.message?.content ?? "{}") as GeneratedContent;
 
   // ---- deterministic validation ----
   if (!Array.isArray(parsed.experience)) throw new Error("LLM returned no experience array");

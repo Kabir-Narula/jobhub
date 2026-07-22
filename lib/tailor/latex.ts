@@ -9,6 +9,8 @@
  * order, education, projects, and company names cannot change — by construction.
  */
 
+import { extraSkillsPool } from "./skills-extra";
+
 // ---------- engine compatibility ----------
 
 /**
@@ -137,22 +139,21 @@ export interface ResumeUpdate {
   bullets?: string[];
 }
 
-export function assembleResume(parsed: ParsedResume, updates: ResumeUpdate[]): string {
+export function assembleResume(parsed: ParsedResume, updates: ResumeUpdate[], maxBullets = 4): string {
   const nl = parsed.nl;
   let out = parsed.before.replace(/[ \t]+$/, "");
   parsed.entries.forEach((e, i) => {
     const u = updates[i];
     const title = u?.title !== undefined ? escapeLatex(u.title) : e.title;
     // Untouched entries keep their bullets byte-for-byte; LLM bullets are plain text and get escaped.
-    // Bullet count is now flexible (from-scratch rewriting): up to 4, at least 2.
     let bullets: string[];
     if (u?.bullets && u.bullets.length > 0) {
-      bullets = u.bullets.slice(0, 4).map(escapeLatex);
+      bullets = u.bullets.slice(0, maxBullets).map(escapeLatex);
       while (bullets.length < Math.min(2, e.bullets.length)) {
         bullets.push(e.bullets[bullets.length]);
       }
     } else {
-      bullets = [...e.bullets];
+      bullets = [...e.bullets].slice(0, maxBullets);
     }
     out += `    \\resumeSubheading${nl}      {${e.company}}{${e.location}}${nl}      {${title}}{${e.dates}}${nl}`;
     out += `      \\resumeItemListStart${nl}`;
@@ -303,14 +304,15 @@ export interface ProjectEntry {
 }
 
 /** Rebuilds the Projects section in the master's exact macro format. */
-export function assembleProjectsSection(section: ProjectsSection, entries: ProjectEntry[]): string {
+export function assembleProjectsSection(section: ProjectsSection, entries: ProjectEntry[], maxBullets = 0): string {
   const nl = section.nl;
   let out = section.before;
   entries.forEach((p, i) => {
+    const bullets = maxBullets > 0 ? p.bullets.slice(0, maxBullets) : p.bullets;
     out += `    \\resumeProjectHeading${nl}`;
     out += `      {\\textbf{${escapeLatex(p.name)}} $|$ \\href{${p.githubUrl}}{\\underline{GitHub}} $|$ \\emph{${escapeLatex(p.techLine)}}}{${escapeLatex(p.year)}}${nl}`;
     out += `      \\resumeItemListStart${nl}`;
-    for (const b of p.bullets) out += `        \\resumeItem{${escapeLatex(b)}}${nl}`;
+    for (const b of bullets) out += `        \\resumeItem{${escapeLatex(b)}}${nl}`;
     out += `      \\resumeItemListEnd${nl}`;
     if (i < entries.length - 1) out += nl;
   });
@@ -364,17 +366,23 @@ export function skillsVocabulary(section: SkillsSection): Set<string> {
 }
 
 /**
- * Rebuilds the skills block. Only items present in the master's vocabulary
- * are kept (case-insensitive match, original casing restored) — the LLM may
- * re-rank and trim, never invent.
+ * Rebuilds the skills block. Items are validated against the master's
+ * vocabulary PLUS the verified extra-skills pool (repos/coursework) —
+ * the LLM may re-rank and select, never invent. Original casing restored.
  */
 export function assembleSkillsSection(
   section: SkillsSection,
-  update: { label: string; items: string[] }[] | null
+  update: { label: string; items: string[] }[] | null,
+  maxItemsPerLine = 0
 ): string {
   const nl = section.nl;
   const canon = new Map<string, string>();
   for (const l of section.lines) for (const i of l.items) canon.set(i.toLowerCase(), i);
+  // widen the pool with verified extras (emitted LaTeX-escaped; master items
+  // are already escaped in the master itself)
+  for (const i of extraSkillsPool()) {
+    if (!canon.has(i.toLowerCase())) canon.set(i.toLowerCase(), escapeLatex(i));
+  }
 
   const lines = section.lines.map((orig) => {
     const u = update?.find((x) => x.label.replace(/\\&/g, "&") === orig.label.replace(/\\&/g, "&"));
@@ -385,6 +393,7 @@ export function assembleSkillsSection(
         .filter((x): x is string => Boolean(x));
       if (validated.length > 0) items = validated;
     }
+    if (maxItemsPerLine > 0) items = items.slice(0, maxItemsPerLine);
     return `      \\textbf{${orig.label}}{: ${items.join(", ")} \\\\}`;
   });
 

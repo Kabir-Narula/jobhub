@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { runPoll } from "@/lib/poll";
+import { startPollInBackground } from "@/lib/poll";
 
-export const maxDuration = 300;
+export const maxDuration = 30;
 
-// Manual "Refresh now" button. Session-protected by proxy.ts.
+// Manual "Refresh now": kicks off a background poll and returns immediately.
+// The UI watches /api/jobs/poll-status for live progress.
 export async function POST() {
-  const summary = await runPoll("manual");
-  return NextResponse.json(summary);
+  const started = startPollInBackground("manual");
+  return NextResponse.json({ ok: true, started });
 }
