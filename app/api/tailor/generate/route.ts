@@ -146,12 +146,15 @@ export async function POST(request: Request) {
   });
 
   // --- fabrication tripwire over everything the LLM touched ---
+  const { verifiedNumbersText } = await import("@/lib/tailor/verified-numbers");
   const originalText =
     parsedResume.entries.flatMap((e) => e.bullets).join(" ") +
     " " +
     PROJECTS.flatMap((p) => p.bullets).join(" ") +
     " " +
-    skillsSection.lines.flatMap((l) => l.items).join(" ");
+    skillsSection.lines.flatMap((l) => l.items).join(" ") +
+    " " +
+    verifiedNumbersText();
   const generatedText = () => [
     ...generated.experience.flatMap((e) => e.bullets),
     ...(generated.projects ?? []).flatMap((p) => p.bullets ?? []),

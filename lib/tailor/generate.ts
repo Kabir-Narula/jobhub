@@ -2,6 +2,7 @@ import { model, openai, parseJson, type CompanyResearch } from "./research";
 import type { ExperienceEntry, SkillsSection } from "./latex";
 import { projectBriefs } from "./projects";
 import { extraSkillsPool } from "./skills-extra";
+import { verifiedNumbersBrief } from "./verified-numbers";
 
 export interface GeneratedContent {
   experience: {
@@ -36,9 +37,14 @@ BULLET CRAFT (this is what gets read):
 - 3-4 bullets per experience entry, 2-3 per project.
 - Each bullet is 1-2 lines max (~18-28 words). One idea per bullet. Scannable in 2 seconds.
 - Front-load the strong verb and the technology. Formula: verb + what built + tech + short outcome (outcome ONLY if in the source).
+- NO VAGUE TAILS: never end a bullet on filler like "keeping X responsive", "improving reliability", "building shared knowledge", "enhancing user experience", "ensuring quality". If a bullet has no concrete outcome, end on the artifact itself (the endpoint, the schema, the queue, the gate) — substance over filler.
 - CUT ruthlessly: no "in order to", no trailing "so that" chains, no stacked "and/while/by" clauses, no filler ("worked on", "helped with", "was responsible for", "various", "multiple", "successfully"). If a word earns nothing, delete it.
 - Two short bullets beat one long one — always split compound thoughts.
 - Fill the page with MORE short bullets, never with longer ones.
+
+VERIFIED NUMBERS (use them, sparingly):
+- The candidate has TRUE, defensible numbers listed in candidate_verified_numbers. Weave in 2-4 across the whole resume where they fit naturally (one per bullet max, never two numbers in one bullet, never the same number twice). Numbers make recruiters stop scanning — but stacking them looks fabricated.
+- Do NOT round them up, inflate them, or attach them to different claims. Use the suggested phrasing or close.
 
 THE AUTHENTICITY BALANCE (user-authorized expanded mode):
 - For the TWO most relevant experience entries, you MAY embed the posting's required technologies and tools as work the candidate did — written plausibly, small in scope, and always embedded inside that entry's real context (e.g. a feature, an internal tool, an integration, a migration). If the posting asks Java, the candidate built a sensible internal service or tool in Java. If it asks React, the candidate shipped a real UI surface in React.
@@ -128,6 +134,7 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
         }
       : null,
     candidate_experience: experience,
+    candidate_verified_numbers: verifiedNumbersBrief(),
     candidate_skills_lines: input.skills.lines,
     additional_verified_skills_pool: extraSkillsPool(),
     candidate_project_library: projectBriefs(),
