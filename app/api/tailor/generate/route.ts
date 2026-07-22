@@ -132,12 +132,17 @@ export async function POST(request: Request) {
   const research = await getResearch(job.id, deepResearch);
 
   const jobInput = { title: job.title, company: job.company, locationRaw: job.locationRaw, description: job.description };
+  const { detectLens, lensInstruction } = await import("@/lib/tailor/lens");
+  const lens = detectLens(job.title, job.description);
+  const lensNote = lensInstruction(lens);
+  const lensSuppress = lens?.suppress ?? [];
 
   let generated: GeneratedContent = await generateContent({
     entries: parsedResume.entries,
     skills: skillsSection,
     job: jobInput,
     research,
+    lensNote,
   });
 
   // --- fabrication tripwire over everything the LLM touched ---
@@ -156,7 +161,7 @@ export async function POST(request: Request) {
   const warnings: string[] = [];
   let newNumbers = findNewNumbers(originalText, generatedText());
   if (newNumbers.length > 0) {
-    generated = await generateContent({ entries: parsedResume.entries, skills: skillsSection, job: jobInput, research, shorten: false });
+    generated = await generateContent({ entries: parsedResume.entries, skills: skillsSection, job: jobInput, research, lensNote, shorten: false });
     newNumbers = findNewNumbers(originalText, generatedText());
     if (newNumbers.length > 0) {
       warnings.push(`Review carefully: these numbers are NOT in your source material: ${newNumbers.join(", ")}`);
@@ -187,7 +192,7 @@ export async function POST(request: Request) {
     let tex = assembleResume(parsedResume, updates, clamps.maxExpBullets ?? 4);
     const { entries: projectEntries } = resolveProjects(gen.projects);
     tex = assembleProjectsSection(parseProjectsSection(tex), projectEntries, clamps.maxProjBullets ?? 0);
-    tex = assembleSkillsSection(parseSkillsSection(tex), gen.skills ?? null, clamps.compactSkills ?? 0);
+    tex = assembleSkillsSection(parseSkillsSection(tex), gen.skills ?? null, clamps.compactSkills ?? 0, lensSuppress);
     tex = insertAchievements(tex, ACHIEVEMENTS);
     return tex;
   }
@@ -203,7 +208,7 @@ export async function POST(request: Request) {
   ];
   for (let attempt = 0; attempt < LADDER.length && resumeResult.pageCount > RESUME_PAGE_LIMIT; attempt++) {
     const step = LADDER[attempt];
-    const shortened = await generateContent({ entries: parsedResume.entries, skills: skillsSection, job: jobInput, research, shorten: step.shorten });
+    const shortened = await generateContent({ entries: parsedResume.entries, skills: skillsSection, job: jobInput, research, lensNote, shorten: step.shorten });
     resumeTex = buildTex(shortened, step.clamps);
     resumeResult = await compileLatex(resumeTex);
     if (resumeResult.pageCount <= RESUME_PAGE_LIMIT) {
@@ -223,7 +228,7 @@ export async function POST(request: Request) {
   if (score !== null && score < 70) {
     const missing = missingTerms(job.description, resumeTex, 25, job.company);
     if (missing.length > 0) {
-      const boosted = await generateContent({ entries: parsedResume.entries, skills: skillsSection, job: jobInput, research, boost: { missingTerms: missing } });
+      const boosted = await generateContent({ entries: parsedResume.entries, skills: skillsSection, job: jobInput, research, lensNote, boost: { missingTerms: missing } });
       const boostedTex = buildTex(boosted);
       const boostedResult = await compileLatex(boostedTex);
       if (boostedResult.pageCount === 1) {
@@ -241,7 +246,7 @@ export async function POST(request: Request) {
   // --- closed-loop page fill: measure actual text coverage, expand if sparse ---
   let fillPct = Math.round((await pageFill(resumeResult.pdf)) * 100);
   if (fillPct < FILL_TARGET * 100 && resumeResult.pageCount === 1) {
-    const expanded = await generateContent({ entries: parsedResume.entries, skills: skillsSection, job: jobInput, research, expand: true });
+    const expanded = await generateContent({ entries: parsedResume.entries, skills: skillsSection, job: jobInput, research, lensNote, expand: true });
     const expandedTex = buildTex(expanded);
     const expandedResult = await compileLatex(expandedTex);
     if (expandedResult.pageCount === 1) {

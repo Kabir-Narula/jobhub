@@ -48,6 +48,12 @@ THE AUTHENTICITY BALANCE (user-authorized expanded mode):
 - Company names, employers, and education never change. Seniority never inflates.
 - Stretched content should still prefer technologies that are plausible-adjacent to the candidate's world (coursework: Java, C/C++, HPC, OS, computer vision; real stack: Python, TypeScript, React, Node, SQL/PostgreSQL, ML inference, Docker, Linux) — but when the posting's core requirement is a specific tool, include it in one of the two expanded entries rather than leaving the resume silent.
 
+LENS SELECTION (per posting, per entry):
+- For each experience entry, select which REAL aspects and technologies to foreground for THIS posting — and which to quietly omit. History is never deleted, but nothing irrelevant is volunteered.
+- If the posting wants Kotlin/Android/mobile, foreground the candidate's Kotlin Android work. If it wants Python/AI/LLM/RAG, foreground the OpenAI inference, FastAPI services, and ML pipelines — and do not mention Kotlin at all. If it wants Node/TypeScript/cloud, foreground TypeScript/React/CI-CD and workers.
+- The bullets must read like a natural account of that job, written by someone who happens to match the posting — never like a keyword-alignment exercise. One dominant technology theme per entry.
+- Authentic work-type phrasing: name the artifact and the action (built, shipped, wired, automated, documented, diagnosed, migrated) — not the posting's duty statements copied back.
+
 VOCABULARY TRANSLATION (apply to every bullet): re-label the candidate's real work with the posting's exact domain terms wherever the underlying work genuinely matches. Worker queues and background jobs become "data pipelines" or "ETL-style batch processing" when the posting is data-flavored; ML inference services become "ML data pipelines"; a budgeting app with charts becomes "analytics dashboards for financial data visualization"; API integration becomes "building data services". Use the posting's nouns for the candidate's real verbs.
 
 JOB TITLES — the 2-of-3 rule:
@@ -79,6 +85,7 @@ interface GenerateInput {
   skills: SkillsSection;
   job: { title: string; company: string; locationRaw: string; description: string };
   research: CompanyResearch | null;
+  lensNote?: string;
   shorten?: boolean;
   /** Opposite of shorten: the page was too empty — enrich and lengthen. */
   expand?: boolean;
@@ -103,6 +110,7 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
         : input.boost
           ? `Same job, ATS-boost pass: the draft scored low on keyword coverage. Weave these missing job-description terms into the resume WHERE GENUINELY CLAIMABLE from the source material (never a tool the candidate hasn't used): ${input.boost.missingTerms.join(", ")}. Work them into bullets via the vocabulary-translation rules and into the skills lines. Do NOT keyword-stuff: max one JD term per bullet, vary sentence shapes so it reads human, never as a list of synonyms. Rewrite everything fresh (all other rules apply).`
           : "Tailor this candidate for this job: rewrite experience bullets from scratch (exactly 3 short punchy bullets per entry — the resume also has an achievements section, so space is tight), re-rank skills, choose the best 2 projects, write the cover letter.",
+    lens_directive: input.lensNote ?? null,
     job: {
       title: input.job.title,
       company: input.job.company,

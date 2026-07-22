@@ -373,7 +373,8 @@ export function skillsVocabulary(section: SkillsSection): Set<string> {
 export function assembleSkillsSection(
   section: SkillsSection,
   update: { label: string; items: string[] }[] | null,
-  maxItemsPerLine = 0
+  maxItemsPerLine = 0,
+  suppress: string[] = []
 ): string {
   const nl = section.nl;
   const canon = new Map<string, string>();
@@ -383,6 +384,7 @@ export function assembleSkillsSection(
   for (const i of extraSkillsPool()) {
     if (!canon.has(i.toLowerCase())) canon.set(i.toLowerCase(), escapeLatex(i));
   }
+  const suppressSet = new Set(suppress.map((s) => s.toLowerCase()));
 
   const lines = section.lines.map((orig) => {
     const u = update?.find((x) => x.label.replace(/\\&/g, "&") === orig.label.replace(/\\&/g, "&"));
@@ -393,6 +395,14 @@ export function assembleSkillsSection(
         .filter((x): x is string => Boolean(x));
       if (validated.length > 0) items = validated;
     }
+    // lens suppression: real but irrelevant tech stays off for this posting
+    items = items.filter((i) => {
+      const plain = i.replace(/\\([&%$#_{}])/g, "$1").toLowerCase();
+      for (const s of suppressSet) if (plain.includes(s)) return false;
+      return true;
+    });
+    if (items.length === 0) items = orig.items.filter((i) => !suppressSet.has(i.toLowerCase()));
+    if (items.length === 0) items = orig.items;
     if (maxItemsPerLine > 0) items = items.slice(0, maxItemsPerLine);
     return `      \\textbf{${orig.label}}{: ${items.join(", ")} \\\\}`;
   });
