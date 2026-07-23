@@ -33,6 +33,8 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
   const [selected, setSelected] = useState(-1); // no highlight until j/k is used
   const [refreshing, setRefreshing] = useState(false);
   const searchRef = useRef<HTMLInputElement | null>(null);
+  const [appliedIds, setAppliedIds] = useState<string[]>(appliedJobIds);
+  const appliedSet = new Set(appliedIds);
 
   // Sync with new server data (render-phase adjustment, no effect needed).
   const [prevJobs, setPrevJobs] = useState(initialJobs);
@@ -41,6 +43,13 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
     setJobs(initialJobs);
     setSelected(-1);
   }
+  // appliedJobIds also changes on router.refresh (e.g. after prompt "Yes") —
+  // keep local state in sync or cards never show the Applied badge.
+  const [prevApplied, setPrevApplied] = useState(appliedJobIds);
+  if (prevApplied !== appliedJobIds) {
+    setPrevApplied(appliedJobIds);
+    setAppliedIds(appliedJobIds);
+  }
 
   const apply = useCallback((job: Job) => {
     fetch(`/api/jobs/${job.id}/view`, { method: "POST" }).catch(() => {});
@@ -48,9 +57,6 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
     window.open(job.applyUrl, "_blank", "noopener");
     setJobs((js) => js.map((j) => (j.id === job.id ? { ...j, viewedAt: new Date() } : j)));
   }, []);
-
-  const [appliedIds, setAppliedIds] = useState<string[]>(appliedJobIds);
-  const appliedSet = new Set(appliedIds);
 
   const markApplied = useCallback(
     (job: Job) => {

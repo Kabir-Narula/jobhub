@@ -31,11 +31,16 @@ await page.waitForURL("**/jobs**", { timeout: 10000 });
 await page.waitForSelector("[data-job-id]", { timeout: 15000 });
 
 // Click Apply -> popup opens (then we close it, simulating returning)
-const firstCard = page.locator("[data-job-id]").first();
-const [popup] = await Promise.all([
-  ctx.waitForEvent("page", { timeout: 8000 }).catch(() => null),
-  firstCard.locator("button:has-text('Apply')").first().click(),
-]);
+// Use the first card whose Apply button is enabled (applied cards show a disabled one).
+const firstCard = page.locator('[data-job-id]:has(button:has-text("Apply"):not(:disabled))').first();
+await firstCard.hover();
+await page.waitForTimeout(300);
+await firstCard.locator('button:has-text("Apply"):not(:disabled)').first().click();
+let popup = null;
+for (let i = 0; i < 30 && !popup; i++) {
+  popup = ctx.pages().find((p) => p !== page) ?? null;
+  if (!popup) await page.waitForTimeout(500);
+}
 report("apply opens posting in new tab", Boolean(popup), popup ? popup.url().slice(0, 70) : "no popup");
 if (popup) await popup.close();
 
