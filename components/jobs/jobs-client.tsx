@@ -44,6 +44,7 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
 
   const apply = useCallback((job: Job) => {
     fetch(`/api/jobs/${job.id}/view`, { method: "POST" }).catch(() => {});
+    window.dispatchEvent(new CustomEvent("jobhub:viewed", { detail: { jobId: job.id } }));
     window.open(job.applyUrl, "_blank", "noopener");
     setJobs((js) => js.map((j) => (j.id === job.id ? { ...j, viewedAt: new Date() } : j)));
   }, []);

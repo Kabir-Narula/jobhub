@@ -257,6 +257,7 @@ export function TailorClient({
             onClick={() => {
               // mark viewed so the did-you-apply prompt fires on return
               fetch(`/api/jobs/${job.id}/view`, { method: "POST" }).catch(() => {});
+              window.dispatchEvent(new CustomEvent("jobhub:viewed", { detail: { jobId: job.id } }));
             }}
             className="flex items-center gap-1 text-xs text-[#c2410c] hover:underline"
           >

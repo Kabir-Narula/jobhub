@@ -78,11 +78,17 @@ export function ReturnPrompt() {
     function onVis() {
       if (document.visibilityState === "visible") check();
     }
+    function onViewed() {
+      // an Apply click just happened — let the next focus check through
+      lastCheck.current = 0;
+    }
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("focus", onVis);
+    window.addEventListener("jobhub:viewed", onViewed);
     return () => {
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener("focus", onVis);
+      window.removeEventListener("jobhub:viewed", onViewed);
     };
   }, [check]);
 
