@@ -24,6 +24,7 @@ interface Props {
   onApply: (job: Job) => void;
   onToggleSave: (job: Job) => void;
   onToggleDismiss: (job: Job) => void;
+  onMarkApplied?: (job: Job) => void;
 }
 
 const BUCKET_STYLE: Record<string, string> = {
@@ -42,7 +43,7 @@ function Tag({ children, className }: { children: React.ReactNode; className?: s
 
 const NEW_WINDOW_MS = 48 * 3600 * 1000;
 
-export function JobCard({ job, selected, applied = false, onApply, onToggleSave, onToggleDismiss }: Props) {
+export function JobCard({ job, selected, applied = false, onApply, onToggleSave, onToggleDismiss, onMarkApplied }: Props) {
   const [expanded, setExpanded] = useState(false);
   const salary = formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency);
   const posted = job.postedAt ?? job.firstSeenAt;
@@ -113,6 +114,17 @@ export function JobCard({ job, selected, applied = false, onApply, onToggleSave,
           <Button size="sm" variant="ghost" className="h-7 text-xs text-[#6e6b61] hover:bg-[#fdeadd] hover:text-[#9a3412]" nativeButton={false} render={<Link href={`/tailor/${job.id}`} />}>
             <Sparkles className="size-3" /> Tailor
           </Button>
+          {!applied && onMarkApplied && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onMarkApplied(job)}
+              className="h-7 px-1.5 text-[#a8a294] hover:text-[#15803d]"
+              title="Mark as applied (m)"
+            >
+              <CheckCircle2 className="size-4" />
+            </Button>
+          )}
           <Button
             size="sm"
             variant="ghost"

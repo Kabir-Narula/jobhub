@@ -250,7 +250,16 @@ export function TailorClient({
           {job.company} · {job.locationRaw || "—"}
           <Badge variant="outline" className="border-[#c2410c]/40 text-[#c2410c]">{BUCKET_LABEL[job.bucket]}</Badge>
           <Badge variant="outline" className="border-[#e6e3db] text-[#6e6b61]">{WORKMODE_LABEL[job.workMode]}</Badge>
-          <a href={job.applyUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs text-[#c2410c] hover:underline">
+          <a
+            href={job.applyUrl}
+            target="_blank"
+            rel="noreferrer"
+            onClick={() => {
+              // mark viewed so the did-you-apply prompt fires on return
+              fetch(`/api/jobs/${job.id}/view`, { method: "POST" }).catch(() => {});
+            }}
+            className="flex items-center gap-1 text-xs text-[#c2410c] hover:underline"
+          >
             posting <ExternalLink className="size-3" />
           </a>
         </p>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import type { AppStatus } from "@prisma/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import { AppTable } from "./app-table";
 import { AppKanban } from "./app-kanban";
 import { AnimatedNumber } from "@/components/animated-number";
@@ -26,6 +27,15 @@ export function TrackerClient({
   analytics: Analytics;
 }) {
   const [apps, setApps] = useState(initial);
+  const [query, setQuery] = useState("");
+
+  const filtered = query.trim()
+    ? apps.filter(
+        (a) =>
+          a.job.company.toLowerCase().includes(query.trim().toLowerCase()) ||
+          a.job.title.toLowerCase().includes(query.trim().toLowerCase())
+      )
+    : apps;
 
   async function updateStatus(id: string, status: AppStatus) {
     setApps((as) => as.map((a) => (a.id === id ? { ...a, status } : a)));
@@ -92,15 +102,23 @@ export function TrackerClient({
       </div>
 
       <Tabs defaultValue="kanban">
-        <TabsList className="bg-white">
-          <TabsTrigger value="kanban">Kanban</TabsTrigger>
-          <TabsTrigger value="table">Table</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between gap-3">
+          <TabsList className="bg-white">
+            <TabsTrigger value="kanban">Kanban</TabsTrigger>
+            <TabsTrigger value="table">Table</TabsTrigger>
+          </TabsList>
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Filter by company or role…"
+            className="h-8 w-56 border-[#e6e3db] bg-white text-[13px]"
+          />
+        </div>
         <TabsContent value="kanban">
-          <AppKanban apps={apps} onStatusChange={updateStatus} onRemove={remove} />
+          <AppKanban apps={filtered} onStatusChange={updateStatus} onRemove={remove} />
         </TabsContent>
         <TabsContent value="table">
-          <AppTable apps={apps} onStatusChange={updateStatus} onRemove={remove} />
+          <AppTable apps={filtered} onStatusChange={updateStatus} onRemove={remove} />
         </TabsContent>
       </Tabs>
     </div>

@@ -13,9 +13,11 @@ interface Props {
   contact: { name: string; role: string; email: string } | null;
   open: boolean;
   onClose: () => void;
+  mode?: "outreach" | "followup";
+  daysSinceApplied?: number;
 }
 
-export function EmailDialog({ jobId, contact, open, onClose }: Props) {
+export function EmailDialog({ jobId, contact, open, onClose, mode = "outreach", daysSinceApplied = 7 }: Props) {
   const [loading, setLoading] = useState(false);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -23,11 +25,12 @@ export function EmailDialog({ jobId, contact, open, onClose }: Props) {
 
   async function draft() {
     setLoading(true);
+    setLoaded(false);
     try {
       const res = await fetch("/api/email/draft", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId, contactEmail: contact?.email ?? "" }),
+        body: JSON.stringify({ jobId, contactEmail: contact?.email ?? "", mode, daysSinceApplied }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -62,7 +65,7 @@ export function EmailDialog({ jobId, contact, open, onClose }: Props) {
       <DialogContent className="border-[#e6e3db] bg-white sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="font-display text-base">
-            Outreach email{contact ? ` — to ${contact.name === "Unknown" ? contact.email : `${contact.name} (${contact.role || contact.email})`}` : ""}
+            {mode === "followup" ? "Follow-up email" : "Outreach email"}{contact ? ` — to ${contact.name === "Unknown" ? contact.email : `${contact.name} (${contact.role || contact.email})`}` : ""}
           </DialogTitle>
         </DialogHeader>
 

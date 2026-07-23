@@ -5,6 +5,18 @@ export interface EmailDraft {
   body: string;
 }
 
+const FOLLOWUP_PROMPT = `You write polite follow-up emails that get replies without sounding needy, distilled from what recruiters say works.
+
+WHAT WORKS:
+- TOTAL: 2-4 sentences, under 80 words. Shorter than the first email.
+- References the original application naturally: role + roughly when applied (use the provided days).
+- One fresh reason to stay on their radar: a quick new fact (shipped something, a project update) OR a restated one-line fit — no resume repeat.
+- The ask: a soft status check, framed around their time ("just checking if there's any update on the timeline") and an easy out ("totally understand if priorities shifted").
+- Sign-off: first name only.
+
+WHAT FAILS:
+- "Just bumping this to the top of your inbox", "circling back", "touching base", "gentle reminder", guilt-tripping, asking "did you get my last email?", desperation, multiple questions, formality padding. Return the result as JSON.`;
+
 const SYSTEM_PROMPT = `You write cold outreach emails that actually get replies, distilled from thousands of real recruiter and candidate accounts (recruiter AMAs, r/recruitinghell, r/jobs, r/cscareerquestions post-mortems of what worked).
 
 WHAT WORKS (proven, repeatedly):
@@ -63,6 +75,36 @@ export async function draftOutreachEmail(input: DraftInput): Promise<EmailDraft>
   const parsed = parseJson(res.choices[0]?.message?.content ?? "{}");
   return {
     subject: String(parsed.subject ?? `${input.job.title} at ${input.job.company}`),
+    body: String(parsed.body ?? ""),
+  };
+}
+
+/** Follow-up nudge N days after applying with no response. */
+export async function draftFollowUpEmail(input: DraftInput & { daysSinceApplied: number }): Promise<EmailDraft> {
+  const user = {
+    task: `Write a short follow-up email: the candidate applied ${input.daysSinceApplied} days ago and has heard nothing. Polite status check.`,
+    recipient: input.contact
+      ? { name: input.contact.name, role: input.contact.role }
+      : "Hiring team (no specific person)",
+    job: { title: input.job.title, company: input.job.company },
+    company_research_summary: input.research?.summary ?? null,
+    candidate_proof_point: input.resumeHighlights[0] ?? null,
+    output_schema: { subject: "string", body: "string (plain text)" },
+    rules: "Under 80 words. 2-4 sentences. Sign off as " + input.candidateName.split(" ")[0] + ".",
+  };
+
+  const res = await openai().chat.completions.create({
+    model: model("cheap"),
+    messages: [
+      { role: "system", content: FOLLOWUP_PROMPT },
+      { role: "user", content: JSON.stringify(user) },
+    ],
+    response_format: { type: "json_object" },
+  });
+
+  const parsed = parseJson(res.choices[0]?.message?.content ?? "{}");
+  return {
+    subject: String(parsed.subject ?? `Following up - ${input.job.title} at ${input.job.company}`),
     body: String(parsed.body ?? ""),
   };
 }

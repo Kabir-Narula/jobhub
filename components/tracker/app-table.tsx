@@ -17,10 +17,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowUpDown, ExternalLink, FileText, Pencil, Sparkles, Trash2 } from "lucide-react";
+import { ArrowUpDown, ExternalLink, FileText, Mail, Pencil, Sparkles, Trash2 } from "lucide-react";
 import { StatusSelect } from "./status-select";
 import { BUCKET_LABEL } from "@/components/jobs/labels";
 import { CompanyAvatar } from "@/components/company-avatar";
+import { EmailDialog } from "@/components/tailor/email-dialog";
 import { cn } from "@/lib/utils";
 import type { AppWithJob } from "./types";
 
@@ -49,6 +50,7 @@ export function AppTable({
   const [editing, setEditing] = useState<AppWithJob | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
   const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
+  const [followUpApp, setFollowUpApp] = useState<AppWithJob | null>(null);
 
   async function saveNotes() {
     if (!editing) return;
@@ -165,6 +167,17 @@ export function AppTable({
                 </TableCell>
                 <TableCell>
                   <div className="flex justify-end gap-1">
+                    {app.status === "APPLIED" && days >= 7 && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-amber-700 hover:text-[#c2410c]"
+                        title="Draft a follow-up email"
+                        onClick={() => setFollowUpApp(app)}
+                      >
+                        <Mail className="size-3.5" />
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="ghost"
@@ -230,6 +243,23 @@ export function AppTable({
           )}
         </DialogContent>
       </Dialog>
+
+      {followUpApp && (
+        <EmailDialog
+          jobId={followUpApp.jobId}
+          contact={firstContact(followUpApp)}
+          open={Boolean(followUpApp)}
+          onClose={() => setFollowUpApp(null)}
+          mode="followup"
+          daysSinceApplied={differenceInDays(new Date(), followUpApp.appliedAt)}
+        />
+      )}
     </div>
   );
+}
+
+function firstContact(app: AppWithJob): { name: string; role: string; email: string } | null {
+  const contacts = (app.job as unknown as { contacts?: { contacts?: { name?: string; role?: string; email?: string }[] } }).contacts?.contacts;
+  const c = contacts?.[0];
+  return c?.email ? { name: c.name ?? "", role: c.role ?? "", email: c.email } : null;
 }

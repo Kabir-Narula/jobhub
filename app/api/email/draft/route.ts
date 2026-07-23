@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { draftOutreachEmail } from "@/lib/tailor/email";
+import { draftOutreachEmail, draftFollowUpEmail } from "@/lib/tailor/email";
 import type { CompanyResearch } from "@/lib/tailor/research";
 import type { ContactResult } from "@/lib/contacts/hunter";
 
@@ -45,14 +45,21 @@ export async function POST(request: Request) {
     await prisma.documentVersion.findFirst({ where: { jobId: job.id, status: "FINAL" }, select: { id: true } })
   );
 
-  const draft = await draftOutreachEmail({
+  const base = {
     job: { title: job.title, company: job.company, description: job.description },
     contact,
     research,
     resumeHighlights: bullets,
     hasFinalDocs,
     candidateName: "Kabir Narula",
-  });
+  };
 
+  if (body?.mode === "followup") {
+    const daysSinceApplied = Math.max(1, Number(body?.daysSinceApplied) || 7);
+    const draft = await draftFollowUpEmail({ ...base, daysSinceApplied });
+    return NextResponse.json({ draft, contact });
+  }
+
+  const draft = await draftOutreachEmail(base);
   return NextResponse.json({ draft, contact });
 }

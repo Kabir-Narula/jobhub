@@ -48,6 +48,31 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
     setJobs((js) => js.map((j) => (j.id === job.id ? { ...j, viewedAt: new Date() } : j)));
   }, []);
 
+  const [appliedIds, setAppliedIds] = useState<string[]>(appliedJobIds);
+  const appliedSet = new Set(appliedIds);
+
+  const markApplied = useCallback(
+    (job: Job) => {
+      if (appliedSet.has(job.id)) return;
+      fetch("/api/applications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId: job.id, notes: "" }),
+      })
+        .then((r) => {
+          if (r.ok) {
+            setAppliedIds((ids) => [...ids, job.id]);
+            toast.success(`Tracked: ${job.title} at ${job.company}`);
+          } else {
+            toast.error("Could not track the application");
+          }
+        })
+        .catch(() => toast.error("Could not track the application"));
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [appliedIds]
+  );
+
   const toggleSave = useCallback((job: Job) => {
     const saved = !job.savedAt;
     fetch(`/api/jobs/${job.id}/save`, {
@@ -140,6 +165,12 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
         case "d":
           if (job) toggleDismiss(job);
           break;
+        case "t":
+          if (job) router.push(`/tailor/${job.id}`);
+          break;
+        case "m":
+          if (job) markApplied(job);
+          break;
         case "/":
           e.preventDefault();
           searchRef.current?.focus();
@@ -151,7 +182,7 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [jobs, selected, apply, toggleSave, toggleDismiss, refreshing, refresh]);
+  }, [jobs, selected, apply, toggleSave, toggleDismiss, refreshing, refresh, router, markApplied]);
 
   useEffect(() => {
     if (selected < 0) return;
@@ -163,8 +194,6 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
   }, [selected, jobs]);
 
   const failedSources = lastRun?.results.filter((r) => !r.ok).length ?? 0;
-  const appliedSet = new Set(appliedJobIds);
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-end justify-between">
@@ -183,7 +212,7 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
             ) : (
               "No poll yet — hit refresh"
             )}
-            <span>j/k move · a apply · s save · d dismiss</span>
+            <span>j/k move · a apply · s save · d dismiss · t tailor · m mark applied</span>
           </p>
         </div>
         <Button
@@ -232,6 +261,7 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
                 onApply={apply}
                 onToggleSave={toggleSave}
                 onToggleDismiss={toggleDismiss}
+                onMarkApplied={markApplied}
               />
             </motion.div>
           ))}
