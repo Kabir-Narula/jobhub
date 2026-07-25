@@ -107,6 +107,31 @@ export async function POST(request: Request) {
   const job = await prisma.job.findUnique({ where: { id: jobId } });
   if (!job) return NextResponse.json({ error: "job not found" }, { status: 404 });
 
+  // Cost guard: a generation <24h old is reused instead of spending again.
+  // Force a fresh run with { force: true } or deepResearch.
+  if (!deepResearch && !body?.force) {
+    const recent = await prisma.documentVersion.findFirst({
+      where: { jobId, kind: "RESUME", createdAt: { gte: new Date(Date.now() - 86400000) } },
+      orderBy: { createdAt: "desc" },
+    });
+    if (recent) {
+      const recentCover = await prisma.documentVersion.findFirst({
+        where: { jobId, kind: "COVER", createdAt: { gte: new Date(recent.createdAt.getTime() - 60000) } },
+        orderBy: { createdAt: "desc" },
+      });
+      return NextResponse.json({
+        reused: true,
+        resume: { id: recent.id, version: recent.version, pageCount: recent.pageCount, matchScore: recent.matchScore, diff: recent.diffFromMaster },
+        cover: recentCover ? { id: recentCover.id, version: recentCover.version, pageCount: recentCover.pageCount, diff: recentCover.diffFromMaster } : null,
+        warnings: [],
+        appliedTitleChanges: [],
+        pendingTitleChanges: [],
+        chosenProjects: [],
+        research: job.companyResearch ?? null,
+      });
+    }
+  }
+
   // Jobs without a stored JD (Simplify rows, LinkedIn cards) get hydrated
   // on demand — without it the tailor and ATS score have nothing to work from.
   if (job.description.trim().length < 200) {
@@ -164,7 +189,7 @@ export async function POST(request: Request) {
   const warnings: string[] = [];
   let newNumbers = findNewNumbers(originalText, generatedText());
   if (newNumbers.length > 0) {
-    generated = await generateContent({ entries: parsedResume.entries, skills: skillsSection, job: jobInput, research, lensNote, shorten: false });
+    generated = await generateContent({ entries: parsedResume.entries, skills: skillsSection, job: jobInput, research, lensNote, shorten: false, cheap: true });
     newNumbers = findNewNumbers(originalText, generatedText());
     if (newNumbers.length > 0) {
       warnings.push(`Review carefully: these numbers are NOT in your source material: ${newNumbers.join(", ")}`);

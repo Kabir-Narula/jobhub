@@ -68,7 +68,7 @@ JOB TITLES — the 2-of-3 rule:
 - Hard rules still apply: never upgrade seniority (no Senior/Staff/Lead/Principal), never change the function family to something untrue (no "data scientist", no "consultant" unless the work was consulting).
 - Set "titleChanged": true whenever you reword.
 
-SKILLS SECTION: build 4 rich lines (5-7 items per line) from the provided master lines PLUS the additional verified pool — choose the items most relevant to this posting and order by relevance. Only items from the two provided lists — never invent. Keep the four line labels, adjusting only which items each line carries.
+SKILLS SECTION: build 4 rich lines (5-7 items per line) from the provided master lines PLUS the additional verified pool — choose the items most relevant to this posting and order by relevance. Keep the four line labels, adjusting only which items each line carries. Technologies embedded into experience bullets via expanded mode may also be added to the skills section for this job — skills and bullets must always stay consistent with each other (a technology that matters in the bullets must appear in skills, and every skill line item that matters to the posting must be backed by at least one bullet). Never add anything beyond these three sources: master lines, verified pool, expanded-mode technologies.
 
 PROJECTS SECTION: choose the 2 projects from the library that best match this job (stack + domain). For each, return 2-3 bullets written from its real bullets for relevance — same facts, sharper framing, substantive length.
 
@@ -97,6 +97,8 @@ interface GenerateInput {
   expand?: boolean;
   /** ATS boost pass: weave these missing JD terms in where genuinely claimable. */
   boost?: { missingTerms: string[] };
+  /** Force the cheap model tier (fabrication retry etc.). */
+  cheap?: boolean;
 }
 
 export async function generateContent(input: GenerateInput): Promise<GeneratedContent> {
@@ -109,19 +111,20 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
   }));
 
   const user = {
-    task: input.shorten
-      ? "Same job, second pass: the resume overflowed one page. Compress: exactly 3 bullets per experience entry at 16-22 words each, only 2 bullets per project, drop the weakest 1-2 items from each skills line, cover letter to 3 paragraphs. All other rules still apply."
-      : input.expand
-        ? "Same job, but the resume came out TOO EMPTY (large gap at the bottom). Fill the page by ADDING bullets, not length: 4 short bullets per experience entry (1-2 lines each), 3 per project, skills section full. Keep every bullet punchy."
-        : input.boost
-          ? `Same job, ATS-boost pass: the draft scored low on keyword coverage. Weave these missing job-description terms into the resume WHERE GENUINELY CLAIMABLE from the source material (never a tool the candidate hasn't used): ${input.boost.missingTerms.join(", ")}. Work them into bullets via the vocabulary-translation rules and into the skills lines. Do NOT keyword-stuff: max one JD term per bullet, vary sentence shapes so it reads human, never as a list of synonyms. Rewrite everything fresh (all other rules apply).`
-          : "Tailor this candidate for this job: rewrite experience bullets from scratch (exactly 3 short punchy bullets per entry — the resume also has an achievements section, so space is tight), re-rank skills, choose the best 2 projects, write the cover letter.",
+    // STABLE content first (candidate material is identical across jobs) so
+    // OpenAI prompt caching hits the shared prefix on every call; the
+    // variable parts (task, JD, lens) go last.
+    candidate_experience: experience,
+    candidate_verified_numbers: verifiedNumbersBrief(),
+    candidate_skills_lines: input.skills.lines,
+    additional_verified_skills_pool: extraSkillsPool(),
+    candidate_project_library: projectBriefs(),
     lens_directive: input.lensNote ?? null,
     job: {
       title: input.job.title,
       company: input.job.company,
       location: input.job.locationRaw,
-      description: input.job.description.slice(0, 6000),
+      description: input.job.description.slice(0, 4500),
     },
     company_research: input.research
       ? {
@@ -133,11 +136,13 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
           reddit_intel_from_real_candidates: input.research.redditIntel ?? null,
         }
       : null,
-    candidate_experience: experience,
-    candidate_verified_numbers: verifiedNumbersBrief(),
-    candidate_skills_lines: input.skills.lines,
-    additional_verified_skills_pool: extraSkillsPool(),
-    candidate_project_library: projectBriefs(),
+    task: input.shorten
+      ? "Same job, second pass: the resume overflowed one page. Compress: exactly 3 bullets per experience entry at 16-22 words each, only 2 bullets per project, drop the weakest 1-2 items from each skills line, cover letter to 3 paragraphs. All other rules still apply."
+      : input.expand
+        ? "Same job, but the resume came out TOO EMPTY (large gap at the bottom). Fill the page by ADDING bullets, not length: 4 short bullets per experience entry (1-2 lines each), 3 per project, skills section full. Keep every bullet punchy."
+        : input.boost
+          ? `Same job, ATS-boost pass: the draft scored low on keyword coverage. Weave these missing job-description terms into the resume WHERE GENUINELY CLAIMABLE from the source material (never a tool the candidate hasn't used): ${input.boost.missingTerms.join(", ")}. Work them into bullets via the vocabulary-translation rules and into the skills lines. Do NOT keyword-stuff: max one JD term per bullet, vary sentence shapes so it reads human, never as a list of synonyms. Rewrite everything fresh (all other rules apply).`
+          : "Tailor this candidate for this job: rewrite experience bullets from scratch (exactly 3 short punchy bullets per entry — the resume also has an achievements section, so space is tight), re-rank skills, choose the best 2 projects, write the cover letter.",
     output_schema: {
       experience: [
         {
@@ -159,7 +164,7 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
   };
 
   const res = await openai().chat.completions.create({
-    model: model(input.shorten || input.expand ? "cheap" : "quality"),
+    model: model(input.shorten || input.expand || input.cheap ? "cheap" : "quality"),
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: JSON.stringify(user) },
