@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { draftOutreachEmail, draftFollowUpEmail } from "@/lib/tailor/email";
+import { PROJECTS } from "@/lib/tailor/projects";
 import type { CompanyResearch } from "@/lib/tailor/research";
 import type { ContactResult } from "@/lib/contacts/hunter";
 
@@ -50,6 +51,7 @@ export async function POST(request: Request) {
     contact,
     research,
     resumeHighlights: bullets,
+    projectLinks: PROJECTS.map((p) => ({ name: p.name, url: p.githubUrl })),
     hasFinalDocs,
     candidateName: "Kabir Narula",
   };

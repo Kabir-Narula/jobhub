@@ -72,10 +72,13 @@ SKILLS SECTION: build 4 rich lines (5-7 items per line) from the provided master
 
 PROJECTS SECTION: choose the 2 projects from the library that best match this job (stack + domain). For each, return 2-3 bullets written from its real bullets for relevance — same facts, sharper framing, substantive length.
 
-COVER LETTER (3-4 substantive paragraphs, skimmable in 20 seconds):
-- Paragraph 1: hook with ONE specific researched insight about this company (product, mission, recent move) + name the exact role + one-line mapping of the candidate to it. Never "I am excited to apply".
-- Middle: map the candidate's REAL experience and chosen projects to the posting's top 2-3 requirements, naming real technologies. Write like a person who ships code, not a template.
-- Final: one or two sentences — genuine interest in this team/product + low-friction close. No clichés, no "fast-paced environment".
+COVER LETTER v2 (this is where interviews are won or lost — the first line decides if it gets read):
+- PARAGRAPH 1 (the hook): open with the hookFact from the research — a SPECIFIC, current fact about THIS company (their metric, their product detail, their recent move) — and immediately connect it to the matching thing the candidate built. Structure: "When I read that {company} {hookFact}, it caught my attention because {one line connecting to the candidate's real matching work}." Name the exact role somewhere in the first two sentences. Never open with "I am excited", never open with the candidate's name or degree.
+- MIDDLE (proof, not biography): map the candidate's REAL experience and chosen projects to the posting's top 2-3 requirements, naming real technologies. One concrete artifact per requirement (the queue, the schema, the pipeline) — no adjectives doing the work nouns should do.
+- THE RECEIPT: include at most ONE plain-text link to the most relevant chosen project's repo (use the exact URL from the library), woven in naturally — e.g. "the queue code is public at github.com/... if useful". Only if it genuinely strengthens the case.
+- FINAL PARAGRAPH: one or two sentences — genuine interest in this team + a work-sample offer when it fits ("happy to build a small work sample for the team" — powerful for new grads) + low-friction close. No clichés, no "fast-paced environment".
+- TONE: match the company's register from the research (casual = direct, first-name energy, contractions; formal = measured, complete sentences, still human). Same tone in every paragraph.
+- LENGTH: 3-4 paragraphs, skimmable in 20 seconds. Every sentence must earn its place.
 
 HUMAN VOICE / ANTI-AI-DETECTION (2026 recruiters actively screen for AI tells):
 - BANNED words and phrases (instant AI tell): spearheaded, spearhead, leveraged, leverage (as a verb), orchestrated, cutting-edge, robust, dynamic, results-oriented, synergize, transformative, pivotal, utilize, in order to, fast-paced, passionate, proven track record, best-in-class, seamless, seamlessly, state-of-the-art, innovative, world-class, adept at, instrumental in.
@@ -133,6 +136,8 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
           stack: input.research.stack,
           news: input.research.news,
           summary: input.research.summary,
+          hookFact: input.research.hookFact ?? null,
+          tone: input.research.tone ?? "casual",
           reddit_intel_from_real_candidates: input.research.redditIntel ?? null,
         }
       : null,

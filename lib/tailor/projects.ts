@@ -99,7 +99,7 @@ export const PROJECTS: ProjectProfile[] = [
 /** Short brief for the LLM: which 2 projects fit this job best, and why. */
 export function projectBriefs(): string {
   return PROJECTS.map(
-    (p) => `- id "${p.id}" — ${p.name} (${p.techLine}): ${p.summary}\n  keywords: ${p.keywords.join(", ")}\n  real bullets you may reword:\n${p.bullets.map((b) => `    * ${b}`).join("\n")}`
+    (p) => `- id "${p.id}" — ${p.name} (${p.techLine}), repo ${p.githubUrl}: ${p.summary}\n  keywords: ${p.keywords.join(", ")}\n  real bullets you may reword:\n${p.bullets.map((b) => `    * ${b}`).join("\n")}`
   ).join("\n");
 }
 

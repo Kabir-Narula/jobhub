@@ -41,6 +41,7 @@ interface DraftInput {
   contact: { name: string; role: string; email: string } | null;
   research: CompanyResearch | null;
   resumeHighlights: string[]; // top bullets from the FINAL resume
+  projectLinks?: { name: string; url: string }[];
   hasFinalDocs: boolean;
   candidateName: string;
 }
@@ -58,6 +59,7 @@ export async function draftOutreachEmail(input: DraftInput): Promise<EmailDraft>
       ? { summary: input.research.summary, mission: input.research.mission, product: input.research.product, news: input.research.news, reddit_candidate_experiences: input.research.redditIntel ?? null }
       : null,
     candidate_proof_points_from_final_resume: input.resumeHighlights,
+    candidate_project_links: input.projectLinks ?? [],
     candidate_applied_with_tailored_resume_and_cover: input.hasFinalDocs,
     output_schema: { subject: "string", body: "string (plain text, blank line between paragraphs)" },
     rules: "Under 110 words for the body. 3-5 sentences. Sign off as " + input.candidateName.split(" ")[0] + ".",

@@ -7,6 +7,10 @@ export interface CompanyResearch {
   stack: string[];
   news: string[];
   summary: string;
+  /** ONE specific, current, verifiable fact about the company (a metric, product detail, or recent move) — the cover-letter hook anchor. */
+  hookFact?: string;
+  /** Register of the company's public voice, for tone matching. */
+  tone?: "casual" | "formal";
   homepageUsed: string | null;
   /** Condensed Reddit digest: real candidate experiences at this company. */
   redditIntel?: string;
@@ -118,6 +122,8 @@ export async function researchCompany(input: {
     `- "product": one sentence on the main product(s) and who uses them`,
     `- "stack": array of up to 8 technologies the company is known to use (from the JD and your knowledge)`,
     `- "news": array of up to 4 recent/relevant facts (funding, launches, scale, engineering culture) — only things you are confident about`,
+    `- "hookFact": ONE specific, current, verifiable fact about the company that a candidate could open a cover letter with — a real metric, a concrete product detail, or a recent move. Prefer something found in the provided site content over general knowledge. Empty string if nothing solid exists.`,
+    `- "tone": "casual" if their public voice is startup/engineering-blog informal, "formal" if it's corporate/enterprise formal`,
     `- "summary": ${input.deep ? "5-6 sentences of deep insight a candidate could use to sound genuinely informed in a cover letter or interview: what the company is betting on, what their engineering culture values, and exactly which candidate strengths would resonate with this team" : "3-4 sentences a candidate could use to sound informed in a cover letter or interview"}`,
     `Be factual. If unsure about a fact, omit it rather than guess.`,
   ].join("\n");
@@ -138,6 +144,8 @@ export async function researchCompany(input: {
     stack: Array.isArray(parsed.stack) ? parsed.stack.map(String).slice(0, 8) : [],
     news: Array.isArray(parsed.news) ? parsed.news.map(String).slice(0, 4) : [],
     summary: String(parsed.summary ?? ""),
+    hookFact: typeof parsed.hookFact === "string" && parsed.hookFact.trim() ? parsed.hookFact.trim() : undefined,
+    tone: parsed.tone === "formal" ? "formal" : "casual",
     homepageUsed: homepage?.url ?? null,
     redditIntel: redditIntel || undefined,
     generatedAt: new Date().toISOString(),
