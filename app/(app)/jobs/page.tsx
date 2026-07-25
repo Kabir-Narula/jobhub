@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import type { Prisma, LocationBucket, WorkMode, Seniority, RoleCategory } from "@prisma/client";
 import { JobsClient } from "@/components/jobs/jobs-client";
+import { byTriage } from "@/lib/triage";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +32,7 @@ export default async function JobsPage({
   const savedOnly = one(sp.saved) === "1";
   const showDismissed = one(sp.dismissed) === "1";
 
+  const sort = one(sp.sort) || "rec";
   const where: Prisma.JobWhereInput = {
     isActive: true,
     dismissedAt: showDismissed ? { not: null } : null,
@@ -60,7 +62,7 @@ export default async function JobsPage({
       : {}),
   };
 
-  const [jobs, lastRun, counts, appliedRows] = await Promise.all([
+  const [rawJobs, lastRun, counts, appliedRows] = await Promise.all([
     prisma.job.findMany({
       where,
       orderBy: [{ postedAt: { sort: "desc", nulls: "last" } }, { firstSeenAt: "desc" }],
@@ -74,6 +76,10 @@ export default async function JobsPage({
     }),
     prisma.application.findMany({ select: { jobId: true } }),
   ]);
+
+  // Recommended sort = triage score (bucket + profile fit + freshness);
+  // "new" = plain posted-first ordering.
+  const jobs = sort === "new" ? rawJobs : [...rawJobs].sort(byTriage);
 
   return (
     <JobsClient
@@ -91,7 +97,7 @@ export default async function JobsPage({
       }
       bucketCounts={Object.fromEntries(counts.map((c) => [c.bucket, c._count]))}
       appliedJobIds={appliedRows.map((a) => a.jobId)}
-      filters={{ q, bucket, workMode, seniority, category, posted, source, savedOnly, showDismissed }}
+      filters={{ q, bucket, workMode, seniority, category, posted, source, savedOnly, showDismissed, sort }}
     />
   );
 }

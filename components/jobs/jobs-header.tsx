@@ -17,6 +17,7 @@ export interface FilterState {
   source: string;
   savedOnly: boolean;
   showDismissed: boolean;
+  sort?: string;
 }
 
 const BUCKETS = [
@@ -226,6 +227,27 @@ export function JobsHeader({
             </div>
           </PopoverContent>
         </Popover>
+
+        {/* sort toggle */}
+        <div className="ml-auto flex items-center rounded-lg border border-[#e6e3db] bg-white p-0.5 shadow-[0_1px_2px_rgba(28,27,23,0.04)]">
+          {[
+            { value: "rec", label: "Recommended" },
+            { value: "new", label: "Newest" },
+          ].map((s) => (
+            <button
+              key={s.value}
+              onClick={() => push({ sort: s.value === "rec" ? "" : s.value })}
+              className={cn(
+                "rounded-md px-3 py-1 text-[13px] transition-all duration-150",
+                (filters.sort ?? "rec") === s.value
+                  ? "bg-[#1c1b17] font-medium text-[#f6f5f1] shadow-sm"
+                  : "text-[#6e6b61] hover:text-[#1c1b17]"
+              )}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

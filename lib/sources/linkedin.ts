@@ -23,7 +23,7 @@ const KEYWORDS = [
 const FRESH_KEYWORDS = ["software engineer", "software developer", "machine learning", "data engineer", "technical consultant"];
 const LOCATION = "Toronto, Ontario, Canada";
 const PAGES_PER_KEYWORD = 2; // 25 per page
-const MAX_DETAILS_PER_RUN = 40;
+const MAX_DETAILS_PER_RUN = 28;
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
@@ -81,7 +81,7 @@ export function linkedinAdapter(): SourceAdapter {
             postedAt,
           });
         });
-        await sleep(1200); // be polite
+        await sleep(900); // be polite
       }
 
       // Phase 1: relevance-ranked searches (breadth).
@@ -109,9 +109,9 @@ export function linkedinAdapter(): SourceAdapter {
       const newest = jobs
         .sort((a, b) => (b.postedAt?.getTime() ?? 0) - (a.postedAt?.getTime() ?? 0))
         .slice(0, MAX_DETAILS_PER_RUN);
-      await mapLimit(newest, 2, async (job) => {
+      await mapLimit(newest, 3, async (job) => {
         try {
-          await sleep(400);
+          await sleep(300);
           const html = await fetchText(
             `https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/${job.sourceId}`,
             { headers: { "User-Agent": UA, Accept: "text/html" } },

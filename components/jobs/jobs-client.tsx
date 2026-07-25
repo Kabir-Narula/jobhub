@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { JobCard } from "./job-card";
 import { JobsHeader, type FilterState } from "./jobs-header";
 import { ReturnPrompt } from "./return-prompt";
-import { Inbox, RefreshCw } from "lucide-react";
+import { Inbox, RefreshCw, CheckCircle2, ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface RunInfo {
   startedAt: string;
@@ -201,6 +202,9 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
   }, [selected, jobs]);
 
   const failedSources = lastRun?.results.filter((r) => !r.ok).length ?? 0;
+  const [showApplied, setShowApplied] = useState(false);
+  const visibleJobs = jobs.filter((j) => !appliedSet.has(j.id));
+  const appliedJobs = jobs.filter((j) => appliedSet.has(j.id));
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-end justify-between">
@@ -247,32 +251,64 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
           </div>
         </div>
       ) : (
-        <motion.div
-          className="flex flex-col gap-2"
-          initial="hidden"
-          animate="show"
-          variants={{ show: { transition: { staggerChildren: 0.035 } } }}
-        >
-          {jobs.map((job, i) => (
-            <motion.div
-              key={job.id}
-              variants={{
-                hidden: { opacity: 0, y: 10 },
-                show: { opacity: 1, y: 0, transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } },
-              }}
-            >
-              <JobCard
-                job={job}
-                selected={i === selected}
-                applied={appliedSet.has(job.id)}
-                onApply={apply}
-                onToggleSave={toggleSave}
-                onToggleDismiss={toggleDismiss}
-                onMarkApplied={markApplied}
-              />
-            </motion.div>
-          ))}
-        </motion.div>
+        <>
+          <motion.div
+            className="flex flex-col gap-2"
+            initial="hidden"
+            animate="show"
+            variants={{ show: { transition: { staggerChildren: 0.035 } } }}
+          >
+            {visibleJobs.map((job, i) => (
+              <motion.div
+                key={job.id}
+                variants={{
+                  hidden: { opacity: 0, y: 10 },
+                  show: { opacity: 1, y: 0, transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } },
+                }}
+              >
+                <JobCard
+                  job={job}
+                  selected={i === selected}
+                  applied={appliedSet.has(job.id)}
+                  onApply={apply}
+                  onToggleSave={toggleSave}
+                  onToggleDismiss={toggleDismiss}
+                  onMarkApplied={markApplied}
+                />
+              </motion.div>
+            ))}
+          </motion.div>
+
+          {/* applied jobs sink to a collapsed section — no re-triaging */}
+          {appliedJobs.length > 0 && (
+            <div className="mt-2">
+              <button
+                onClick={() => setShowApplied((s) => !s)}
+                className="flex items-center gap-2 rounded-lg border border-[#e6e3db] bg-white px-3 py-2 text-xs font-medium text-[#6e6b61] transition-colors hover:text-[#1c1b17]"
+              >
+                <CheckCircle2 className="size-3.5 text-[#15803d]" />
+                Applied ({appliedJobs.length})
+                <ChevronDown className={cn("size-3.5 transition-transform", showApplied && "rotate-180")} />
+              </button>
+              {showApplied && (
+                <div className="mt-2 flex flex-col gap-2 opacity-75">
+                  {appliedJobs.map((job) => (
+                    <JobCard
+                      key={job.id}
+                      job={job}
+                      selected={false}
+                      applied
+                      onApply={apply}
+                      onToggleSave={toggleSave}
+                      onToggleDismiss={toggleDismiss}
+                      onMarkApplied={markApplied}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       <ReturnPrompt />

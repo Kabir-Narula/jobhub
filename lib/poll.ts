@@ -20,33 +20,15 @@ export interface PollSummary {
 const INTERN_RE = /\b(intern(ship)?s?|co-?op|summer student|work term|placement (student|year))\b/i;
 
 /**
- * One poll cycle: fetch every adapter (failures isolated per source),
- * classify + filter + dedupe + upsert (batched), deactivate listings that
- * vanished (only for sources that succeeded), and record progress on the
- * PollRun row after every source so the UI can show it live.
+ * One poll cycle. Each source runs its own fetch->write chain concurrently
+ * (no waiting for the slowest source before any writes land), failures are
+ * isolated per source, and the PollRun checkpoints after every source so
+ * the UI shows live progress.
  */
 export async function runPoll(trigger: string): Promise<PollSummary> {
   const startedAt = new Date();
   const run = await prisma.pollRun.create({ data: { trigger } });
   const sources = await buildSources();
-
-  const settled = await Promise.all(
-    sources.map(async (s) => {
-      const t0 = Date.now();
-      try {
-        const jobs = await s.fetch();
-        return { name: s.name, ok: true as const, jobs, ms: Date.now() - t0 };
-      } catch (err) {
-        return {
-          name: s.name,
-          ok: false as const,
-          jobs: [],
-          ms: Date.now() - t0,
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
-    })
-  );
 
   const results: SourceResult[] = [];
   let newJobs = 0;
@@ -58,13 +40,19 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
       .catch(() => {});
   };
 
-  for (const res of settled) {
+  async function processSource(s: (typeof sources)[number]): Promise<void> {
+    const t0 = Date.now();
     let sourceNew = 0;
+    let count = 0;
+    let error: string | undefined;
 
-    if (res.ok) {
+    try {
+      const jobs = await s.fetch();
+      count = jobs.length;
+
       // 1) prepare rows (pure CPU)
       const prepared = new Map<string, Record<string, unknown>>();
-      for (const job of res.jobs) {
+      for (const job of jobs) {
         try {
           const title = decodeEntities(job.title).trim();
           const company = decodeEntities(job.company).trim();
@@ -125,7 +113,6 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
           });
         }
 
-        // postedAt backfill only where missing (rare, per-row is fine)
         const missingPosted = existing.filter((e) => e.postedAt === null);
         for (const e of missingPosted) {
           const row = prepared.get(e.fingerprint);
@@ -143,33 +130,37 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
 
       // Deactivate listings that disappeared — only for sources that succeeded.
       await prisma.job.updateMany({
-        where: { source: res.name, isActive: true, lastSeenAt: { lt: startedAt } },
+        where: { source: s.name, isActive: true, lastSeenAt: { lt: startedAt } },
         data: { isActive: false },
       });
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
     }
 
     // Surface per-company health on CompanySource rows (ATS sources only).
-    const [atsType, token] = res.name.split(":");
+    const [atsType, token] = s.name.split(":");
     if (token) {
       await prisma.companySource
         .updateMany({
           where: { boardToken: token, atsType: atsType.toUpperCase() as never },
-          data: { lastError: res.ok ? "" : res.error ?? "unknown error" },
+          data: { lastError: error ?? "" },
         })
         .catch(() => {});
     }
 
     results.push({
-      source: res.name,
-      ok: res.ok,
-      count: res.ok ? res.jobs.length : 0,
+      source: s.name,
+      ok: !error,
+      count,
       newCount: sourceNew,
-      error: res.ok ? undefined : res.error,
-      durationMs: res.ms,
+      error,
+      durationMs: Date.now() - t0,
     });
     newJobs += sourceNew;
-    await checkpoint(); // live progress for the UI
+    await checkpoint();
   }
+
+  await Promise.all(sources.map(processSource));
 
   const finishedAt = new Date();
   await prisma.pollRun.update({
