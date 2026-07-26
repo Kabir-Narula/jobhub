@@ -374,7 +374,8 @@ export function assembleSkillsSection(
   section: SkillsSection,
   update: { label: string; items: string[] }[] | null,
   maxItemsPerLine = 0,
-  suppress: string[] = []
+  suppress: string[] = [],
+  allowedExtra: string[] = []
 ): string {
   const nl = section.nl;
   const canon = new Map<string, string>();
@@ -382,6 +383,10 @@ export function assembleSkillsSection(
   // widen the pool with verified extras (emitted LaTeX-escaped; master items
   // are already escaped in the master itself)
   for (const i of extraSkillsPool()) {
+    if (!canon.has(i.toLowerCase())) canon.set(i.toLowerCase(), escapeLatex(i));
+  }
+  // JD-allowed extras (soft skills + hard keywords already used in bullets)
+  for (const i of allowedExtra) {
     if (!canon.has(i.toLowerCase())) canon.set(i.toLowerCase(), escapeLatex(i));
   }
   const suppressSet = new Set(suppress.map((s) => s.toLowerCase()));
@@ -406,6 +411,28 @@ export function assembleSkillsSection(
     if (maxItemsPerLine > 0) items = items.slice(0, maxItemsPerLine);
     return `      \\textbf{${orig.label}}{: ${items.join(", ")} \\\\}`;
   });
+
+  // A JD-tuned soft-skills line (e.g. "Professional") may be appended when
+  // the model provides one and it doesn't collide with a master label
+  // (comparison is escape-normalized: "ml & infra" == "ML \& Infra").
+  const bare = (s: string) => s.replace(/\\/g, "").toLowerCase();
+  const masterLabels = new Set(section.lines.map((l) => bare(l.label)));
+  for (const u of update ?? []) {
+    const label = u.label.replace(/\\&/g, "&");
+    if (masterLabels.has(bare(label))) continue;
+    const items = (Array.isArray(u.items) ? u.items : [])
+      .map((i) => canon.get(i.trim().toLowerCase()))
+      .filter((x): x is string => Boolean(x))
+      .filter((i) => {
+        const plain = i.toLowerCase();
+        for (const s of suppressSet) if (plain.includes(s)) return false;
+        return true;
+      })
+      .slice(0, 5);
+    if (items.length > 0) {
+      lines.push(`      \\textbf{${escapeLatex(u.label)}}{: ${items.join(", ")} \\\\}`);
+    }
+  }
 
   let out = section.before;
   out += `\\begin{itemize}[leftmargin=0.15in, label={}]${nl}`;

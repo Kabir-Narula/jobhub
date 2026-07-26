@@ -46,10 +46,21 @@ export async function compileLatex(tex: string): Promise<CompileResult> {
         bin,
         ["--outdir", dir, "--keep-logs", "--print", "main.tex"],
         { cwd: dir, timeout: 180_000, maxBuffer: 8 * 1024 * 1024 },
-        (err, stdout, stderr) => {
+        async (err, stdout, stderr) => {
           const out = `${stdout}\n${stderr}`;
-          if (err) reject(new Error(`Tectonic failed: ${out.slice(-3000)}`));
-          else resolve(out);
+          if (err) {
+            // Preserve the failing source for debugging before cleanup.
+            try {
+              const { copyFile } = await import("node:fs/promises");
+              const dbg = path.join(process.cwd(), "scripts", "output", "debug-main.tex");
+              await copyFile(path.join(dir, "main.tex"), dbg).catch(() => {});
+              reject(new Error(`Tectonic failed (source kept at scripts/output/debug-main.tex): ${out.slice(-3000)}`));
+            } catch {
+              reject(new Error(`Tectonic failed: ${out.slice(-3000)}`));
+            }
+          } else {
+            resolve(out);
+          }
         }
       );
     });

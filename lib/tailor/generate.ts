@@ -68,7 +68,7 @@ JOB TITLES — the 2-of-3 rule:
 - Hard rules still apply: never upgrade seniority (no Senior/Staff/Lead/Principal), never change the function family to something untrue (no "data scientist", no "consultant" unless the work was consulting).
 - Set "titleChanged": true whenever you reword.
 
-SKILLS SECTION: build 4 rich lines (5-7 items per line) from the provided master lines PLUS the additional verified pool — choose the items most relevant to this posting and order by relevance. Keep the four line labels, adjusting only which items each line carries. Technologies embedded into experience bullets via expanded mode may also be added to the skills section for this job — skills and bullets must always stay consistent with each other (a technology that matters in the bullets must appear in skills, and every skill line item that matters to the posting must be backed by at least one bullet). Never add anything beyond these three sources: master lines, verified pool, expanded-mode technologies.
+SKILLS SECTION: build 4 rich lines (5-7 items per line) from the provided master lines PLUS the additional verified pool — choose the items most relevant to this posting and order by relevance. Keep the four line labels, adjusting only which items each line carries. Technologies embedded into experience bullets via expanded mode may also be added to the skills section for this job — skills and bullets must always stay consistent with each other (a technology that matters in the bullets must appear in skills, and every skill line item that matters to the posting must be backed by at least one bullet). You MAY also append ONE extra line labeled "Professional" with 3-5 soft skills from soft_skills_allowed (only items from that list, most relevant to the posting). Never add anything beyond these four sources: master lines, verified pool, expanded-mode technologies, soft_skills_allowed.
 
 PROJECTS SECTION: choose the 2 projects from the library that best match this job (stack + domain). For each, return 2-3 bullets written from its real bullets for relevance — same facts, sharper framing, substantive length.
 
@@ -95,6 +95,7 @@ interface GenerateInput {
   job: { title: string; company: string; locationRaw: string; description: string };
   research: CompanyResearch | null;
   lensNote?: string;
+  softSkills?: string[];
   shorten?: boolean;
   /** Opposite of shorten: the page was too empty — enrich and lengthen. */
   expand?: boolean;
@@ -119,6 +120,7 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
     // variable parts (task, JD, lens) go last.
     candidate_experience: experience,
     candidate_verified_numbers: verifiedNumbersBrief(),
+    soft_skills_allowed: input.softSkills ?? [],
     candidate_skills_lines: input.skills.lines,
     additional_verified_skills_pool: extraSkillsPool(),
     candidate_project_library: projectBriefs(),
