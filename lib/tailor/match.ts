@@ -12,7 +12,7 @@ function norm(w: string): string {
 
 /** Words that make a phrase noise, not a skill signal. */
 const PHRASE_NOISE = new Set(
-  "care genuine people team tool tools work company culture environment fast paced passionate dynamic love loved strong great good excellent world class day life way things thing lot make makes made help helps helping including across areas area support supporting clients client services service members member firm firms global network methodology methodologies".split(" ")
+  "care genuine people team tool tools work company culture environment fast paced passionate dynamic love loved strong great good excellent world class day life way things thing lot make makes made help helps helping including across areas area support supporting clients client services service members member firm firms global network methodology methodologies trillion requisition compensation tuition reimbursement rrsp 401k dental winning enthusiastic purpose ulc inclusive perks perk benefits benefit leader leadership participate actively community communities forum forums mindset familiarity discovery focusing individual committed collaborate grow growth impact innovation knowledge understanding success goal value values mission interest range career graduate show technology technologies using advanced hands related field qualification degree master phd bachelor summary general innovator well health responsibilitie technologie".split(" ")
 );
 
 /** Well-known equivalences so Postgres == PostgreSQL, k8s == Kubernetes, etc. */
@@ -43,11 +43,13 @@ function canon(term: string): string {
   return n.replace(/\s+/g, " ");
 }
 
-/** Cut JD boilerplate (legal/EEO/privacy tails) — it pollutes keyword extraction. */
+/** Cut JD boilerplate (legal/EEO/privacy/benefits tails) — it pollutes keyword extraction. */
 const BOILERPLATE_MARKERS = [
   "privacy policy", "equal opportunit", "accommodation", "accessibilit", "eeo",
   "we thank all", "only candidates", "only those selected", "application process",
   "background check", "diversity and inclusion", "commitment to diversity", "legal",
+  "benefit", "benefits", "what we offer", "why join", "perks", "compensation and benefits",
+  "our total rewards", "total rewards",
 ];
 
 function stripBoilerplate(jd: string): string {
@@ -63,26 +65,38 @@ function stripBoilerplate(jd: string): string {
 /** Extract distinctive unigrams + bigrams from the JD. */
 export function jdTerms(jobDescription: string, cap = 40, excludeTokens: string[] = []): string[] {
   const exclude = new Set(excludeTokens.map((t) => norm(t)));
-  const tokens = (stripBoilerplate(jobDescription).toLowerCase().match(/[a-z][a-z0-9+#.\/-]{1,}/g) ?? [])
-    .map(norm)
-    .filter((w) => w.length > 2 && !STOPWORDS.has(w) && !PHRASE_NOISE.has(w) && !exclude.has(w));
+  const clean = stripBoilerplate(jobDescription).toLowerCase();
+  // Noise checks run on the RAW word (stopword lists hold natural forms like
+  // "responsibilities"); norm() runs after, for storage/canonicalization.
+  const keep = (raw: string) =>
+    raw.length > 2 && !STOPWORDS.has(raw) && !PHRASE_NOISE.has(raw) && !exclude.has(norm(raw));
+  const tokens = (clean.match(/[a-z][a-z0-9+#.\/-]{1,}/g) ?? []).filter(keep).map(norm);
   const uniFreq = new Map<string, number>();
   for (const t of tokens) uniFreq.set(t, (uniFreq.get(t) ?? 0) + 1);
 
-  const words = stripBoilerplate(jobDescription).toLowerCase().match(/[a-z][a-z0-9+#.\/-]{1,}/g) ?? [];
+  // Bigrams are built WITHIN sentence/clause segments only — joining across
+  // punctuation produced garbage pairs ("rag fine" from "RAG, fine-tuning",
+  // "summary leading" from "Summary. Leading...") that crowded out real terms.
+  // A bigram must also recur (f >= 2): one-off adjacencies are prose, not requirements.
   const biFreq = new Map<string, number>();
-  for (let i = 0; i < words.length - 1; i++) {
-    const a = norm(words[i]);
-    const b = norm(words[i + 1]);
-    if (a.length < 3 || b.length < 2 || STOPWORDS.has(a) || STOPWORDS.has(b) || PHRASE_NOISE.has(a) || PHRASE_NOISE.has(b) || exclude.has(a) || exclude.has(b)) continue;
-    const bg = `${a} ${b}`;
-    biFreq.set(bg, (biFreq.get(bg) ?? 0) + 1);
+  for (const seg of clean.split(/[.,;:!?\n•·|()[\]–—]+/)) {
+    const words = seg.match(/[a-z][a-z0-9+#.\/-]{1,}/g) ?? [];
+    for (let i = 0; i < words.length - 1; i++) {
+      // noise components break the chain — skipping (not filtering) avoids
+      // phantom pairs like "control collaboration" from "control and collaboration"
+      if (!keep(words[i]) || !keep(words[i + 1])) continue;
+      const a = norm(words[i]);
+      const b = norm(words[i + 1]);
+      if (a.length < 3 || b.length < 2) continue;
+      const bg = `${a} ${b}`;
+      biFreq.set(bg, (biFreq.get(bg) ?? 0) + 1);
+    }
   }
 
   const scored = new Map<string, number>();
   for (const [t, f] of uniFreq) scored.set(canon(t), (scored.get(canon(t)) ?? 0) + f);
   for (const [t, f] of biFreq) {
-    if (f >= 1) scored.set(canon(t), (scored.get(canon(t)) ?? 0) + f * 2.5); // phrases matter more
+    if (f >= 2) scored.set(canon(t), (scored.get(canon(t)) ?? 0) + f * 2.5); // phrases matter more
   }
   return [...scored.entries()]
     .sort((a, b) => b[1] - a[1])
@@ -95,7 +109,18 @@ function plainTex(tex: string): string {
     .replace(/\\[a-zA-Z]+\*?(\[[^\]]*\])?/g, " ")
     .replace(/[{}$]/g, " ")
     .replace(/[-/]+/g, " ")
-    .toLowerCase();
+    .toLowerCase()
+    // canonicalize single-token synonym surface forms the way jdTerms canon()
+    // does, so "AI" in the resume covers the JD term "artificialintelligence"
+    .replace(/\bai\b/g, "artificialintelligence")
+    .replace(/\bml\b/g, "machinelearning")
+    .replace(/\bk8s\b/g, "kubernetes")
+    .replace(/\bpostgres\b/g, "postgresql")
+    .replace(/\bllms\b/g, "llm")
+    .replace(/\bgcp\b/g, "googlecloud")
+    .replace(/\bmssql\b/g, "sqlserver")
+    .replace(/\belt\b/g, "etl")
+    .replace(/\bdb\b/g, "database");
 }
 
 /**

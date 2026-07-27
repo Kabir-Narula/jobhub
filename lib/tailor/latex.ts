@@ -360,11 +360,6 @@ export function parseSkillsSection(tex: string): SkillsSection {
   };
 }
 
-/** Master skills as a flat closed vocabulary (for validating LLM output). */
-export function skillsVocabulary(section: SkillsSection): Set<string> {
-  return new Set(section.lines.flatMap((l) => l.items.map((i) => i.toLowerCase())));
-}
-
 /**
  * Rebuilds the skills block. Items are validated against the master's
  * vocabulary PLUS the verified extra-skills pool (repos/coursework) —

@@ -94,6 +94,21 @@ export const PROJECTS: ProjectProfile[] = [
     ],
     keywords: ["react", "javascript", "express", "node", "charts", "dashboard", "team", "agile", "front-end", "finance", "budgeting"],
   },
+  {
+    id: "jobhub",
+    name: "JobHub",
+    githubUrl: "https://github.com/Kabir-Narula/jobhub",
+    techLine: "Next.js 16, Prisma/PostgreSQL, LLM Pipeline",
+    year: "2026",
+    summary:
+      "Full-stack job-search platform: aggregates postings from 40+ ATS/aggregator sources on a schedule, tracks applications end-to-end, and generates tailored LaTeX resume PDFs per job.",
+    bullets: [
+      "Built a Next.js 16 + TypeScript aggregation engine polling 40+ job sources (Greenhouse, Lever, Ashby, Workday JSON APIs plus aggregator feeds) on a schedule, with multi-layer fuzzy dedupe (fingerprint, source-ID, normalized title + company matching) keeping the board duplicate-free.",
+      "Designed a resume-tailoring pipeline: LLM-generated content inside a frozen LaTeX template, server-side Tectonic compilation, closed-loop page-fill measurement, and keyword-coverage scoring, with every PDF versioned and diffed per application.",
+      "Implemented an application tracker with a Page Visibility did-you-apply loop, a kanban status pipeline, Prisma/PostgreSQL persistence, and Supabase Storage for generated documents.",
+    ],
+    keywords: ["next.js", "typescript", "react", "prisma", "postgresql", "sql", "supabase", "llm", "openai", "ai", "pipeline", "rest", "api", "full-stack", "vercel", "cron", "tailwind", "pdf", "automation"],
+  },
 ];
 
 /** Short brief for the LLM: which 2 projects fit this job best, and why. */

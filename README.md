@@ -4,7 +4,7 @@
 
 **A personal job-search operating system for the Toronto tech market.**
 
-Aggregates new-grad & mid-level tech postings from 38 sources, tracks every application
+Aggregates new-grad & mid-level tech postings from 40+ sources, tracks every application
 from click to outcome, and generates design-locked, one-page tailored résumé + cover-letter
 PDFs from master LaTeX files — then finds verified recruiter contacts and drafts the
 outreach email to go with them.
@@ -34,12 +34,14 @@ outreach email to go with them.
 ## What it does
 
 ### 1. Aggregates the whole market, on a schedule
-- **38 source adapters** polling in the background: direct ATS APIs (Greenhouse, Lever, Ashby,
+- **40+ source adapters** polling in the background: direct ATS APIs (Greenhouse, Lever, Ashby,
   SmartRecruiters), Workday boards (TD, BMO, Salesforce, GM, SOTI, Interac), Amazon's jobs API,
   Simplify's new-grad list, Remotive / RemoteOK / WeWorkRemotely, and a best-effort LinkedIn
   guest-search adapter (isolated — its failures never touch the rest).
 - **Explicit location policy**: Toronto → always in; GTA-commutable → in; anything else → only if remote.
-- Fuzzy cross-source dedupe, internship exclusion (full-time focus), seniority/category classifiers.
+- Multi-layer fuzzy dedupe (fingerprint → source-ID → normalized title+company, plus an
+  end-of-poll sweep that merges races; merged postings can never resurface), internship
+  exclusion (full-time focus), seniority/category classifiers.
 - Per-source failure isolation + a poll-run health log — one dead source never takes the pipeline down.
 
 ### 2. Tracks every application, including the ones you'd forget

@@ -12,7 +12,7 @@ async function main() {
 
   console.log("\nToronto SWE new-grad/mid samples from new sources:");
   const samples = await p.job.findMany({
-    where: { bucket: "TORONTO", category: "SWE", seniority: { in: ["NEW_GRAD", "MID"] }, source: { in: ["linkedin", "simplify:newgrad", "simplify:internships"] }, isActive: true },
+    where: { bucket: "TORONTO", category: "SWE", seniority: { in: ["NEW_GRAD", "MID"] }, source: { in: ["linkedin", "simplify:newgrad"] }, isActive: true },
     orderBy: { postedAt: "desc" },
     take: 12,
     select: { title: true, company: true, source: true, postedAt: true, description: true },

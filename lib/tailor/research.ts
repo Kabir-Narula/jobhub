@@ -31,8 +31,8 @@ export function openai(): OpenAI {
 }
 
 export function model(tier: "quality" | "cheap" = "quality"): string {
-  if (tier === "cheap") return process.env.OPENAI_MODEL_MINI || process.env.OPENAI_MODEL || "gpt-4o-mini";
-  return process.env.OPENAI_MODEL || "gpt-4o";
+  if (tier === "cheap") return process.env.OPENAI_MODEL_MINI || process.env.OPENAI_MODEL || "gpt-5.4-mini";
+  return process.env.OPENAI_MODEL || "gpt-5.5";
 }
 
 /** Tolerant JSON extraction: handles raw JSON and ```json fenced replies. */

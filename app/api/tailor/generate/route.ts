@@ -200,7 +200,11 @@ export async function POST(request: Request) {
     " " +
     skillsSection.lines.flatMap((l) => l.items).join(" ") +
     " " +
-    verifiedNumbersText();
+    verifiedNumbersText() +
+    " " +
+    // company facts from research are legitimate in the cover-letter hook —
+    // without this, "your 80,000 devices" false-trips as a fabricated number
+    (research ? JSON.stringify(research) : "");
   const generatedText = () => [
     ...generated.experience.flatMap((e) => e.bullets),
     ...(generated.projects ?? []).flatMap((p) => p.bullets ?? []),
@@ -232,6 +236,7 @@ export async function POST(request: Request) {
     compactSkills?: number; // max items per skills line (0 = no clamp)
     maxExpBullets?: number; // max bullets per experience entry (default 4)
     maxProjBullets?: number; // max bullets per project (0 = no clamp)
+    achievements?: number; // max achievement items (0 = drop the section)
   }
   function buildTex(gen: GeneratedContent, clamps: Clamps = {}): string {
     const updates: ResumeUpdate[] = gen.experience.map((g, i) => ({
@@ -251,27 +256,35 @@ export async function POST(request: Request) {
     const hardAllowed = jdTerms(job!.description, 40).filter((t) => t.split(" ").every((w) => genText.includes(w)));
     const allowedExtra = [...new Set([...softSkills, ...hardAllowed])];
     tex = assembleSkillsSection(parseSkillsSection(tex), gen.skills ?? null, clamps.compactSkills ?? 0, lensSuppress, allowedExtra);
-    tex = insertAchievements(tex, ACHIEVEMENTS);
+    if (clamps.achievements !== 0) tex = insertAchievements(tex, ACHIEVEMENTS.slice(0, clamps.achievements ?? ACHIEVEMENTS.length));
     return tex;
   }
 
   let resumeTex = buildTex(generated);
   let resumeResult = await compileLatex(resumeTex);
+  let shortenedGen: GeneratedContent | null = null;
 
-  // Escalating compression ladder: LLM shorten → +skills clamp → +hard clamps.
-  const LADDER: { shorten: boolean; clamps: { compactSkills?: number; maxExpBullets?: number; maxProjBullets?: number } }[] = [
-    { shorten: true, clamps: {} },
-    { shorten: true, clamps: { compactSkills: 5 } },
-    { shorten: true, clamps: { compactSkills: 4, maxExpBullets: 3, maxProjBullets: 2 } },
-    { shorten: true, clamps: { compactSkills: 4, maxExpBullets: 2, maxProjBullets: 2 } },
+  // Escalating compression ladder over ONE shortened generation: skills clamp
+  // → bullet clamps → drop achievements (user: removable when space is tight)
+  // → hardest clamps.
+  const LADDER: { compactSkills?: number; maxExpBullets?: number; maxProjBullets?: number; achievements?: number }[] = [
+    {},
+    { compactSkills: 5 },
+    { compactSkills: 4, maxExpBullets: 3, maxProjBullets: 2 },
+    { compactSkills: 4, maxExpBullets: 3, maxProjBullets: 2, achievements: 0 },
+    { compactSkills: 4, maxExpBullets: 2, maxProjBullets: 2, achievements: 0 },
   ];
   for (let attempt = 0; attempt < LADDER.length && resumeResult.pageCount > RESUME_PAGE_LIMIT; attempt++) {
-    const step = LADDER[attempt];
-    const shortened = await generateContent({ entries: parsedForJob.entries, skills: skillsSection, job: jobInput, research, lensNote, softSkills, shorten: step.shorten });
-    resumeTex = buildTex(shortened, step.clamps);
+    const clamps = LADDER[attempt];
+    // One shorten call, reused across clamp steps — the task text is identical
+    // for every step, so regenerating per clamp just burns tokens.
+    if (!shortenedGen) {
+      shortenedGen = await generateContent({ entries: parsedForJob.entries, skills: skillsSection, job: jobInput, research, lensNote, softSkills, shorten: true });
+    }
+    resumeTex = buildTex(shortenedGen, clamps);
     resumeResult = await compileLatex(resumeTex);
     if (resumeResult.pageCount <= RESUME_PAGE_LIMIT) {
-      generated = shortened;
+      generated = shortenedGen;
       break;
     }
   }
