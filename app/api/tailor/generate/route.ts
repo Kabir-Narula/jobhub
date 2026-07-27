@@ -185,6 +185,7 @@ export async function POST(request: Request) {
     research,
     lensNote,
     softSkills,
+    targetKeywords: jdTerms(job.description, 25, job.company.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)),
   });
 
   // --- fabrication tripwire over everything the LLM touched ---

@@ -33,6 +33,12 @@ WHAT YOU KNOW ABOUT HOW HIRING ACTUALLY WORKS:
 YOUR TASK — REWRITE, DON'T EDIT:
 Write the experience bullets FROM SCRATCH for this specific job. Do not lightly edit the originals — compose new bullets that select and frame the candidate's real work as the perfect answer to this posting.
 
+REQUIREMENT-TO-BULLET MAPPING (the ATS core):
+- You are given target_keywords extracted from the posting. Every bullet in the two expanded entries must naturally carry at least ONE target keyword where genuinely claimable — and the FIRST bullet of the most recent entry must carry the posting's #1 requirement.
+- Map bullets to requirements in priority order: the posting's top 3 requirements must each be visibly answered by at least one bullet somewhere in the resume.
+- Use the posting's exact phrasing for the concept (if it says "agentic solutions", write agentic; if it says "data pipelines", write data pipelines) — never a synonym the ATS won't match.
+- For SWE-flavored postings, weave real algorithmic substance where truthful: data structures, query optimization, complexity, indexing, execution plans — the candidate's PostgreSQL and systems work supports this genuinely.
+
 BULLET CRAFT (this is what gets read):
 - 3-4 bullets per experience entry, 2-3 per project.
 - Each bullet is 1-2 lines max (~18-28 words). One idea per bullet. Scannable in 2 seconds.
@@ -96,6 +102,7 @@ interface GenerateInput {
   research: CompanyResearch | null;
   lensNote?: string;
   softSkills?: string[];
+  targetKeywords?: string[];
   shorten?: boolean;
   /** Opposite of shorten: the page was too empty — enrich and lengthen. */
   expand?: boolean;
@@ -149,7 +156,12 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
         ? "Same job, but the resume came out TOO EMPTY (large gap at the bottom). Fill the page by ADDING bullets, not length: 4 short bullets per experience entry (1-2 lines each), 3 per project, skills section full. Keep every bullet punchy."
         : input.boost
           ? `Same job, ATS-boost pass: the draft scored low on keyword coverage. Weave these missing job-description terms into the resume WHERE GENUINELY CLAIMABLE from the source material (never a tool the candidate hasn't used): ${input.boost.missingTerms.join(", ")}. Work them into bullets via the vocabulary-translation rules and into the skills lines. Do NOT keyword-stuff: max one JD term per bullet, vary sentence shapes so it reads human, never as a list of synonyms. Rewrite everything fresh (all other rules apply).`
-          : "Tailor this candidate for this job: rewrite experience bullets from scratch (exactly 3 short punchy bullets per entry — the resume also has an achievements section, so space is tight), re-rank skills, choose the best 2 projects, write the cover letter.",
+          : "Tailor this candidate for this job: rewrite experience bullets from scratch (page-filling; the resume also has an achievements section, so space is tight), re-rank skills, choose the best 2 projects, write the cover letter.",
+    bullet_count_rule:
+      input.entries.length <= 3
+        ? "3-4 short punchy bullets per entry (there are only 3 entries — give them more weight)"
+        : "exactly 3 short punchy bullets per entry (4 entries — keep the page tight)",
+    target_keywords: input.targetKeywords ?? [],
     output_schema: {
       experience: [
         {
