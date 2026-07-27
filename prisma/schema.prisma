@@ -77,6 +77,8 @@ model Job {
   sourceUrl             String
   applyUrl              String
   description           String          @default("")
+  normTitle             String          @default("")
+  normCompany           String          @default("")
   salaryMin             Int?
   salaryMax             Int?
   salaryCurrency        String?
@@ -98,6 +100,7 @@ model Job {
   @@index([bucket, isActive])
   @@index([postedAt])
   @@index([dismissedAt])
+  @@index([city, normTitle])
 }
 
 model Application {

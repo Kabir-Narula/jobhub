@@ -4,7 +4,7 @@ import type { SourceResult } from "@/lib/sources/types";
 import { decodeEntities } from "@/lib/sources/http";
 import { parseLocation } from "@/lib/geo";
 import { classifyCategory, classifySeniority } from "@/lib/classify";
-import { jobFingerprint } from "@/lib/dedupe";
+import { jobFingerprint, normTitle, normCompany, companiesMatch } from "@/lib/dedupe";
 
 export interface PollSummary {
   runId: string;
@@ -52,6 +52,7 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
 
       // 1) prepare rows (pure CPU)
       const prepared = new Map<string, Record<string, unknown>>();
+      const seenSids = new Set<string>();
       for (const job of jobs) {
         try {
           const title = decodeEntities(job.title).trim();
@@ -59,6 +60,11 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
           const locationRaw = decodeEntities(job.locationRaw);
           if (!title || !company) continue;
           if (INTERN_RE.test(title)) continue;
+          // same posting ID twice in one batch (retitled card) -> keep first
+          if (job.sourceId) {
+            if (seenSids.has(job.sourceId)) continue;
+            seenSids.add(job.sourceId);
+          }
           const { city, workMode, bucket } = parseLocation(locationRaw, job.remote);
           if (!bucket) continue;
           const fingerprint = jobFingerprint({ company, title, city, locationRaw });
@@ -71,6 +77,8 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
             city,
             workMode,
             bucket,
+            normTitle: normTitle(title),
+            normCompany: normCompany(company),
             seniority: classifySeniority(job.title, job.description),
             category: classifyCategory(job.title),
             source: job.source,
@@ -88,6 +96,39 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
         }
       }
 
+      // 1b) in-batch fuzzy collapse: same city + normalized title, fuzzy company
+      // (fingerprint equality misses "TD" vs "TD Bank" arriving in one batch)
+      {
+        const groups = new Map<string, Array<{ fp: string; row: Record<string, unknown> }>>();
+        for (const [fp, row] of prepared) {
+          const key = `${(row.city as string).toLowerCase()}|${row.normTitle as string}`;
+          const arr = groups.get(key) ?? [];
+          arr.push({ fp, row });
+          groups.set(key, arr);
+        }
+        const dropFps = new Set<string>();
+        for (const arr of groups.values()) {
+          if (arr.length < 2) continue;
+          const kept: typeof arr = [];
+          for (const item of arr) {
+            const dup = kept.find((k) => companiesMatch(k.row.company as string, item.row.company as string));
+            if (!dup) {
+              kept.push(item);
+              continue;
+            }
+            // same job twice in one batch — keep the richer description
+            if ((item.row.description as string).length > (dup.row.description as string).length) {
+              dropFps.add(dup.fp);
+              kept.splice(kept.indexOf(dup), 1);
+              kept.push(item);
+            } else {
+              dropFps.add(item.fp);
+            }
+          }
+        }
+        for (const fp of dropFps) prepared.delete(fp);
+      }
+
       // 2) batched writes: 1 existence check + createMany + updateMany
       try {
         const fps = [...prepared.keys()];
@@ -99,7 +140,69 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
           : [];
         const existingSet = new Set(existing.map((e) => e.fingerprint));
 
-        const toCreate = fps.filter((f) => !existingSet.has(f)).map((f) => prepared.get(f)!);
+        let toCreate = fps.filter((f) => !existingSet.has(f)).map((f) => prepared.get(f)!);
+
+        // 2a) same-posting dedupe: (source, sourceId) already exists under a
+        // different fingerprint (retitled repost) -> touch, never recreate.
+        if (toCreate.length) {
+          const sids = toCreate.map((r) => r.sourceId as string).filter(Boolean);
+          if (sids.length) {
+            const existingSids = await prisma.job.findMany({
+              where: { source: s.name, sourceId: { in: sids } },
+              select: { id: true, sourceId: true },
+            });
+            if (existingSids.length) {
+              const bySid = new Map(existingSids.map((e) => [e.sourceId, e.id]));
+              const touchIds: string[] = [];
+              toCreate = toCreate.filter((row) => {
+                const hit = bySid.get(row.sourceId as string);
+                if (hit) {
+                  touchIds.push(hit);
+                  return false;
+                }
+                return true;
+              });
+              await prisma.job.updateMany({
+                where: { id: { in: touchIds } },
+                data: { lastSeenAt: new Date(), isActive: true },
+              });
+            }
+          }
+        }
+
+        // 2b) second-chance dedupe against DB: same city + normalized title with a
+        // fuzzily-matching company already exists -> treat as seen, don't create a dupe.
+        if (toCreate.length) {
+          const cities = [...new Set(toCreate.map((r) => r.city as string))];
+          const titles = [...new Set(toCreate.map((r) => r.normTitle as string))];
+          const candidates = await prisma.job.findMany({
+            where: { city: { in: cities }, normTitle: { in: titles } },
+            select: { id: true, company: true, city: true, normTitle: true },
+          });
+          const byKey = new Map<string, typeof candidates>();
+          for (const c of candidates) {
+            const key = `${c.city.toLowerCase()}|${c.normTitle}`;
+            const arr = byKey.get(key) ?? [];
+            arr.push(c);
+            byKey.set(key, arr);
+          }
+          const touchIds: string[] = [];
+          const still: typeof toCreate = [];
+          for (const row of toCreate) {
+            const cands = byKey.get(`${(row.city as string).toLowerCase()}|${row.normTitle as string}`) ?? [];
+            const hit = cands.find((c) => companiesMatch(row.company as string, c.company));
+            if (hit) touchIds.push(hit.id);
+            else still.push(row);
+          }
+          toCreate = still;
+          if (touchIds.length) {
+            await prisma.job.updateMany({
+              where: { id: { in: touchIds } },
+              data: { lastSeenAt: new Date(), isActive: true },
+            });
+          }
+        }
+
         for (let i = 0; i < toCreate.length; i += 200) {
           await prisma.job.createMany({ data: toCreate.slice(i, i + 200) as never });
         }
