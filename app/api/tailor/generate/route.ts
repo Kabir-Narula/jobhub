@@ -245,6 +245,7 @@ export async function POST(request: Request) {
     { shorten: true, clamps: {} },
     { shorten: true, clamps: { compactSkills: 5 } },
     { shorten: true, clamps: { compactSkills: 4, maxExpBullets: 3, maxProjBullets: 2 } },
+    { shorten: true, clamps: { compactSkills: 4, maxExpBullets: 2, maxProjBullets: 2 } },
   ];
   for (let attempt = 0; attempt < LADDER.length && resumeResult.pageCount > RESUME_PAGE_LIMIT; attempt++) {
     const step = LADDER[attempt];
