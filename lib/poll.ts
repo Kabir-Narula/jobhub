@@ -5,6 +5,7 @@ import { decodeEntities } from "@/lib/sources/http";
 import { parseLocation } from "@/lib/geo";
 import { classifyCategory, classifySeniority } from "@/lib/classify";
 import { jobFingerprint, normTitle, normCompany, companiesMatch } from "@/lib/dedupe";
+import { sweepDuplicates } from "@/lib/dedupe-sweep";
 
 export interface PollSummary {
   runId: string;
@@ -12,6 +13,7 @@ export interface PollSummary {
   finishedAt: string;
   newJobs: number;
   totalSeen: number;
+  dupesMerged: number;
   sourcesOk: number;
   sourcesFailed: number;
   results: SourceResult[];
@@ -29,6 +31,7 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
   const startedAt = new Date();
   const run = await prisma.pollRun.create({ data: { trigger } });
   const sources = await buildSources();
+  await prisma.pollRun.update({ where: { id: run.id }, data: { totalSources: sources.length } }).catch(() => {});
 
   const results: SourceResult[] = [];
   let newJobs = 0;
@@ -135,7 +138,7 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
         const existing = fps.length
           ? await prisma.job.findMany({
               where: { fingerprint: { in: fps } },
-              select: { fingerprint: true, postedAt: true },
+              select: { id: true, fingerprint: true, postedAt: true, mergedIntoId: true },
             })
           : [];
         const existingSet = new Set(existing.map((e) => e.fingerprint));
@@ -149,21 +152,22 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
           if (sids.length) {
             const existingSids = await prisma.job.findMany({
               where: { source: s.name, sourceId: { in: sids } },
-              select: { id: true, sourceId: true },
+              select: { id: true, sourceId: true, mergedIntoId: true },
             });
             if (existingSids.length) {
-              const bySid = new Map(existingSids.map((e) => [e.sourceId, e.id]));
-              const touchIds: string[] = [];
+              const bySid = new Map(existingSids.map((e) => [e.sourceId, e]));
+              const touchIds = new Set<string>();
               toCreate = toCreate.filter((row) => {
                 const hit = bySid.get(row.sourceId as string);
                 if (hit) {
-                  touchIds.push(hit);
+                  // a merged loser's touch forwards to its winner
+                  touchIds.add(hit.mergedIntoId ?? hit.id);
                   return false;
                 }
                 return true;
               });
               await prisma.job.updateMany({
-                where: { id: { in: touchIds } },
+                where: { id: { in: [...touchIds] } },
                 data: { lastSeenAt: new Date(), isActive: true },
               });
             }
@@ -177,7 +181,7 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
           const titles = [...new Set(toCreate.map((r) => r.normTitle as string))];
           const candidates = await prisma.job.findMany({
             where: { city: { in: cities }, normTitle: { in: titles } },
-            select: { id: true, company: true, city: true, normTitle: true },
+            select: { id: true, company: true, city: true, normTitle: true, mergedIntoId: true },
           });
           const byKey = new Map<string, typeof candidates>();
           for (const c of candidates) {
@@ -186,18 +190,18 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
             arr.push(c);
             byKey.set(key, arr);
           }
-          const touchIds: string[] = [];
+          const touchIds = new Set<string>();
           const still: typeof toCreate = [];
           for (const row of toCreate) {
             const cands = byKey.get(`${(row.city as string).toLowerCase()}|${row.normTitle as string}`) ?? [];
             const hit = cands.find((c) => companiesMatch(row.company as string, c.company));
-            if (hit) touchIds.push(hit.id);
+            if (hit) touchIds.add(hit.mergedIntoId ?? hit.id);
             else still.push(row);
           }
           toCreate = still;
-          if (touchIds.length) {
+          if (touchIds.size) {
             await prisma.job.updateMany({
-              where: { id: { in: touchIds } },
+              where: { id: { in: [...touchIds] } },
               data: { lastSeenAt: new Date(), isActive: true },
             });
           }
@@ -208,15 +212,16 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
         }
         sourceNew = toCreate.length;
 
-        const toTouch = fps.filter((f) => existingSet.has(f));
-        if (toTouch.length) {
+        // touch rows whose fingerprint reappeared — merged losers forward to their winner
+        const touchIds = new Set(existing.map((e) => e.mergedIntoId ?? e.id));
+        if (touchIds.size) {
           await prisma.job.updateMany({
-            where: { fingerprint: { in: toTouch } },
+            where: { id: { in: [...touchIds] } },
             data: { lastSeenAt: new Date(), isActive: true },
           });
         }
 
-        const missingPosted = existing.filter((e) => e.postedAt === null);
+        const missingPosted = existing.filter((e) => e.postedAt === null && !e.mergedIntoId);
         for (const e of missingPosted) {
           const row = prepared.get(e.fingerprint);
           if (row?.postedAt) {
@@ -265,6 +270,12 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
 
   await Promise.all(sources.map(processSource));
 
+  // Cross-source race catch-all: two sources can insert the same job in the
+  // same cycle (neither saw the other's row). Sweep merges whatever slipped
+  // through before the UI ever shows it.
+  const sweep = await sweepDuplicates({}).catch(() => null);
+  const dupesMerged = sweep?.deactivated ?? 0;
+
   const finishedAt = new Date();
   await prisma.pollRun.update({
     where: { id: run.id },
@@ -283,6 +294,7 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
     finishedAt: finishedAt.toISOString(),
     newJobs,
     totalSeen,
+    dupesMerged,
     sourcesOk: results.filter((r) => r.ok).length,
     sourcesFailed: results.filter((r) => !r.ok).length,
     results,

@@ -90,6 +90,8 @@ model Job {
   dismissedAt           DateTime?
   viewedAt              DateTime?
   applyPromptDismissedAt DateTime?
+  mergedAt              DateTime?
+  mergedIntoId          String?
   companyResearch       Json?
   researchedAt          DateTime?
   contacts              Json?
@@ -165,14 +167,15 @@ model CompanySource {
 }
 
 model PollRun {
-  id         String    @id @default(cuid())
-  startedAt  DateTime  @default(now())
-  finishedAt DateTime?
-  trigger    String    @default("cron")
-  results    Json      @default("[]")
-  newJobs    Int       @default(0)
-  totalSeen  Int       @default(0)
-  ok         Boolean   @default(false)
+  id           String    @id @default(cuid())
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+  trigger      String    @default("cron")
+  results      Json      @default("[]")
+  newJobs      Int       @default(0)
+  totalSeen    Int       @default(0)
+  totalSources Int       @default(0)
+  ok           Boolean   @default(false)
 }
 
 model Setting {

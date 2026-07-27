@@ -14,6 +14,7 @@ export async function GET() {
           finishedAt: lastRun.finishedAt?.toISOString() ?? null,
           newJobs: lastRun.newJobs,
           totalSeen: lastRun.totalSeen,
+          totalSources: lastRun.totalSources,
           ok: lastRun.ok,
           results: lastRun.results ?? [],
         }

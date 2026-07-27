@@ -120,7 +120,7 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
         const res = await fetch("/api/jobs/poll-status");
         const { polling, lastRun } = await res.json();
         const done = lastRun?.results?.length ?? 0;
-        const total = 38;
+        const total = lastRun?.totalSources || done;
         if (polling || (lastRun && !lastRun.finishedAt)) {
           toast.loading(
             `Polling… ${done}/${total} sources, +${lastRun?.newJobs ?? 0} new`,
