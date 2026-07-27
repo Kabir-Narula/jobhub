@@ -165,11 +165,14 @@ export async function POST(request: Request) {
   const softSkills = softSkillsFor(job.description);
 
   // Conditional entries: the ITS HyFlex support role is kept only for
-  // IT-support/consulting-flavored postings; on pure dev roles the space is
-  // better spent on the candidate's programming experience.
-  const SUPPORT_FLAVORED =
-    /\b(itil|help ?desk|desktop support|technical support|field (service|support)|it support|it analyst|it consultant|systems? admin|troubleshoot|incident management|hardware|peripherals|lab monitor)\b/i;
-  const supportRelevant = SUPPORT_FLAVORED.test(`${job.title}\n${job.description}`);
+  // IT-support/consulting/infra-flavored postings; on everything else the
+  // space goes to richer programming bullets. Title-led detection (strict),
+  // with strong description phrases as backup.
+  const KEEP_TITLE_RE =
+    /\b(itil|help ?desk|desktop support|technical support|support engineer|technical consultant|technical analyst|it support|it analyst|it consultant|field (service|support)|systems? admin|lab monitor|implementation (engineer|consultant|specialist)|solutions? (analyst|engineer|consultant)|technical account|professional services|devops|sre|site reliability|infrastructure|platform engineer|cloud (engineer|ops)|network engineer)\b/i;
+  const KEEP_DESC_RE = /\b(itil|incident management|help ?desk|desktop support)\b/i;
+  const supportRelevant =
+    KEEP_TITLE_RE.test(job.title) || KEEP_DESC_RE.test(job.description.slice(0, 3000));
   const entriesToUse = supportRelevant
     ? parsedResume.entries
     : parsedResume.entries.filter((e) => !/ITS/i.test(e.company));
