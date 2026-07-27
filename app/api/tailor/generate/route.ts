@@ -164,8 +164,22 @@ export async function POST(request: Request) {
   const lensSuppress = lens?.suppress ?? [];
   const softSkills = softSkillsFor(job.description);
 
+  // Conditional entries: the ITS HyFlex support role is kept only for
+  // IT-support/consulting-flavored postings; on pure dev roles the space is
+  // better spent on the candidate's programming experience.
+  const SUPPORT_FLAVORED =
+    /\b(itil|help ?desk|desktop support|technical support|field (service|support)|it support|it analyst|it consultant|systems? admin|troubleshoot|incident management|hardware|peripherals|lab monitor)\b/i;
+  const supportRelevant = SUPPORT_FLAVORED.test(`${job.title}\n${job.description}`);
+  const entriesToUse = supportRelevant
+    ? parsedResume.entries
+    : parsedResume.entries.filter((e) => !/ITS/i.test(e.company));
+  const droppedEntries = parsedResume.entries
+    .filter((e) => /ITS/i.test(e.company) && !supportRelevant)
+    .map((e) => `${e.title} at ${e.company}`);
+  const parsedForJob = { ...parsedResume, entries: entriesToUse };
+
   let generated: GeneratedContent = await generateContent({
-    entries: parsedResume.entries,
+    entries: parsedForJob.entries,
     skills: skillsSection,
     job: jobInput,
     research,
@@ -192,7 +206,7 @@ export async function POST(request: Request) {
   const warnings: string[] = [];
   let newNumbers = findNewNumbers(originalText, generatedText());
   if (newNumbers.length > 0) {
-    generated = await generateContent({ entries: parsedResume.entries, skills: skillsSection, job: jobInput, research, lensNote, softSkills, shorten: false, cheap: true });
+    generated = await generateContent({ entries: parsedForJob.entries, skills: skillsSection, job: jobInput, research, lensNote, softSkills, shorten: false, cheap: true });
     newNumbers = findNewNumbers(originalText, generatedText());
     if (newNumbers.length > 0) {
       warnings.push(`Review carefully: these numbers are NOT in your source material: ${newNumbers.join(", ")}`);
@@ -203,9 +217,9 @@ export async function POST(request: Request) {
   const pendingTitleChanges = generated.experience
     .map((g, i) => ({
       company: g.company,
-      from: parsedResume.entries[i].title,
+      from: parsedForJob.entries[i].title,
       to: g.title,
-      changed: g.titleChanged && g.title !== parsedResume.entries[i].title,
+      changed: g.titleChanged && g.title !== parsedForJob.entries[i].title,
     }))
     .filter((t) => t.changed);
 
@@ -218,9 +232,9 @@ export async function POST(request: Request) {
   function buildTex(gen: GeneratedContent, clamps: Clamps = {}): string {
     const updates: ResumeUpdate[] = gen.experience.map((g, i) => ({
       title: allowTitleChanges && g.titleChanged ? g.title : undefined,
-      bullets: g.bullets.length ? g.bullets : parsedResume.entries[i].bullets,
+      bullets: g.bullets.length ? g.bullets : parsedForJob.entries[i].bullets,
     }));
-    let tex = assembleResume(parsedResume, updates, clamps.maxExpBullets ?? 4);
+    let tex = assembleResume(parsedForJob, updates, clamps.maxExpBullets ?? 4);
     const { entries: projectEntries } = resolveProjects(gen.projects);
     tex = assembleProjectsSection(parseProjectsSection(tex), projectEntries, clamps.maxProjBullets ?? 0);
     // Skills may include: master pool + verified extras + JD soft skills +
@@ -249,7 +263,7 @@ export async function POST(request: Request) {
   ];
   for (let attempt = 0; attempt < LADDER.length && resumeResult.pageCount > RESUME_PAGE_LIMIT; attempt++) {
     const step = LADDER[attempt];
-    const shortened = await generateContent({ entries: parsedResume.entries, skills: skillsSection, job: jobInput, research, lensNote, softSkills, shorten: step.shorten });
+    const shortened = await generateContent({ entries: parsedForJob.entries, skills: skillsSection, job: jobInput, research, lensNote, softSkills, shorten: step.shorten });
     resumeTex = buildTex(shortened, step.clamps);
     resumeResult = await compileLatex(resumeTex);
     if (resumeResult.pageCount <= RESUME_PAGE_LIMIT) {
@@ -269,7 +283,7 @@ export async function POST(request: Request) {
   if (score !== null && score < 70) {
     const missing = missingTerms(job.description, resumeTex, 25, job.company);
     if (missing.length > 0) {
-      const boosted = await generateContent({ entries: parsedResume.entries, skills: skillsSection, job: jobInput, research, lensNote, softSkills, boost: { missingTerms: missing } });
+      const boosted = await generateContent({ entries: parsedForJob.entries, skills: skillsSection, job: jobInput, research, lensNote, softSkills, boost: { missingTerms: missing } });
       const boostedTex = buildTex(boosted);
       const boostedResult = await compileLatex(boostedTex);
       if (boostedResult.pageCount === 1) {
@@ -287,7 +301,7 @@ export async function POST(request: Request) {
   // --- closed-loop page fill: measure actual text coverage, expand if sparse ---
   let fillPct = Math.round((await pageFill(resumeResult.pdf)) * 100);
   if (fillPct < FILL_TARGET * 100 && resumeResult.pageCount === 1) {
-    const expanded = await generateContent({ entries: parsedResume.entries, skills: skillsSection, job: jobInput, research, lensNote, softSkills, expand: true });
+    const expanded = await generateContent({ entries: parsedForJob.entries, skills: skillsSection, job: jobInput, research, lensNote, softSkills, expand: true });
     const expandedTex = buildTex(expanded);
     const expandedResult = await compileLatex(expandedTex);
     if (expandedResult.pageCount === 1) {
@@ -384,6 +398,7 @@ export async function POST(request: Request) {
     appliedTitleChanges: allowTitleChanges ? pendingTitleChanges : [],
     pendingTitleChanges: allowTitleChanges ? [] : pendingTitleChanges,
     chosenProjects,
+    droppedEntries,
     research,
   });
 }

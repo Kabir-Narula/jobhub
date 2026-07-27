@@ -83,6 +83,7 @@ interface GenerateResult {
   appliedTitleChanges?: { company: string; from: string; to: string }[];
   pendingTitleChanges: { company: string; from: string; to: string }[];
   chosenProjects?: string[];
+  droppedEntries?: string[];
 }
 
 export function TailorClient({
@@ -516,6 +517,11 @@ export function TailorClient({
       {/* latest result */}
       {result && (
         <div className="grid gap-3 sm:grid-cols-2">
+          {result.droppedEntries && result.droppedEntries.length > 0 && (
+            <p className="text-xs text-[#8b877a] sm:col-span-2">
+              Hidden for this role (not relevant here): <span className="text-[#a8a294]">{result.droppedEntries.join(", ")}</span>
+            </p>
+          )}
           {result.chosenProjects && result.chosenProjects.length > 0 && (
             <p className="text-xs text-[#8b877a] sm:col-span-2">
               Projects on this resume:{" "}
