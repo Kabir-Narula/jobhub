@@ -442,8 +442,11 @@ export function assembleSkillsSection(
 
 /**
  * Appends an Achievements section before \end{document}, using the master's
- * own macros (\resumeItem) so the design stays identical. Items must already
- * be LaTeX-safe (they come from the curated achievements library).
+ * own \resumeItem macro so the design stays identical. Other sections nest
+ * \resumeItemListStart inside \resumeSubHeadingListStart (0.15in outer +
+ * 0.15in inner, level-2 tiny bullets) — this section has no subheading row,
+ * so it emits an equivalent single list: 0.3in left margin and the same
+ * level-2 bullet glyph. Items must already be LaTeX-safe.
  */
 export function insertAchievements(tex: string, items: string[]): string {
   if (items.length === 0) return tex;
@@ -451,7 +454,7 @@ export function insertAchievements(tex: string, items: string[]): string {
   const endIdx = tex.lastIndexOf("\\end{document}");
   if (endIdx < 0) throw new Error("No \\end{document} found");
 
-  let section = `%-----------ACHIEVEMENTS-----------${nl}\\section{Achievements}${nl}  \\resumeItemListStart${nl}`;
+  let section = `%-----------ACHIEVEMENTS-----------${nl}\\section{Achievements}${nl}  \\begin{itemize}[leftmargin=0.3in, label={$\\vcenter{\\hbox{\\tiny$\\bullet$}}$}]${nl}`;
   for (const item of items) {
     section += `    \\resumeItem{${item}}${nl}`;
   }
