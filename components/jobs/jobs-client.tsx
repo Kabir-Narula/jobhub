@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { JobCard } from "./job-card";
 import { JobsHeader, type FilterState } from "./jobs-header";
 import { ReturnPrompt } from "./return-prompt";
-import { Inbox, RefreshCw, CheckCircle2, ChevronDown } from "lucide-react";
+import { Inbox, RefreshCw, CheckCircle2, ChevronDown, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface RunInfo {
@@ -33,6 +33,7 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
   const [jobs, setJobs] = useState(initialJobs);
   const [selected, setSelected] = useState(-1); // no highlight until j/k is used
   const [refreshing, setRefreshing] = useState(false);
+  const [batching, setBatching] = useState(false);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const [appliedIds, setAppliedIds] = useState<string[]>(appliedJobIds);
   const appliedSet = new Set(appliedIds);
@@ -145,7 +146,45 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
     }, 2500);
   }, [router]);
 
-  // Keyboard shortcuts: j/k navigate, a apply, s save, d dismiss, / search, r refresh.
+  async function tailorSaved() {
+    const ids = visibleJobs.map((j) => j.id);
+    if (!ids.length) return;
+    setBatching(true);
+    toast.loading(`Tailoring ${ids.length} saved jobs…`, { id: "batch" });
+    try {
+      const res = await fetch("/api/tailor/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobIds: ids }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error ?? "Batch failed to start", { id: "batch" });
+        setBatching(false);
+        return;
+      }
+      const timer = setInterval(async () => {
+        try {
+          const s = await (await fetch("/api/tailor/batch")).json();
+          const b = s.batch;
+          if (b && !b.finishedAt) {
+            toast.loading(`Tailoring… ${b.done}/${b.total} done`, { id: "batch" });
+          } else {
+            clearInterval(timer);
+            const ok = b?.results?.filter((r: { ok: boolean }) => r.ok).length ?? 0;
+            toast.success(`Batch done: ${ok}/${b?.total ?? ids.length} tailored`, { id: "batch" });
+            setBatching(false);
+            router.refresh();
+          }
+        } catch {
+          // next tick retries
+        }
+      }, 3000);
+    } catch {
+      toast.error("Batch failed to start", { id: "batch" });
+      setBatching(false);
+    }
+  }
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const el = document.activeElement;
@@ -226,16 +265,29 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
             <span>j/k move · a apply · s save · d dismiss · t tailor · m mark applied</span>
           </p>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={refresh}
-          disabled={refreshing}
-          className="border-[#e6e3db] bg-white text-[#4a473f] shadow-none hover:border-[#c2410c]/40 hover:text-[#c2410c]"
-        >
-          <RefreshCw className={refreshing ? "size-3.5 animate-spin" : "size-3.5"} />
-          {refreshing ? "Polling…" : "Refresh"}
-        </Button>
+        <div className="flex items-center gap-2">
+          {filters.savedOnly && visibleJobs.length > 0 && (
+            <Button
+              size="sm"
+              onClick={tailorSaved}
+              disabled={batching}
+              className="bg-[#c2410c] text-[#fdf8f3] hover:bg-[#9a3412]"
+            >
+              <Sparkles className={batching ? "size-3.5 animate-pulse" : "size-3.5"} />
+              {batching ? "Tailoring…" : `Tailor all saved (${visibleJobs.length})`}
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={refresh}
+            disabled={refreshing}
+            className="border-[#e6e3db] bg-white text-[#4a473f] shadow-none hover:border-[#c2410c]/40 hover:text-[#c2410c]"
+          >
+            <RefreshCw className={refreshing ? "size-3.5 animate-spin" : "size-3.5"} />
+            {refreshing ? "Polling…" : "Refresh"}
+          </Button>
+        </div>
       </div>
 
       <JobsHeader filters={filters} bucketCounts={bucketCounts} searchRef={searchRef} />

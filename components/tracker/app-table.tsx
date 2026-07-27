@@ -17,11 +17,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowUpDown, ExternalLink, FileText, Mail, Pencil, Sparkles, Trash2 } from "lucide-react";
+import { ArrowUpDown, ExternalLink, FileText, GraduationCap, Mail, Pencil, Sparkles, Trash2 } from "lucide-react";
 import { StatusSelect } from "./status-select";
 import { BUCKET_LABEL } from "@/components/jobs/labels";
 import { CompanyAvatar } from "@/components/company-avatar";
 import { EmailDialog } from "@/components/tailor/email-dialog";
+import { PrepDialog } from "./prep-dialog";
 import { cn } from "@/lib/utils";
 import type { AppWithJob } from "./types";
 
@@ -51,6 +52,7 @@ export function AppTable({
   const [notesDraft, setNotesDraft] = useState("");
   const [localNotes, setLocalNotes] = useState<Record<string, string>>({});
   const [followUpApp, setFollowUpApp] = useState<AppWithJob | null>(null);
+  const [prepApp, setPrepApp] = useState<AppWithJob | null>(null);
 
   async function saveNotes() {
     if (!editing) return;
@@ -167,6 +169,17 @@ export function AppTable({
                 </TableCell>
                 <TableCell>
                   <div className="flex justify-end gap-1">
+                    {app.status === "INTERVIEWING" && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-[#c2410c] hover:text-[#9a3412]"
+                        title="Interview prep pack"
+                        onClick={() => setPrepApp(app)}
+                      >
+                        <GraduationCap className="size-3.5" />
+                      </Button>
+                    )}
                     {app.status === "APPLIED" && days >= 7 && (
                       <Button
                         size="sm"
@@ -252,6 +265,15 @@ export function AppTable({
           onClose={() => setFollowUpApp(null)}
           mode="followup"
           daysSinceApplied={differenceInDays(new Date(), followUpApp.appliedAt)}
+        />
+      )}
+
+      {prepApp && (
+        <PrepDialog
+          applicationId={prepApp.id}
+          company={prepApp.job.company}
+          open={Boolean(prepApp)}
+          onClose={() => setPrepApp(null)}
         />
       )}
     </div>

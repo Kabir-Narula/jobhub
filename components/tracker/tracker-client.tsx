@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import type { AppStatus } from "@prisma/client";
+import { Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { AppTable } from "./app-table";
@@ -17,6 +19,8 @@ export interface Analytics {
   responseRate: number;
   avgDaysToResponse: number | null;
   weeks: { label: string; count: number }[];
+  atsBuckets?: { label: string; total: number; positive: number; rate: number }[];
+  bySource?: { label: string; total: number; positive: number; rate: number }[];
 }
 
 export function TrackerClient({
@@ -67,7 +71,16 @@ export function TrackerClient({
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-end justify-between">
-        <h1 className="text-lg font-semibold tracking-tight">Tracker</h1>
+        <h1 className="font-display text-2xl font-semibold text-[#1c1b17]">Tracker</h1>
+        <Button
+          size="sm"
+          variant="outline"
+          className="border-[#e6e3db] bg-white text-[#6e6b61] hover:text-[#1c1b17]"
+          nativeButton={false}
+          render={<a href="/api/applications/export" download />}
+        >
+          <Download className="size-3.5" /> Export CSV
+        </Button>
       </div>
 
       {/* analytics strip */}
@@ -100,6 +113,44 @@ export function TrackerClient({
           </div>
         </div>
       </div>
+
+      {/* outcome analytics — what actually converts */}
+      {((analytics.atsBuckets?.some((b) => b.total > 0) ?? false) || (analytics.bySource?.some((s) => s.total > 0) ?? false)) && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {analytics.atsBuckets?.some((b) => b.total > 0) && (
+            <div className="rounded-lg border border-[#e6e3db] bg-white p-4">
+              <p className="text-xs font-medium text-[#8b877a]">Response rate by resume ATS score</p>
+              <div className="mt-2 flex flex-col gap-1.5">
+                {analytics.atsBuckets.map((b) => (
+                  <div key={b.label} className="flex items-center gap-2 text-xs">
+                    <span className="w-20 text-[#6e6b61]">{b.label}</span>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#f1efe9]">
+                      <div className="h-full rounded-full bg-[#c2410c] transition-all duration-500" style={{ width: `${b.rate}%` }} />
+                    </div>
+                    <span className="w-14 text-right text-[#4a473f]">{b.rate}% <span className="text-[#a8a294]">({b.positive}/{b.total})</span></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {analytics.bySource?.some((s) => s.total > 0) && (
+            <div className="rounded-lg border border-[#e6e3db] bg-white p-4">
+              <p className="text-xs font-medium text-[#8b877a]">Response rate by source</p>
+              <div className="mt-2 flex flex-col gap-1.5">
+                {analytics.bySource.map((s) => (
+                  <div key={s.label} className="flex items-center gap-2 text-xs">
+                    <span className="w-20 truncate text-[#6e6b61]">{s.label}</span>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#f1efe9]">
+                      <div className="h-full rounded-full bg-[#c2410c] transition-all duration-500" style={{ width: `${s.rate}%` }} />
+                    </div>
+                    <span className="w-14 text-right text-[#4a473f]">{s.rate}% <span className="text-[#a8a294]">({s.positive}/{s.total})</span></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <Tabs defaultValue="kanban">
         <div className="flex items-center justify-between gap-3">
