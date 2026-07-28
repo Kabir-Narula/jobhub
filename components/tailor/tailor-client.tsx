@@ -92,12 +92,14 @@ export function TailorClient({
   initialResearch,
   initialContacts,
   hasApplication,
+  workdayTips,
 }: {
   job: JobInfo;
   initialDocuments: DocMeta[];
   initialResearch: Research | null;
   initialContacts: ContactsData | null;
   hasApplication: boolean;
+  workdayTips: { title: string; terms: string[] } | null;
 }) {
   const router = useRouter();
   const [research, setResearch] = useState<Research | null>(initialResearch);
@@ -274,6 +276,27 @@ export function TailorClient({
           </p>
         )}
       </div>
+
+      {/* Workday form-field cheat sheet: Workday ranks form data above the PDF */}
+      {workdayTips && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
+          <p className="font-semibold">Workday application — the form outranks the PDF</p>
+          <p className="mt-1">
+            Workday weights what you type into its form fields more than the uploaded resume. When you apply:
+          </p>
+          <ul className="mt-1.5 list-disc pl-4">
+            <li>
+              Set <span className="font-medium">Current Title</span> to exactly:{" "}
+              <code className="rounded bg-amber-100 px-1 py-0.5 font-medium">{workdayTips.title}</code>
+            </li>
+            <li>
+              Paste these exact terms into the skills/free-text fields:{" "}
+              <code className="rounded bg-amber-100 px-1 py-0.5">{workdayTips.terms.join(", ")}</code>
+            </li>
+            <li>Fill every field — blank fields rank below completed ones, even when the PDF has the same info.</li>
+          </ul>
+        </div>
+      )}
 
       {/* steps */}
       <div className="flex items-center gap-1 rounded-lg border border-[#e6e3db]/70 bg-white p-1">

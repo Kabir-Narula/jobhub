@@ -16,6 +16,22 @@ interface WdPosting {
 }
 
 /**
+ * Workday's postedOn is display text ("Posted 2 Days Ago", "Posted Yesterday",
+ * "Posted 30+ Days Ago") — new Date() on it is Invalid Date, which poisons a
+ * whole createMany batch downstream. Parse defensively; unknown -> null.
+ */
+function parsePostedOn(raw: string | undefined): Date | null {
+  if (!raw) return null;
+  const direct = new Date(raw);
+  if (!isNaN(direct.getTime())) return direct;
+  const m = raw.match(/(\d+)\+?\s+days?\s+ago/i);
+  if (m) return new Date(Date.now() - Number(m[1]) * 86400000);
+  if (/yesterday/i.test(raw)) return new Date(Date.now() - 86400000);
+  if (/today/i.test(raw)) return new Date();
+  return null;
+}
+
+/**
  * Workday public board API (POST /wday/cxs/{tenant}/{site}/jobs).
  * boardToken format: "{host}/{tenant}/{site}" e.g. "td.wd3/td/TD_Bank_Careers".
  * Big boards (TD, BMO, Salesforce = 1000+ jobs) are searched by keyword instead
@@ -72,7 +88,7 @@ export function workdayAdapter(boardToken: string, companyName: string): SourceA
           sourceId: j.externalPath,
           sourceUrl: `${base}/en-US/${site}${j.externalPath}`,
           applyUrl: `${base}/en-US/${site}${j.externalPath}`,
-          postedAt: j.postedOn ? new Date(j.postedOn) : null,
+          postedAt: parsePostedOn(j.postedOn),
         };
       });
 
@@ -88,7 +104,7 @@ export function workdayAdapter(boardToken: string, companyName: string): SourceA
           sourceId: j.externalPath,
           sourceUrl: `${base}/en-US/${site}${j.externalPath}`,
           applyUrl: `${base}/en-US/${site}${j.externalPath}`,
-          postedAt: j.postedOn ? new Date(j.postedOn) : null,
+          postedAt: parsePostedOn(j.postedOn),
         })
       );
 

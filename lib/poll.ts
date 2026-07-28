@@ -92,7 +92,9 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
             salaryMin: job.salaryMin ?? null,
             salaryMax: job.salaryMax ?? null,
             salaryCurrency: job.salaryCurrency ?? null,
-            postedAt: job.postedAt,
+            // an Invalid Date from any adapter poisons the whole createMany
+            // batch — sanitize here so one bad adapter value can't sink a source
+            postedAt: job.postedAt instanceof Date && !isNaN(job.postedAt.getTime()) ? job.postedAt : null,
           });
         } catch {
           // a single malformed record never aborts the source
@@ -207,10 +209,16 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
           }
         }
 
+        // skipDuplicates: concurrent sources can insert the same fingerprint in
+        // the same cycle (linkedin + workday:td cross-post) — without this, one
+        // conflict fails the WHOLE 200-row batch and the source never inserts
+        // (this is why no workday:* rows ever landed in the DB).
+        let created = 0;
         for (let i = 0; i < toCreate.length; i += 200) {
-          await prisma.job.createMany({ data: toCreate.slice(i, i + 200) as never });
+          const r = await prisma.job.createMany({ data: toCreate.slice(i, i + 200) as never, skipDuplicates: true });
+          created += r.count;
         }
-        sourceNew = toCreate.length;
+        sourceNew = created;
 
         // touch rows whose fingerprint reappeared — merged losers forward to their winner
         const touchIds = new Set(existing.map((e) => e.mergedIntoId ?? e.id));

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { TailorClient } from "@/components/tailor/tailor-client";
+import { jdTerms } from "@/lib/tailor/match";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,20 @@ export default async function TailorPage({ params }: { params: Promise<{ jobId: 
   });
   if (!job) notFound();
 
+  // Workday ranks application FORM data above the uploaded PDF — surface the
+  // exact values to paste. Only relevant for Workday-hosted postings.
+  const isWorkday = /myworkdayjobs|workday/i.test(`${job.applyUrl} ${job.sourceUrl} ${job.source}`);
+  const workdayTips = isWorkday
+    ? {
+        title: job.title,
+        terms: jdTerms(
+          job.description,
+          8,
+          job.company.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
+        ),
+      }
+    : null;
+
   return (
     <TailorClient
       job={{
@@ -27,6 +42,7 @@ export default async function TailorPage({ params }: { params: Promise<{ jobId: 
         bucket: job.bucket,
         workMode: job.workMode,
       }}
+      workdayTips={workdayTips}
       initialDocuments={job.documents.map((d) => ({
         id: d.id,
         kind: d.kind,

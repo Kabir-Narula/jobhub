@@ -37,6 +37,7 @@ REQUIREMENT-TO-BULLET MAPPING (the ATS core):
 - You are given target_keywords extracted from the posting. Every bullet in the two expanded entries must naturally carry at least ONE target keyword where genuinely claimable — and the FIRST bullet of the most recent entry must carry the posting's #1 requirement.
 - Map bullets to requirements in priority order: the posting's top 3 requirements must each be visibly answered by at least one bullet somewhere in the resume.
 - Use the posting's exact phrasing for the concept (if it says "agentic solutions", write agentic; if it says "data pipelines", write data pipelines) — never a synonym the ATS won't match.
+- FREQUENCY (density ranking): the posting's #1 term should appear 3-4 times across the whole resume — first bullet of the most recent entry, the skills section, and 1-2 more bullets or project lines — always in natural context, never stacked in adjacent sentences, never in the same phrasing twice.
 - For SWE-flavored postings, weave real algorithmic substance where truthful: data structures, query optimization, complexity, indexing, execution plans — the candidate's PostgreSQL and systems work supports this genuinely.
 
 BULLET CRAFT (this is what gets read):

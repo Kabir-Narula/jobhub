@@ -147,11 +147,53 @@ export function matchScore(jobDescription: string, resumeTex: string, companyNam
   return Math.round((hits / terms.length) * 100);
 }
 
+/**
+ * Tech-shape test for skills-section material. JD prose ("design", "pay",
+ * "operational", "cross") is legitimate bullet vocabulary but must never be
+ * placed in a skills block or headline — parsers file it as skills data and
+ * recruiters read it as keyword stuffing.
+ */
+const TECH_LEXICON = new Set(
+  `python java javascript typescript kotlin swift go golang rust ruby scala php perl r matlab c c++ c# haskell sql mysql postgres postgresql sqlite mongodb mongo redis elasticsearch cassandra dynamodb snowflake redshift bigquery databricks spark pyspark hadoop kafka airflow flink etl elt dbt hive presto clickhouse react nextjs next.js node node.js express fastapi django flask spring springboot angular vue svelte rails laravel dotnet .net asp.net graphql rest grpc trpc prisma drizzle sqlalchemy hibernate docker kubernetes k8s terraform ansible jenkins gitlabci circleci cicd ci/cd aws azure gcp ec2 s3 lambda ecs eks rds cloudflare vercel render heroku linux unix bash git github gitlab jira confluence agile scrum devops sre ml ai nlp llm rag openai pytorch tensorflow keras sklearn pandas numpy opencv cuda mlops langchain fastapi supabase firebase stripe bullmq celery rabbitmq nginx prometheus grafana splunk datadog selenium cypress playwright jest vitest pytest junit mockito espresso xctest xcode android ios`.split(/\s+/)
+);
+
+export function isTechTerm(term: string): boolean {
+  const t = term.toLowerCase().trim();
+  if (!t) return false;
+  if (/[+#0-9]/.test(t)) return true; // c++, c#, .net, 3scale...
+  if (t.includes(".") && !t.endsWith(".")) return true; // node.js, next.js, asp.net
+  const words = t.split(/\s+/);
+  if (words.every((w) => TECH_LEXICON.has(w))) return true;
+  // bigrams with a tech head noun: "rest api", "machine learning", "data pipeline"
+  if (words.length === 2 && /^(api|apis|sql|nosql|cloud|ml|ai|ci|cd|ui|ux|os)$/.test(words[1])) return true;
+  if (words.length === 2 && /^(machine|deep|data|distributed|cloud|rest|graphql|event|stream|batch|ci|test)/.test(words[0])) return true;
+  return false;
+}
+
 /** Missing terms for display (what the resume doesn't cover). */
 export function missingTerms(jobDescription: string, resumeTex: string, cap = 12, companyName = ""): string[] {
   const plain = plainTex(resumeTex);
   const plainSquash = plain.replace(/\s+/g, "");
   return jdTerms(jobDescription, 60, companyName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean))
     .filter((t) => !covered(t, plain, plainSquash))
+    .slice(0, cap);
+}
+
+/**
+ * Misplaced terms: present somewhere in the resume but absent from the
+ * skills block. Parsers weight the skills section most heavily, and engines
+ * calibrated on real ranking behavior treat placement as a separate signal
+ * from presence. Returns top gaps for deterministic backfill.
+ */
+export function placementGaps(jobDescription: string, resumeTex: string, cap = 6, companyName = ""): string[] {
+  const m = /\\section\{(?:Skills|Technical[^}]*)\}([\s\S]*?)\\end\{itemize\}/i.exec(resumeTex);
+  if (!m) return [];
+  const skillsPlain = plainTex(m[1]);
+  const skillsSquash = skillsPlain.replace(/\s+/g, "");
+  const full = plainTex(resumeTex);
+  const fullSquash = full.replace(/\s+/g, "");
+  return jdTerms(jobDescription, 40, companyName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean))
+    .filter((t) => covered(t, full, fullSquash) && !covered(t, skillsPlain, skillsSquash))
+    .filter(isTechTerm) // only skill-shaped terms belong in a skills block
     .slice(0, cap);
 }

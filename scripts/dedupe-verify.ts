@@ -33,6 +33,7 @@ async function main() {
     if (arr.length < 2) continue;
     const byTitle = new Map<string, typeof jobs>();
     for (const j of arr) {
+      if (!j.normTitle) continue; // unnormalizable titles can't be asserted as same-role
       const arr2 = byTitle.get(j.normTitle) ?? [];
       arr2.push(j);
       byTitle.set(j.normTitle, arr2);

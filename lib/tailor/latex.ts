@@ -331,8 +331,11 @@ export interface SkillsSection {
 
 export function parseSkillsSection(tex: string): SkillsSection {
   const nl = tex.includes("\r\n") ? "\r\n" : "\n";
-  const secIdx = tex.indexOf("\\section{Technical");
-  if (secIdx < 0) throw new Error("No Technical Skills section found in master resume");
+  // "Skills" is the current (ATS-standard) header; "Technical..." matches
+  // older masters/stored versions so they keep parsing.
+  const sec = /\\section\{(?:Skills|Technical[^}]*)\}/.exec(tex);
+  if (!sec) throw new Error("No skills section found in master resume");
+  const secIdx = sec.index;
   const itemizeStart = tex.indexOf("\\begin{itemize}", secIdx);
   const itemizeEnd = tex.indexOf("\\end{itemize}", itemizeStart);
   if (itemizeStart < 0 || itemizeEnd < 0) throw new Error("Malformed skills section");
@@ -461,4 +464,77 @@ export function insertAchievements(tex: string, items: string[]): string {
   section += `  \\resumeItemListEnd${nl}${nl}`;
 
   return tex.slice(0, endIdx) + section + tex.slice(endIdx);
+}
+
+// ---------- Per-job headline + PDF metadata (ATS ranking layer) ----------
+
+/**
+ * Inserts one headline line inside the centered header block, under the
+ * links row: the posting's exact title plus top stack terms. The current
+ * title is the single highest-weighted signal in Workday/iCIMS ranking —
+ * this places it at the highest-weighted position in the document.
+ * Plain text in, escaped here.
+ */
+export function insertHeadline(tex: string, headline: string): string {
+  const nl = tex.includes("\r\n") ? "\r\n" : "\n";
+  const centerEnd = tex.indexOf("\\end{center}");
+  if (centerEnd < 0) return tex;
+  const line = ` \\\\${nl}    \\small \\textit{${escapeLatex(headline)}}${nl}`;
+  return tex.slice(0, centerEnd) + line + tex.slice(centerEnd);
+}
+
+/** Per-job PDF metadata — filename and title are what recruiters see in ATS lists. */
+export function injectPdfMeta(tex: string, meta: { title: string; author: string }): string {
+  const nl = tex.includes("\r\n") ? "\r\n" : "\n";
+  const begin = tex.indexOf("\\begin{document}");
+  if (begin < 0) return tex;
+  const clean = (s: string) => s.replace(/[{}\\]/g, "").slice(0, 120);
+  return (
+    tex.slice(0, begin) +
+    `\\hypersetup{pdftitle={${clean(meta.title)}},pdfauthor={${clean(meta.author)}}}${nl}` +
+    tex.slice(begin)
+  );
+}
+
+/**
+ * Placement fix: a term that appears in bullets but not in the skills block
+ * is misplaced — skills-section terms are weighted most heavily by parsers.
+ * Appends each missing term to its best-fit skills line (label affinity),
+ * surgically, without re-running the LLM. Terms are plain text, escaped here.
+ */
+export function ensureSkillsTerms(tex: string, terms: string[], maxPerLine = 7): string {
+  const present = new Set(
+    parseSkillsSection(tex)
+      .lines.flatMap((l) => l.items.map((i) => i.toLowerCase().replace(/\\([&%$#_{}])/g, "$1")))
+  );
+
+  const AFFINITY: [RegExp, RegExp][] = [
+    [/language/i, /^(java|python|typescript|javascript|kotlin|swift|go|golang|ruby|scala|c\+\+|c#|rust|php|matlab|haskell|perl|r)$/i],
+    [/cloud|data/i, /sql|postgres|mysql|mongo|snowflake|redshift|spark|hadoop|etl|aws|azure|gcp|cloud|s3|ec2|lambda|data/i],
+    [/infra|ml|tools/i, /docker|kubernetes|k8s|linux|git|jenkins|terraform|redis|kafka|devops|ci\/cd|cicd|ml|ai|llm|openai|pytorch|tensorflow|jira|confluence/i],
+    [/framework|tech/i, /react|next|node|express|fastapi|django|flask|spring|angular|vue|api|rest|graphql|prisma|drizzle|tailwind/i],
+  ];
+
+  let out = tex;
+  for (const term of terms) {
+    const key = term.toLowerCase();
+    if (present.has(key)) continue;
+    const lines = parseSkillsSection(out).lines;
+    const target =
+      lines.find((l) => AFFINITY.some(([labelRe, termRe]) => labelRe.test(l.label) && termRe.test(key))) ??
+      [...lines].sort((a, b) => a.items.length - b.items.length)[0];
+    if (!target) continue;
+    if (maxPerLine > 0 && target.items.length >= maxPerLine) continue;
+    const labelEsc = target.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    // line inner content: ": item, item" possibly ending in " \" (assembled) or not (master)
+    const re = new RegExp(`\\\\textbf\\{${labelEsc}\\}\\{:([^}]*)\\}`);
+    if (!re.test(out)) continue;
+    out = out.replace(re, (_whole, items: string) => {
+      const core = items.replace(/[\s\\]+$/, "");
+      const tail = items.slice(core.length);
+      return `\\textbf{${target.label}}{:${core}, ${escapeLatex(term)}${tail}}`;
+    });
+    present.add(key);
+  }
+  return out;
 }
