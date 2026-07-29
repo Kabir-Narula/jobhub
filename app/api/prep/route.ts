@@ -21,7 +21,13 @@ export async function POST(request: Request) {
   if (!app) return NextResponse.json({ error: "application not found" }, { status: 404 });
 
   if (app.researchNotes && !body?.force) {
-    return NextResponse.json({ prep: JSON.parse(app.researchNotes) as PrepPack, cached: true });
+    // researchNotes is machine-written JSON but user-editable via PATCH — a
+    // hand-written note must not 500 the prep route.
+    try {
+      return NextResponse.json({ prep: JSON.parse(app.researchNotes) as PrepPack, cached: true });
+    } catch {
+      // fall through and regenerate
+    }
   }
 
   const research = (app.job.companyResearch as unknown as CompanyResearch | null) ?? null;

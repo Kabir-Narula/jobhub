@@ -16,7 +16,8 @@ import type { SourceAdapter } from "./types";
 /**
  * Build the full adapter list: one adapter per enabled CompanySource row,
  * plus the static remote boards. JSearch/RapidAPI is intentionally NOT
- * implemented (ToS gray area per spec). LinkedIn/Indeed scraping: not built.
+ * implemented (ToS gray area per spec). LinkedIn guest-search is a
+ * best-effort adapter — isolated, its failures never touch the rest.
  */
 export async function buildSources(): Promise<SourceAdapter[]> {
   const sources: SourceAdapter[] = [];

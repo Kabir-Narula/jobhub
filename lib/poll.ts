@@ -21,6 +21,9 @@ export interface PollSummary {
 
 const INTERN_RE = /\b(intern(ship)?s?|co-?op|summer student|work term|placement (student|year))\b/i;
 
+/** Int-or-null for adapter salary fields (a string/NaN here would poison a createMany batch). */
+const asInt = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? Math.round(v) : null);
+
 /**
  * One poll cycle. Each source runs its own fetch->write chain concurrently
  * (no waiting for the slowest source before any writes land), failures are
@@ -62,6 +65,7 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
           const company = decodeEntities(job.company).trim();
           const locationRaw = decodeEntities(job.locationRaw);
           if (!title || !company) continue;
+          if (!job.sourceUrl || !job.applyUrl) continue; // adapter emitted no usable link
           if (INTERN_RE.test(title)) continue;
           // same posting ID twice in one batch (retitled card) -> keep first
           if (job.sourceId) {
@@ -89,8 +93,8 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
             sourceUrl: job.sourceUrl,
             applyUrl: job.applyUrl,
             description: job.description,
-            salaryMin: job.salaryMin ?? null,
-            salaryMax: job.salaryMax ?? null,
+            salaryMin: asInt(job.salaryMin),
+            salaryMax: asInt(job.salaryMax),
             salaryCurrency: job.salaryCurrency ?? null,
             // an Invalid Date from any adapter poisons the whole createMany
             // batch — sanitize here so one bad adapter value can't sink a source
@@ -135,6 +139,7 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
       }
 
       // 2) batched writes: 1 existence check + createMany + updateMany
+      let writeFailed = false;
       try {
         const fps = [...prepared.keys()];
         const existing = fps.length
@@ -240,15 +245,23 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
           }
         }
         totalSeen += fps.length;
-      } catch {
-        // a batch failure never aborts other sources
+      } catch (e) {
+        // A batch failure never aborts other sources — but it MUST be reported
+        // (an invisible one hid dead inserts for weeks) and it MUST skip the
+        // deactivation below: untouched rows would all look "disappeared" and a
+        // single poisoned row would wipe the whole source off the board.
+        writeFailed = true;
+        error = `write phase: ${e instanceof Error ? e.message : String(e)}`.slice(0, 300);
       }
 
-      // Deactivate listings that disappeared — only for sources that succeeded.
-      await prisma.job.updateMany({
-        where: { source: s.name, isActive: true, lastSeenAt: { lt: startedAt } },
-        data: { isActive: false },
-      });
+      // Deactivate listings that disappeared — only when fetch AND writes
+      // succeeded (a failed write leaves lastSeenAt stale on every row).
+      if (!writeFailed) {
+        await prisma.job.updateMany({
+          where: { source: s.name, isActive: true, lastSeenAt: { lt: startedAt } },
+          data: { isActive: false },
+        });
+      }
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     }
@@ -256,9 +269,15 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
     // Surface per-company health on CompanySource rows (ATS sources only).
     const [atsType, token] = s.name.split(":");
     if (token) {
+      // workday source names are "workday:{host}" but boardToken is
+      // "{host}.wdN/{tenant}/{site}" — plain equality never matches (dead write).
+      const healthWhere =
+        atsType.toUpperCase() === "WORKDAY"
+          ? { atsType: "WORKDAY" as never, boardToken: { startsWith: `${token}.` } }
+          : { atsType: atsType.toUpperCase() as never, boardToken: token };
       await prisma.companySource
         .updateMany({
-          where: { boardToken: token, atsType: atsType.toUpperCase() as never },
+          where: healthWhere,
           data: { lastError: error ?? "" },
         })
         .catch(() => {});

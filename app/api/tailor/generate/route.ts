@@ -135,6 +135,8 @@ export async function POST(request: Request) {
     }
   }
 
+  const warnings: string[] = [];
+
   // Jobs without a stored JD (Simplify rows, LinkedIn cards) get hydrated
   // on demand — without it the tailor and ATS score have nothing to work from.
   if (job.description.trim().length < 200) {
@@ -143,6 +145,8 @@ export async function POST(request: Request) {
     if (hydrated) {
       job.description = hydrated;
       await prisma.job.update({ where: { id: job.id }, data: { description: hydrated } });
+    } else {
+      warnings.push("Job description couldn't be fetched (JS-rendered page) — tailored from the title only; ATS score unavailable.");
     }
   }
 
@@ -158,6 +162,9 @@ export async function POST(request: Request) {
   const parsedResume = parseResume(masterTex);
   const skillsSection = parseSkillsSection(masterTex);
   const research = await getResearch(job.id, deepResearch);
+  if (!research) {
+    warnings.push("Company research failed — generated without company intel (no hook fact or tone match). Retry for a stronger cover letter.");
+  }
 
   const jobInput = { title: job.title, company: job.company, locationRaw: job.locationRaw, description: job.description };
   const { detectLens, lensInstruction } = await import("@/lib/tailor/lens");
@@ -217,7 +224,6 @@ export async function POST(request: Request) {
     ...generated.coverLetter.bodyParagraphs,
   ];
 
-  const warnings: string[] = [];
   let newNumbers = findNewNumbers(originalText, generatedText());
   if (newNumbers.length > 0) {
     generated = await generateContent({ entries: parsedForJob.entries, skills: skillsSection, job: jobInput, research, lensNote, softSkills, shorten: false, cheap: true });

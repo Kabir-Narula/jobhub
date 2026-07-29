@@ -12,7 +12,7 @@ export default async function SettingsPage() {
 
   const env = {
     adzuna: Boolean(process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY),
-    openaiModel: process.env.OPENAI_MODEL || "gpt-4o",
+    openaiModel: process.env.OPENAI_MODEL || "gpt-5.5",
     gtaExtra: process.env.GTA_EXTRA_CITIES || "",
     supabaseConfigured: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY),
   };

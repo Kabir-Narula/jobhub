@@ -142,6 +142,11 @@ Optional: `HUNTER_API_KEY` (contact discovery), `ADZUNA_APP_ID/KEY`, `OPENAI_MOD
 2. Build downloads the Linux Tectonic binary automatically.
 3. `vercel.json` registers the daily poll cron; use Inngest (free tier) for every-4-hours.
 
+**Serverless caveat:** a full poll takes ~60–90s (LinkedIn is the long pole). On Vercel's
+Hobby plan (60s function cap) the cron/refresh functions are killed mid-run — use Inngest
+for scheduled polling in production (no duration limit), and treat the in-app Refresh
+button as a local/dev feature unless your plan allows 300s functions.
+
 ## Deliberate omissions
 
 - **No LinkedIn/Indeed login scraping** (ToS + account risk) — LinkedIn uses the public guest

@@ -27,10 +27,12 @@ export const CATEGORY_LABEL: Record<RoleCategory, string> = {
   OTHER: "Other",
 };
 
+const SOURCE_NAME: Record<string, string> = { td: "TD", bmo: "BMO", soti: "SOTI", gm: "GM", newgrad: "New Grad", d2l: "D2L", openai: "OpenAI", "1password": "1Password" };
+
 export function sourceLabel(source: string): string {
   const [type, token] = source.split(":");
   if (!token) return type.charAt(0).toUpperCase() + type.slice(1);
-  return token.charAt(0).toUpperCase() + token.slice(1);
+  return SOURCE_NAME[token.toLowerCase()] ?? token.charAt(0).toUpperCase() + token.slice(1);
 }
 
 export function formatSalary(min: number | null, max: number | null, currency: string | null): string | null {

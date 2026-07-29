@@ -38,9 +38,9 @@ await firstCard.locator('button[title^="Save"]').click();
 await page.waitForTimeout(400);
 report("save toggle (no crash)", true);
 
-// Show description expands
-await firstCard.locator("text=Show description").first().click().catch(() => {});
-report("description expand (no crash)", true);
+// Description expands (button label is "Description")
+const descClicked = await firstCard.locator("text=Description").first().click().then(() => true).catch(() => false);
+report("description expand", descClicked);
 
 // Filters popover opens and chips are clickable
 await page.locator('button:has-text("Filters")').first().click();

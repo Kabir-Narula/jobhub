@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   const atsType = String(body?.atsType ?? "").toUpperCase() as AtsType;
   const boardToken = String(body?.boardToken ?? "").trim();
   if (!name || !boardToken || !ATS_TYPES.includes(atsType)) {
-    return NextResponse.json({ error: "name, atsType (GREENHOUSE|LEVER|ASHBY|SMARTRECRUITERS), boardToken required" }, { status: 400 });
+    return NextResponse.json({ error: "name, atsType (GREENHOUSE|LEVER|ASHBY|SMARTRECRUITERS|WORKDAY), boardToken required" }, { status: 400 });
   }
   const source = await prisma.companySource.create({ data: { name, atsType, boardToken } });
   return NextResponse.json({ source });

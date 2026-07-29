@@ -8,6 +8,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
   const data: Record<string, unknown> = {};
   if (typeof body.status === "string") {
+    const VALID = ["APPLIED", "INTERVIEWING", "OFFER", "REJECTED", "GHOSTED"];
+    if (!VALID.includes(body.status)) {
+      return NextResponse.json({ error: `status must be one of ${VALID.join("|")}` }, { status: 400 });
+    }
     data.status = body.status;
     // Stamp time-to-first-response on the first explicit outcome.
     if (["INTERVIEWING", "OFFER", "REJECTED"].includes(body.status)) {

@@ -144,7 +144,7 @@ export function SettingsClient({
             <Select value={atsType} onValueChange={(v) => v && setAtsType(v)}>
               <SelectTrigger className="h-8 w-44 bg-white"><SelectValue /></SelectTrigger>
               <SelectContent>
-                {["GREENHOUSE", "LEVER", "ASHBY", "SMARTRECRUITERS"].map((t) => (
+                {["GREENHOUSE", "LEVER", "ASHBY", "SMARTRECRUITERS", "WORKDAY"].map((t) => (
                   <SelectItem key={t} value={t}>{t.toLowerCase()}</SelectItem>
                 ))}
               </SelectContent>

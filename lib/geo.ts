@@ -29,7 +29,6 @@ const GTA_CITIES = new Set([
   "burlington",
   "halton hills",
   "caledon",
-  "vaughan",
   "king city",
   "stouffville",
   "whitchurch-stouffville",

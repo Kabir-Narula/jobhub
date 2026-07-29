@@ -185,6 +185,12 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
       setBatching(false);
     }
   }
+  // Derived lists — must be declared before the keyboard effect: selection
+  // indexes into visibleJobs (applied jobs are filtered OUT of the render),
+  // so jobs[selected] would target the wrong card after any "mark applied".
+  const visibleJobs = jobs.filter((j) => !appliedSet.has(j.id));
+  const appliedJobs = jobs.filter((j) => appliedSet.has(j.id));
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const el = document.activeElement;
@@ -195,10 +201,10 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
       if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
       if (document.querySelector('[role="dialog"], [data-slot="popover-content"]')) return;
 
-      const job = selected >= 0 ? jobs[selected] : undefined;
+      const job = selected >= 0 ? visibleJobs[selected] : undefined;
       switch (e.key) {
         case "j":
-          setSelected((s) => (s < 0 ? 0 : Math.min(s + 1, jobs.length - 1)));
+          setSelected((s) => (s < 0 ? 0 : Math.min(s + 1, visibleJobs.length - 1)));
           break;
         case "k":
           setSelected((s) => (s < 0 ? 0 : Math.max(s - 1, 0)));
@@ -229,21 +235,19 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [jobs, selected, apply, toggleSave, toggleDismiss, refreshing, refresh, router, markApplied]);
+  }, [visibleJobs, selected, apply, toggleSave, toggleDismiss, refreshing, refresh, router, markApplied]);
 
   useEffect(() => {
     if (selected < 0) return;
-    const job = jobs[selected];
+    const job = visibleJobs[selected];
     if (!job) return;
     document
       .querySelector(`[data-job-id="${job.id}"]`)
       ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [selected, jobs]);
+  }, [selected, visibleJobs]);
 
   const failedSources = lastRun?.results.filter((r) => !r.ok).length ?? 0;
   const [showApplied, setShowApplied] = useState(false);
-  const visibleJobs = jobs.filter((j) => !appliedSet.has(j.id));
-  const appliedJobs = jobs.filter((j) => appliedSet.has(j.id));
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-end justify-between">
