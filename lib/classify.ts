@@ -3,14 +3,16 @@ import type { RoleCategory, Seniority } from "@prisma/client";
 const NEW_GRAD_RE =
   /\b(new[- ]?grad(uate)?|entry[- ]?level|junior|jr\.?|associate|early[- ]?career|university grad|campus|graduate program|rotational)\b/i;
 const SENIOR_RE =
-  /\b(senior|sr\.?|staff|principal|lead|manager|director|head of|distinguished|architect)\b/i;
+  /\b(senior|sr\.?|staff|principal|lead|manager|director|head of|distinguished|architect|vice president|\bvp\b|chief|executive|supervisor)\b/i;
 
 export function classifySeniority(title: string, description = ""): Seniority {
   if (/\b(intern(ship)?s?|co-?op)\b/i.test(title)) return "NEW_GRAD"; // interns are excluded upstream; keep as fallback
-  if (NEW_GRAD_RE.test(title)) return "NEW_GRAD";
+  // Senior markers win over "associate"/"junior": "Associate Director" and
+  // "Junior Product Manager" are not new-grad roles.
   if (SENIOR_RE.test(title)) return "SENIOR";
+  if (NEW_GRAD_RE.test(title)) return "NEW_GRAD";
   const head = description.slice(0, 400);
-  if (NEW_GRAD_RE.test(head) && !SENIOR_RE.test(title)) return "NEW_GRAD";
+  if (NEW_GRAD_RE.test(head)) return "NEW_GRAD";
   return "MID";
 }
 
@@ -19,7 +21,7 @@ export function classifySeniority(title: string, description = ""): Seniority {
 const CONSULTING_RE =
   /\b(consultant|consulting|implementation (engineer|consultant|specialist|manager)|solutions? (analyst|engineer|consultant|architect)|business (systems? )?analyst|technical account manager|professional services|pre-?sales|customer (engineer|success engineer)|deployment specialist|onboarding engineer|it consultant)\b/i;
 const DATA_ML_RE =
-  /\b(data (engineer|scientist|analyst|engineering|science|platform)|machine learning|ml (engineer|ops)|ai (engineer|developer)|computer vision|nlp|analytics engineer|business intelligence|bi (developer|analyst)|data ops|mlops|applied scientist)\b/i;
+  /\b(data (engineer|scientist|analyst|engineering|sciences?|platform)|machine learning|ml (engineer|ops)|ai (engineer|developer)|computer vision|nlp|analytics engineer|business intelligence|bi (developer|analyst)|data ops|mlops|applied scientist)\b/i;
 const INFRA_RE =
   /\b(devops|sre|site reliability|platform (engineer|engineering)|infrastructure (engineer|engineering)|cloud (engineer|architect|ops)|systems (engineer|administrator)|network (engineer|administrator)|database administrator|dba|release engineer|build engineer|it (support|specialist|technician)|help ?desk|systems analyst)\b/i;
 const SWE_RE =
