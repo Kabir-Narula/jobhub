@@ -188,7 +188,7 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
           const titles = [...new Set(toCreate.map((r) => r.normTitle as string))];
           const candidates = await prisma.job.findMany({
             where: { city: { in: cities }, normTitle: { in: titles } },
-            select: { id: true, company: true, city: true, normTitle: true, mergedIntoId: true },
+            select: { id: true, company: true, city: true, normTitle: true, fingerprint: true, mergedIntoId: true },
           });
           const byKey = new Map<string, typeof candidates>();
           for (const c of candidates) {
@@ -198,12 +198,22 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
             byKey.set(key, arr);
           }
           const touchIds = new Set<string>();
+          const heals: { id: string; fingerprint: string }[] = [];
           const still: typeof toCreate = [];
           for (const row of toCreate) {
             const cands = byKey.get(`${(row.city as string).toLowerCase()}|${row.normTitle as string}`) ?? [];
             const hit = cands.find((c) => companiesMatch(row.company as string, c.company));
-            if (hit) touchIds.add(hit.mergedIntoId ?? hit.id);
-            else still.push(row);
+            if (hit) {
+              touchIds.add(hit.mergedIntoId ?? hit.id);
+              // heal pre-normalization fingerprints to the canonical form so the
+              // cheap exact layer catches this row next time (old rows carried
+              // "company|raw title|city" fingerprints and depended on this layer)
+              if (!hit.mergedIntoId && hit.fingerprint !== row.fingerprint && !existingSet.has(row.fingerprint as string)) {
+                heals.push({ id: hit.id, fingerprint: row.fingerprint as string });
+              }
+            } else {
+              still.push(row);
+            }
           }
           toCreate = still;
           if (touchIds.size) {
@@ -211,6 +221,9 @@ export async function runPoll(trigger: string): Promise<PollSummary> {
               where: { id: { in: [...touchIds] } },
               data: { lastSeenAt: new Date(), isActive: true },
             });
+          }
+          for (const h of heals) {
+            await prisma.job.update({ where: { id: h.id }, data: { fingerprint: h.fingerprint } }).catch(() => {});
           }
         }
 
