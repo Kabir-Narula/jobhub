@@ -57,6 +57,7 @@ export interface ContactInfo {
   deliverability: "valid" | "accept_all" | "unknown";
   sources: string[];
   patternDerived?: boolean;
+  why?: string;
 }
 
 export interface ContactsData {
@@ -388,6 +389,7 @@ export function TailorClient({
                       <p className="truncate text-xs text-[#8b877a]">
                         {c.role === "hr" ? "Human Resources / Recruiting" : c.role || "—"}
                       </p>
+                      {c.why && <p className="mt-0.5 truncate text-[11px] font-medium text-[#c2410c]">{c.why}</p>}
                     </div>
                     <span
                       className={cn(

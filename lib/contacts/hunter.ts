@@ -18,6 +18,8 @@ export interface ContactResult {
   /** True when the address was constructed from the company's known email pattern
    *  (not found publicly indexed) — always pair with the deliverability badge. */
   patternDerived?: boolean;
+  /** Why this person is worth emailing (shown in the UI). */
+  why?: string;
 }
 
 interface HunterEmail {
@@ -58,14 +60,35 @@ async function domainSearch(domain: string, department?: string): Promise<{ emai
   return { emails: data.data?.emails ?? [], pattern: data.data?.pattern ?? null };
 }
 
-/** People most worth cold-emailing for a job application, best first. */
+const CAMPUS_RE = /university|campus|early[- ]career|new[- ]?grad|student program|emerging talent|graduate program/i;
+const MANAGER_RE = /engineering manager|manager|director|head of|team lead|tech lead|\bvp\b|vice president|cto|founder|owner|principal/i;
+const ENGINEER_RE = /software|engineer|developer|swe|programmer|architect/i;
+const RECRUITER_RE = /recruit|talent|sourcer|hiring|staffing|human_resources|people ops|\bhr\b/i;
+
+/** One-line reason this person is worth cold-emailing for a new-grad application. */
+export function whyContact(e: HunterEmail): string {
+  const t = `${e.position ?? ""} ${e.department ?? ""}`;
+  if (CAMPUS_RE.test(t)) return "Campus recruiting — owns new-grad hiring, reads these";
+  if (MANAGER_RE.test(t)) return "Likely hiring-manager track — can forward your resume internally";
+  if (ENGINEER_RE.test(t)) return "Engineer on the team — referral path (referrals pay bonuses)";
+  if (RECRUITER_RE.test(t)) return "Recruiter — right inbox, high volume";
+  return "Relevant contact at the company";
+}
+
+/**
+ * People most worth cold-emailing for a NEW-GRAD application, best first.
+ * Philosophy (referral research): a hiring manager or team engineer who
+ * forwards your resume beats a flooded recruiter inbox; campus recruiters
+ * own the new-grad pipeline and actually read; generic HR is the fallback.
+ */
 function rankContacts(emails: HunterEmail[]): HunterEmail[] {
   const score = (e: HunterEmail): number => {
-    const t = `${e.position ?? ""} ${e.department ?? ""}`.toLowerCase();
+    const t = `${e.position ?? ""} ${e.department ?? ""}`;
     let s = 0;
-    if (/recruit|talent|sourcer|hiring|staffing/.test(t)) s += 100;
-    if (/human_resources|people|hr\b/.test(t)) s += 80;
-    if (/engineering|cto|vp|director|head|manager/.test(t)) s += 40; // hiring managers
+    if (CAMPUS_RE.test(t)) s += 100; // owns new-grad hiring, reachable
+    if (MANAGER_RE.test(t)) s += 90; // decision-maker / internal forward
+    if (ENGINEER_RE.test(t)) s += 75; // referral path
+    if (RECRUITER_RE.test(t)) s += 55; // right but flooded inbox
     s += (e.confidence ?? 0) / 2;
     if (e.type === "personal") s += 10;
     return s;
@@ -87,17 +110,33 @@ async function verify(email: string): Promise<ContactResult["deliverability"]> {
 
 /**
  * Find up to `count` verified contacts at a company domain.
- * Tries HR/recruiting first, then a general search to fill.
+ * Searches engineering AND hr departments (niche strategy: hiring managers
+ * and team engineers over flooded recruiters), then a general search to fill.
  * Emails that verify as invalid are dropped.
  */
 export async function findCompanyContacts(domain: string, count = 2): Promise<ContactResult[]> {
-  const hr = await domainSearch(domain, "hr");
-  let candidates = rankContacts(hr.emails);
-  let pattern: string | null = hr.pattern;
+  // Hunter's valid department filters: executive, it, finance, management,
+  // sales, legal, support, hr, marketing, communication, education, design,
+  // health, operations. "engineering" is NOT one (HTTP 400) — engineers live
+  // under "it", hiring managers under "management".
+  const [hr, it, mgmt] = await Promise.all([
+    domainSearch(domain, "hr"),
+    domainSearch(domain, "it"),
+    domainSearch(domain, "management"),
+  ]);
+  let pattern: string | null = hr.pattern ?? it.pattern ?? mgmt.pattern;
+  const seen = new Set<string>();
+  let candidates = [...it.emails, ...mgmt.emails, ...hr.emails].filter((c) => {
+    const k = c.value.toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+  candidates = rankContacts(candidates);
+
   if (candidates.length < count) {
     const general = await domainSearch(domain);
     if (!pattern) pattern = general.pattern;
-    const seen = new Set(candidates.map((c) => c.value.toLowerCase()));
     candidates = [...candidates, ...rankContacts(general.emails).filter((c) => !seen.has(c.value.toLowerCase()))];
   }
 
@@ -113,11 +152,12 @@ export async function findCompanyContacts(domain: string, count = 2): Promise<Co
       confidence: c.confidence ?? 0,
       deliverability,
       sources: (c.sources ?? []).map((s) => s.uri).slice(0, 3),
+      why: whyContact(c),
     });
   }
 
   // Layer 2: nothing found publicly — construct from the company's known email
-  // pattern + GPT-suggested recruiter names, then verify each before showing.
+  // pattern + GPT-suggested manager/peer names, then verify each before showing.
   if (out.length < count) {
     const derived = await patternDerivedContacts(domain, pattern, count - out.length);
     out.push(...derived);
@@ -149,7 +189,7 @@ function patternEmails(first: string, last: string, pattern: string | null, doma
   return candidates.slice(0, 3);
 }
 
-async function gptRecruiterNames(company: string, domain: string): Promise<{ first: string; last: string; role: string }[]> {
+async function gptContactNames(company: string, domain: string): Promise<{ first: string; last: string; role: string }[]> {
   try {
     const { openai, model, parseJson } = await import("@/lib/tailor/research");
     const res = await openai().chat.completions.create({
@@ -158,11 +198,11 @@ async function gptRecruiterNames(company: string, domain: string): Promise<{ fir
         {
           role: "system",
           content:
-            "You identify real people for professional outreach. You NEVER invent names. If you don't know actual recruiters or HR people at this company from public information, return an empty list.",
+            "You identify real people for professional outreach. You NEVER invent names. If you don't know actual people at this company from public information, return an empty list.",
         },
         {
           role: "user",
-          content: `List up to 3 REAL people who work (or recently worked) in recruiting / talent acquisition / HR at ${company} (${domain}), based on your knowledge of public information (e.g. their LinkedIn presence). Return JSON: {"people": [{"first": "...", "last": "...", "role": "..."}]}. Only include people you are confident actually exist. If none, return {"people": []}.`,
+          content: `List up to 3 REAL people who work (or recently worked) at ${company} (${domain}) in roles worth cold-emailing for a new-grad software application: engineering managers, team leads, senior engineers (referral path), or university/campus recruiters. Base this on your knowledge of public information (e.g. their LinkedIn presence). Return JSON: {"people": [{"first": "...", "last": "...", "role": "..."}]}. Only include people you are confident actually exist. If none, return {"people": []}.`,
         },
       ],
       response_format: { type: "json_object" },
@@ -172,7 +212,7 @@ async function gptRecruiterNames(company: string, domain: string): Promise<{ fir
     return parsed.people
       .filter((p: { first?: string; last?: string }) => p?.first && p?.last)
       .slice(0, 3)
-      .map((p: { first: string; last: string; role?: string }) => ({ first: p.first, last: p.last, role: p.role ?? "Recruiter" }));
+      .map((p: { first: string; last: string; role?: string }) => ({ first: p.first, last: p.last, role: p.role ?? "Engineer" }));
   } catch {
     return [];
   }
@@ -181,7 +221,7 @@ async function gptRecruiterNames(company: string, domain: string): Promise<{ fir
 async function patternDerivedContacts(domain: string, pattern: string | null, needed: number): Promise<ContactResult[]> {
   if (needed <= 0) return [];
   const company = domain.split(".")[0];
-  const names = await gptRecruiterNames(company, domain);
+  const names = await gptContactNames(company, domain);
   const out: ContactResult[] = [];
   for (const person of names) {
     if (out.length >= needed) break;
@@ -196,6 +236,9 @@ async function patternDerivedContacts(domain: string, pattern: string | null, ne
         deliverability,
         sources: [],
         patternDerived: true,
+        why: /recruit|talent|hr|campus|university/i.test(person.role)
+          ? "Recruiting contact — pattern-derived, verified"
+          : "Manager/peer track — pattern-derived, verified; referral path",
       });
       break; // one address per person
     }
