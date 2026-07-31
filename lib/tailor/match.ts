@@ -160,6 +160,7 @@ const TECH_LEXICON = new Set(
 export function isTechTerm(term: string): boolean {
   const t = term.toLowerCase().trim();
   if (!t) return false;
+  if (t.length < 2 && t !== "r") return false; // "c" alone is JD noise; "C++" is the real term
   if (/[+#0-9]/.test(t)) return true; // c++, c#, .net, 3scale...
   if (t.includes(".") && !t.endsWith(".")) return true; // node.js, next.js, asp.net
   const words = t.split(/\s+/);

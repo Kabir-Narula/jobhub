@@ -466,22 +466,7 @@ export function insertAchievements(tex: string, items: string[]): string {
   return tex.slice(0, endIdx) + section + tex.slice(endIdx);
 }
 
-// ---------- Per-job headline + PDF metadata (ATS ranking layer) ----------
-
-/**
- * Inserts one headline line inside the centered header block, under the
- * links row: the posting's exact title plus top stack terms. The current
- * title is the single highest-weighted signal in Workday/iCIMS ranking —
- * this places it at the highest-weighted position in the document.
- * Plain text in, escaped here.
- */
-export function insertHeadline(tex: string, headline: string): string {
-  const nl = tex.includes("\r\n") ? "\r\n" : "\n";
-  const centerEnd = tex.indexOf("\\end{center}");
-  if (centerEnd < 0) return tex;
-  const line = ` \\\\${nl}    \\small \\textit{${escapeLatex(headline)}}${nl}`;
-  return tex.slice(0, centerEnd) + line + tex.slice(centerEnd);
-}
+// ---------- Per-job PDF metadata (recruiter-facing) ----------
 
 /** Per-job PDF metadata — filename and title are what recruiters see in ATS lists. */
 export function injectPdfMeta(tex: string, meta: { title: string; author: string }): string {

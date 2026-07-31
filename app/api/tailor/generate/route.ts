@@ -11,7 +11,6 @@ import {
   parseSkillsSection,
   assembleSkillsSection,
   insertAchievements,
-  insertHeadline,
   injectPdfMeta,
   ensureSkillsTerms,
   type ResumeUpdate,
@@ -21,7 +20,7 @@ import { ACHIEVEMENTS } from "@/lib/tailor/achievements";
 import { generateContent, findNewNumbers, type GeneratedContent } from "@/lib/tailor/generate";
 import { researchCompany, type CompanyResearch } from "@/lib/tailor/research";
 import { compileLatex } from "@/lib/tailor/compile";
-import { matchScore, missingTerms, jdTerms, placementGaps, isTechTerm } from "@/lib/tailor/match";
+import { matchScore, missingTerms, jdTerms, placementGaps } from "@/lib/tailor/match";
 import { pageFill } from "@/lib/tailor/fill";
 import { PROJECTS, projectById } from "@/lib/tailor/projects";
 import { ensureBucket, uploadPdf } from "@/lib/supabase";
@@ -272,15 +271,10 @@ export async function POST(request: Request) {
     // appended deterministically (parsers weight the skills field most).
     tex = ensureSkillsTerms(tex, placementGaps(job!.description, tex, 6, job!.company), clamps.compactSkills || 7);
     if (clamps.achievements !== 0) tex = insertAchievements(tex, ACHIEVEMENTS.slice(0, clamps.achievements ?? ACHIEVEMENTS.length));
-    // ATS ranking layer: exact posting title at the top of the document
-    // (highest-weighted signal in Workday/iCIMS) + recruiter-facing metadata.
-    // Term consistency is checked against the WHOLE document (bullets AND
-    // skills lines) so the headline never claims what the resume doesn't.
-    const docText = tex.toLowerCase();
-    const headlineTerms = targetKeywords
-      .filter((t) => t.length <= 20 && isTechTerm(t) && t.split(" ").every((w) => docText.includes(w)))
-      .slice(0, 3);
-    tex = insertHeadline(tex, headlineTerms.length ? `${job!.title} — ${headlineTerms.join(" · ")}` : job!.title);
+    // ATS ranking layer: the exact-title signal lives in the most recent
+    // entry's title (2-of-3 rewording rule, natural to a human reader) and in
+    // the PDF metadata — NOT in a visible headline line (posting titles are
+    // often junk like "Jr Game Developer Panda3D - Remote").
     tex = injectPdfMeta(tex, { title: `Kabir Narula — Resume — ${job!.title} @ ${job!.company}`, author: "Kabir Narula" });
     return tex;
   }
