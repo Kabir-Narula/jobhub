@@ -398,7 +398,7 @@ export function TailorClient({
                       )}
                       title={c.deliverability === "valid" ? "Verified deliverable" : "Domain accepts all mail (unverifiable)"}
                     >
-                      {c.deliverability === "valid" ? "verified" : "accept-all"}
+                      {c.deliverability === "valid" ? "verified" : c.deliverability === "accept_all" ? "accept-all" : "unverified"}
                     </span>
                   </div>
                   <div className="mt-2 flex items-center gap-1.5">

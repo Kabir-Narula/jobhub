@@ -108,11 +108,14 @@ async function verify(email: string): Promise<ContactResult["deliverability"]> {
   }
 }
 
+const GENERIC_LOCAL = /^(info|careers|jobs|job|hr|humanresources|support|assist|hello|contact|admin|recruiting|recruitment|talent|hiring|people|apply|applications|no-?reply|team|mail|office|general|inquiries|help)@/i;
+
 /**
  * Find up to `count` verified contacts at a company domain.
  * Searches engineering AND hr departments (niche strategy: hiring managers
  * and team engineers over flooded recruiters), then a general search to fill.
- * Emails that verify as invalid are dropped.
+ * Generic inboxes (careers@/jobs@/info@) are dropped — a named person or
+ * nothing. Emails that verify as invalid are dropped.
  */
 export async function findCompanyContacts(domain: string, count = 2): Promise<ContactResult[]> {
   // Hunter's valid department filters: executive, it, finance, management,
@@ -140,8 +143,13 @@ export async function findCompanyContacts(domain: string, count = 2): Promise<Co
     candidates = [...candidates, ...rankContacts(general.emails).filter((c) => !seen.has(c.value.toLowerCase()))];
   }
 
+  // named people first; generic inboxes only as the absolute last resort
+  const named = candidates.filter((c) => !GENERIC_LOCAL.test(c.value));
+  const generic = candidates.filter((c) => GENERIC_LOCAL.test(c.value));
+
   const out: ContactResult[] = [];
-  for (const c of candidates.slice(0, count + 1)) {
+  // named people first; one generic inbox only if named contacts run out
+  for (const c of [...named, ...generic.slice(0, 1)].slice(0, count + 1)) {
     if (out.length >= count) break;
     const deliverability = await verify(c.value);
     if (deliverability === "unknown" && c.confidence < 60) continue; // unverifiable + low confidence = skip
@@ -152,7 +160,7 @@ export async function findCompanyContacts(domain: string, count = 2): Promise<Co
       confidence: c.confidence ?? 0,
       deliverability,
       sources: (c.sources ?? []).map((s) => s.uri).slice(0, 3),
-      why: whyContact(c),
+      why: GENERIC_LOCAL.test(c.value) ? "Generic inbox — last resort, low response rate" : whyContact(c),
     });
   }
 

@@ -50,8 +50,13 @@ async function domainCandidates(company: string, research: unknown): Promise<str
     .replace(/\s+/g, " ")
     .trim();
   const slug = slugify(company);
+  const initials = (company.match(/\b[A-Za-z]/g) ?? []).join("").toLowerCase();
   const similar = (domain: string): boolean => {
     const bare = domain.split(".")[0];
+    // short bare domains (jm.com for "J&M Group" = Jardine Matheson!) are only
+    // acceptable as the company's exact initials; otherwise require a real
+    // token overlap with the company name
+    if (bare.length < 4) return bare === initials;
     return slug.includes(bare) || bare.includes(slug) || [...new Set([...slug.matchAll(/[a-z]{4,}/g)].map((m) => m[0]))].some((t) => bare.includes(t));
   };
   for (const q of [...new Set([company, cleanName].filter(Boolean))]) {
@@ -134,19 +139,23 @@ export async function POST(request: Request) {
   const job = await prisma.job.findUnique({ where: { id: jobId } });
   if (!job) return NextResponse.json({ error: "job not found" }, { status: 404 });
 
-  if (job.contacts && !body?.force) {
-    return NextResponse.json({ ...(job.contacts as unknown as StoredContacts), cached: true });
+  const storedContacts = (job.contacts as unknown as StoredContacts | null);
+  if (storedContacts && storedContacts.contacts.length > 0 && !body?.force) {
+    return NextResponse.json({ ...storedContacts, cached: true });
   }
 
   // Company-level cache: reuse contacts found for a sibling job (saves Hunter quota).
+  // Empty/failed results are NEVER cached — a bad day at Hunter must not be permanent.
   const sibling = await prisma.job.findFirst({
     where: { company: job.company, contacts: { not: { equals: null } }, id: { not: job.id } },
     orderBy: { contactsAt: "desc" },
   });
   if (sibling?.contacts && !body?.force) {
     const stored = sibling.contacts as unknown as StoredContacts;
-    await prisma.job.update({ where: { id: job.id }, data: { contacts: stored as never, contactsAt: new Date() } });
-    return NextResponse.json({ ...stored, cached: true });
+    if (stored.contacts.length > 0) {
+      await prisma.job.update({ where: { id: job.id }, data: { contacts: stored as never, contactsAt: new Date() } });
+      return NextResponse.json({ ...stored, cached: true });
+    }
   }
 
   const candidates = await domainCandidates(job.company, job.companyResearch);
