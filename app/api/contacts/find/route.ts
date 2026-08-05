@@ -19,18 +19,37 @@ function slugify(company: string): string {
 }
 
 /**
- * Ordered domain candidates for a company. Domain guessing is unreliable for
- * acronym companies ("Bank of Montreal" -> bmo.com, never bankofmontreal.com
- * in Hunter's index) and an unverified research homepage can be wrong, so
- * EVERY step just contributes candidates and the caller's Hunter-oracle loop
- * picks the first that returns real contacts.
+ * Ordered domain candidates for a company. The strongest employer signal is
+ * the ATS board token in the apply URL itself (motorolasolutions.wd5... ->
+ * motorolasolutions.com — catches brand/entity splits like Motorola vs
+ * Motorola Solutions, whose motorola.com mail actually routes to Lenovo).
+ * Everything else (research homepage, Clearbit, Wikidata, slug probes) just
+ * contributes more candidates; the caller's Hunter-oracle loop picks the
+ * first that returns real contacts.
  */
-async function domainCandidates(company: string, research: unknown): Promise<string[]> {
+async function domainCandidates(company: string, research: unknown, urls: { sourceUrl: string; applyUrl: string }): Promise<string[]> {
   const out: string[] = [];
   const push = (host: string | null | undefined) => {
     const h = (host ?? "").toLowerCase().replace(/^www\./, "");
     if (h && !out.includes(h)) out.push(h);
   };
+
+  // 0) ATS board token from the apply/source URL — the employer's own slug
+  const SKIP_SEG = new Set(["careers", "job", "jobs", "en-us", "en", "jobposting"]);
+  for (const u of [urls.applyUrl, urls.sourceUrl]) {
+    try {
+      const url = new URL(u);
+      const host = url.hostname.toLowerCase();
+      const seg = (url.pathname.split("/").filter(Boolean)[0] ?? "").toLowerCase();
+      let token: string | null = null;
+      const wd = host.match(/^([a-z0-9-]+)\.wd\d+\.myworkdayjobs\.com$/);
+      if (wd) token = wd[1];
+      else if (host.includes("greenhouse.io") || host.includes("lever.co") || host.includes("ashbyhq.com") || host.includes("smartrecruiters.com")) token = seg;
+      if (token && /^[a-z0-9-]{3,30}$/.test(token) && !SKIP_SEG.has(token)) push(`${token}.com`);
+    } catch {
+      // malformed URL — skip
+    }
+  }
 
   // 1) research homepage (high confidence but unverified — candidate, not answer)
   const homepage = (research as { homepageUsed?: string | null } | null)?.homepageUsed;
@@ -158,7 +177,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const candidates = await domainCandidates(job.company, job.companyResearch);
+  const candidates = await domainCandidates(job.company, job.companyResearch, { sourceUrl: job.sourceUrl, applyUrl: job.applyUrl });
   if (!candidates.length) {
     return NextResponse.json({ error: `Couldn't determine ${job.company}'s email domain` }, { status: 422 });
   }

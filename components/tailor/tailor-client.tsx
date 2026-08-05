@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { BUCKET_LABEL, WORKMODE_LABEL } from "@/components/jobs/labels";
 import {
   ArrowLeft,
+  Ban,
   Building2,
   CheckCircle2,
   Copy,
@@ -426,6 +427,23 @@ export function TailorClient({
                       title="Draft outreach email with AI"
                     >
                       <PenLine className="size-3.5" />
+                    </button>
+                    <button
+                      onClick={async () => {
+                        await fetch("/api/contacts/bounce", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ jobId: job.id, email: c.email }),
+                        }).catch(() => {});
+                        setContacts((prev) =>
+                          prev ? { ...prev, contacts: prev.contacts.filter((x) => x.email !== c.email) } : prev
+                        );
+                        toast.success(`Removed ${c.email} everywhere at ${job.company}`);
+                      }}
+                      className="text-[#a8a294] transition-colors hover:text-red-600"
+                      title="Bounced? Remove this address at this company"
+                    >
+                      <Ban className="size-3.5" />
                     </button>
                   </div>
                   <div className="mt-1.5 flex items-center justify-between text-[10px] text-[#a8a294]">
