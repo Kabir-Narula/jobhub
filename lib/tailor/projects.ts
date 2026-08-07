@@ -109,6 +109,21 @@ export const PROJECTS: ProjectProfile[] = [
     ],
     keywords: ["next.js", "typescript", "react", "prisma", "postgresql", "sql", "supabase", "llm", "openai", "ai", "pipeline", "rest", "api", "full-stack", "vercel", "cron", "tailwind", "pdf", "automation"],
   },
+  {
+    id: "windows_booster",
+    name: "Windows Booster",
+    githubUrl: "https://github.com/Kabir-Narula/windows-booster",
+    techLine: "Python, Content Analysis, Systems Tooling",
+    year: "2026",
+    summary:
+      "Safe, reversible drive cleanup and organization for Windows: content-aware analysis (magic bytes, EXIF, PDF text, code-project detection) feeding a scan-plan-apply-undo pipeline with a desktop GUI and CLI.",
+    bullets: [
+      "Built a content-aware file-analysis engine in Python: magic-byte true-type sniffing, EXIF/PDF/audio metadata extraction, and keyword-weighted topic classification routing files into topic-aware destinations, with tiered duplicate detection (size, 64 KiB head-hash, then full SHA-256) and policy-ranked keeper selection.",
+      "Designed a fully reversible operations model: every mutation journaled to JSONL and undoable newest-first, deletion confined to a double-confirmed quarantine purge, protected system paths and project code never touched, re-runs idempotent.",
+      "Shipped both a Rich terminal CLI with live scan dashboards and a customtkinter desktop GUI driving the same scan-plan-apply-undo pipeline, validated by a 30-assertion sandbox smoke test.",
+    ],
+    keywords: ["python", "windows", "systems", "cli", "gui", "tkinter", "automation", "hashing", "pipeline", "tooling", "desktop", "testing", "exif", "pdf"],
+  },
 ];
 
 /** Short brief for the LLM: which 2 projects fit this job best, and why. */
