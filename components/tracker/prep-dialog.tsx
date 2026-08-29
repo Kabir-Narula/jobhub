@@ -55,22 +55,22 @@ export function PrepDialog({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto border-[#e6e3db] bg-white sm:max-w-2xl">
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="font-display text-base">Interview prep — {company}</DialogTitle>
+          <DialogTitle>Interview prep — {company}</DialogTitle>
         </DialogHeader>
         {loading ? (
-          <div className="flex items-center gap-2 py-10 text-sm text-[#8b877a]">
+          <div className="flex items-center gap-2 py-10 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
             <Loader2 className="size-4 animate-spin" /> Building your prep pack…
           </div>
         ) : prep ? (
           <div className="flex flex-col gap-4">
             {sections.map((s) => (
               <section key={s.key}>
-                <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#a8a294]">{s.title}</p>
+                <p className="mb-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{s.title}</p>
                 <ul className="flex flex-col gap-1.5">
                   {(prep[s.key] ?? []).map((item, i) => (
-                    <li key={i} className="rounded-md bg-[#f6f5f1] px-3 py-2 text-[13px] leading-relaxed text-[#4a473f]">
+                    <li key={i} className="rounded-none border-2 border-foreground bg-muted px-3 py-2 text-[13px] leading-relaxed text-foreground">
                       {item}
                     </li>
                   ))}
@@ -78,7 +78,7 @@ export function PrepDialog({
               </section>
             ))}
             <div className="flex justify-end">
-              <Button size="sm" variant="outline" className="border-[#e6e3db]" onClick={() => load(true)} disabled={loading}>
+              <Button size="sm" variant="outline" onClick={() => load(true)} disabled={loading}>
                 <RefreshCw className="size-3.5" /> Regenerate
               </Button>
             </div>

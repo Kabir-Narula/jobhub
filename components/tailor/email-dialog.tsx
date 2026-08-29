@@ -56,47 +56,53 @@ export function EmailDialog({ jobId, contact, open, onClose, mode = "outreach", 
     toast.success(`${what} copied`);
   }
 
+  const mailBody = body.replace(/\n/g, "\r\n");
   const mailto = contact
-    ? `mailto:${contact.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-    : `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    ? `mailto:${contact.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(mailBody)}`
+    : `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(mailBody)}`;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="border-[#e6e3db] bg-white sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle className="font-display text-base">
+          <DialogTitle>
             {mode === "followup" ? "Follow-up email" : "Outreach email"}{contact ? ` — to ${contact.name === "Unknown" ? contact.email : `${contact.name} (${contact.role || contact.email})`}` : ""}
           </DialogTitle>
         </DialogHeader>
 
         {loading ? (
-          <div className="flex items-center gap-2 py-8 text-sm text-[#8b877a]">
+          <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" /> Drafting with your research + finalized resume…
           </div>
         ) : (
           <div className="flex flex-col gap-3">
             <div>
-              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-[#a8a294]">Subject</p>
-              <Input value={subject} onChange={(e) => setSubject(e.target.value)} className="border-[#e6e3db] bg-white text-sm" />
+              <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Subject</p>
+              <Input value={subject} onChange={(e) => setSubject(e.target.value)} className="text-sm" />
             </div>
             <div>
-              <p className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-[#a8a294]">Body</p>
-              <Textarea value={body} onChange={(e) => setBody(e.target.value)} className="min-h-44 border-[#e6e3db] bg-white text-sm leading-relaxed" />
+              <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Body</p>
+              <Textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                spellCheck
+                className="field-sizing-fixed min-h-72 resize-y whitespace-pre-wrap font-sans text-[13.5px] leading-6 tracking-normal"
+              />
             </div>
-            <p className="text-[11px] text-[#a8a294]">
-              Short, specific, no fluff — edit freely. Attach your tailored resume + cover before sending.
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+              Recent-grad note, not a student pitch. Spacing is locked to greeting / paragraphs / Thanks + name. Tweak words if needed, attach resume + cover, then send.
             </p>
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <Button size="sm" variant="outline" className="border-[#e6e3db]" onClick={draft} disabled={loading}>
+              <Button size="sm" variant="outline" onClick={draft} disabled={loading}>
                 <RefreshCw className="size-3.5" /> Regenerate
               </Button>
-              <Button size="sm" variant="outline" className="border-[#e6e3db]" onClick={() => copy(subject, "Subject")}>
+              <Button size="sm" variant="outline" onClick={() => copy(subject, "Subject")}>
                 <Copy className="size-3.5" /> Subject
               </Button>
-              <Button size="sm" variant="outline" className="border-[#e6e3db]" onClick={() => copy(body, "Body")}>
+              <Button size="sm" variant="outline" onClick={() => copy(body, "Body")}>
                 <Copy className="size-3.5" /> Body
               </Button>
-              <Button size="sm" className="bg-[#c2410c] text-[#fdf8f3] hover:bg-[#9a3412]" nativeButton={false} render={<a href={mailto} />}>
+              <Button size="sm" nativeButton={false} render={<a href={mailto} />}>
                 <Send className="size-3.5" /> Open in mail app
               </Button>
             </div>

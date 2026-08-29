@@ -27,15 +27,16 @@ interface Props {
   onMarkApplied?: (job: Job) => void;
 }
 
+/* deliberately clashing bucket colors — visual friction is the point */
 const BUCKET_STYLE: Record<string, string> = {
-  TORONTO: "bg-[#fdeadd] text-[#9a3412]",
-  REMOTE: "bg-[#e0f2fe] text-[#075985]",
-  GTA_COMMUTE: "bg-[#fef3c7] text-[#92400e]",
+  TORONTO: "bg-primary text-primary-foreground",
+  REMOTE: "bg-[#0f766e] text-white",
+  GTA_COMMUTE: "bg-accent",
 };
 
 function Tag({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <span className={cn("rounded-md bg-[#f1efe9] px-1.5 py-0.5 text-[11px] font-medium leading-none text-[#6e6b61]", className)}>
+    <span className={cn("rounded-none border-2 border-foreground bg-card px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase leading-none tracking-wider text-foreground", className)}>
       {children}
     </span>
   );
@@ -53,33 +54,33 @@ export function JobCard({ job, selected, applied = false, onApply, onToggleSave,
     <div
       data-job-id={job.id}
       className={cn(
-        "group relative rounded-xl border bg-white p-4 transition-all duration-150",
+        "group relative rounded-none border-2 border-foreground bg-card p-4 shadow-hard-sm transition-all duration-150",
         selected
-          ? "border-[#c2410c]/50 shadow-[0_0_0_3px_rgba(194,65,12,0.12),0_8px_24px_-12px_rgba(28,27,23,0.25)]"
-          : "border-[#e6e3db] shadow-[0_1px_2px_rgba(28,27,23,0.05)] hover:-translate-y-px hover:border-[#d5d1c6] hover:shadow-[0_8px_24px_-12px_rgba(28,27,23,0.18)]",
+          ? "-translate-x-0.5 -translate-y-0.5 border-ring bg-[#eceaff] shadow-hard"
+          : "hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-hard",
         job.dismissedAt && "opacity-55"
       )}
     >
       <div className="flex items-start gap-3.5">
-        <CompanyAvatar company={job.company} className="mt-0.5 size-9 rounded-[10px]" />
+        <CompanyAvatar company={job.company} className="mt-0.5 size-9 rounded-none border-2 border-foreground" />
 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h3 className="truncate text-[15px] font-semibold text-[#1c1b17]">{job.title}</h3>
+            <h3 className="truncate font-heading text-[15px] font-bold uppercase tracking-tight text-foreground">{job.title}</h3>
             {applied && (
-              <span className="flex items-center gap-1 rounded-md bg-[#dcfce7] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#15803d]">
+              <span className="flex items-center gap-1 rounded-none border-2 border-foreground bg-[#0f766e] px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-white">
                 <CheckCircle2 className="size-3" /> applied
               </span>
             )}
             {isNew && !applied && (
-              <span className="rounded-md bg-[#dcfce7] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#15803d]">
+              <span className="tilt-r inline-block rounded-none border-2 border-foreground bg-primary px-1.5 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-primary-foreground shadow-hard-sm">
                 new
               </span>
             )}
-            {job.viewedAt && !applied && <Eye className="size-3.5 shrink-0 text-[#a8a294]" />}
+            {job.viewedAt && !applied && <Eye className="size-3.5 shrink-0 text-muted-foreground" />}
           </div>
-          <p className="mt-0.5 truncate text-[13px] text-[#8b877a]">
-            <span className="font-medium text-[#4a473f]">{job.company}</span>
+          <p className="mt-0.5 truncate text-[13px] text-muted-foreground">
+            <span className="font-semibold text-foreground">{job.company}</span>
             {" · "}{job.locationRaw || "—"}
           </p>
 
@@ -88,7 +89,7 @@ export function JobCard({ job, selected, applied = false, onApply, onToggleSave,
             {job.workMode !== "UNKNOWN" && <Tag>{WORKMODE_LABEL[job.workMode]}</Tag>}
             <Tag>{SENIORITY_LABEL[job.seniority]}</Tag>
             <Tag>{CATEGORY_LABEL[job.category]}</Tag>
-            <span className="text-[11px] text-[#a8a294]">
+            <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
               {sourceLabel(job.source)} · {formatDistanceToNow(new Date(posted), { addSuffix: true })}
               {salary ? ` · ${salary}` : ""}
             </span>
@@ -103,15 +104,15 @@ export function JobCard({ job, selected, applied = false, onApply, onToggleSave,
           )}
         >
           {applied ? (
-            <Button size="sm" disabled className="h-7 bg-[#dcfce7] text-xs font-medium text-[#15803d] opacity-100">
+            <Button size="sm" disabled className="border-[#0f766e] bg-[#0f766e] opacity-100">
               <CheckCircle2 className="size-3" /> Applied
             </Button>
           ) : (
-            <Button size="sm" onClick={() => onApply(job)} className="h-7 bg-[#c2410c] text-xs font-medium text-[#fdf8f3] transition-transform duration-100 hover:bg-[#9a3412] active:scale-95">
+            <Button size="sm" onClick={() => onApply(job)}>
               <ExternalLink className="size-3" /> Apply
             </Button>
           )}
-          <Button size="sm" variant="ghost" className="h-7 text-xs text-[#6e6b61] hover:bg-[#fdeadd] hover:text-[#9a3412]" nativeButton={false} render={<Link href={`/tailor/${job.id}`} />}>
+          <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/tailor/${job.id}`} />}>
             <Sparkles className="size-3" /> Tailor
           </Button>
           {!applied && onMarkApplied && (
@@ -119,7 +120,6 @@ export function JobCard({ job, selected, applied = false, onApply, onToggleSave,
               size="sm"
               variant="ghost"
               onClick={() => onMarkApplied(job)}
-              className="h-7 px-1.5 text-[#a8a294] hover:text-[#15803d]"
               title="Mark as applied (m)"
             >
               <CheckCircle2 className="size-4" />
@@ -129,7 +129,7 @@ export function JobCard({ job, selected, applied = false, onApply, onToggleSave,
             size="sm"
             variant="ghost"
             onClick={() => onToggleSave(job)}
-            className={cn("h-7 px-1.5 text-[#a8a294] hover:text-[#c2410c]", job.savedAt && "text-[#c2410c]")}
+            className={cn(job.savedAt && "bg-accent")}
             title="Save (s)"
           >
             <Bookmark className={cn("size-4", job.savedAt && "fill-current")} />
@@ -138,7 +138,6 @@ export function JobCard({ job, selected, applied = false, onApply, onToggleSave,
             size="sm"
             variant="ghost"
             onClick={() => onToggleDismiss(job)}
-            className="h-7 px-1.5 text-[#a8a294] hover:text-[#4a473f]"
             title={job.dismissedAt ? "Restore (d)" : "Dismiss (d)"}
           >
             <X className="size-4" />
@@ -150,13 +149,13 @@ export function JobCard({ job, selected, applied = false, onApply, onToggleSave,
         <div className="mt-1.5 pl-12">
           <button
             onClick={() => setExpanded((e) => !e)}
-            className="flex items-center gap-1 text-[11px] text-[#a8a294] transition-colors hover:text-[#c2410c]"
+            className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
           >
             <ChevronDown className={cn("size-3 transition-transform duration-200", expanded && "rotate-180")} />
             {expanded ? "Hide description" : "Description"}
           </button>
           {expanded && (
-            <p className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-lg bg-[#f6f5f1] p-3 text-xs leading-relaxed text-[#4a473f]">
+            <p className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-none border-2 border-foreground bg-muted p-3 text-xs leading-relaxed text-foreground">
               {job.description.slice(0, 4000)}
               {job.description.length > 4000 ? "…" : ""}
             </p>

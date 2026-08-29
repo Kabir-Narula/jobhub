@@ -47,3 +47,6 @@ next-env.d.ts
 /tmp-isolate/
 /scripts/output/
 *.local.pdf
+
+# test artifacts
+test-master-roundtrip.pdf

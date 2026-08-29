@@ -59,6 +59,7 @@ export interface ContactInfo {
   sources: string[];
   patternDerived?: boolean;
   why?: string;
+  quality?: "ok" | "catchall" | "guessed";
 }
 
 export interface ContactsData {
@@ -87,6 +88,13 @@ interface GenerateResult {
   chosenProjects?: string[];
   droppedEntries?: string[];
 }
+
+/* deliberately clashing bucket colors — mirrors the jobs list tags */
+const BUCKET_STYLE: Record<string, string> = {
+  TORONTO: "bg-primary",
+  REMOTE: "bg-[#0f766e] text-white",
+  GTA_COMMUTE: "bg-accent",
+};
 
 export function TailorClient({
   job,
@@ -243,18 +251,19 @@ export function TailorClient({
       {/* back nav — preserves jobs page filters + scroll (browser history) */}
       <button
         onClick={() => router.back()}
-        className="flex w-fit items-center gap-1.5 text-xs font-medium text-[#8b877a] transition-colors hover:text-[#c2410c]"
+        className="flex w-fit items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider text-[#2137ff] underline decoration-2 underline-offset-2 transition-colors hover:no-underline"
       >
         <ArrowLeft className="size-3.5" /> Back to jobs
       </button>
 
       {/* job header */}
       <div>
-        <h1 className="text-xl font-semibold tracking-tight text-[#1c1b17]">{job.title}</h1>
-        <p className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-[#6e6b61]">
+        <span className="stamp tilt-l bg-accent text-[10px]">tailor</span>
+        <h1 className="mt-2 font-display text-4xl font-bold uppercase tracking-tight text-foreground md:text-5xl">{job.title}</h1>
+        <p className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           {job.company} · {job.locationRaw || "—"}
-          <Badge variant="outline" className="border-[#c2410c]/40 text-[#c2410c]">{BUCKET_LABEL[job.bucket]}</Badge>
-          <Badge variant="outline" className="border-[#e6e3db] text-[#6e6b61]">{WORKMODE_LABEL[job.workMode]}</Badge>
+          <Badge variant="outline" className={BUCKET_STYLE[job.bucket]}>{BUCKET_LABEL[job.bucket]}</Badge>
+          <Badge variant="outline">{WORKMODE_LABEL[job.workMode]}</Badge>
           <a
             href={job.applyUrl}
             target="_blank"
@@ -264,16 +273,16 @@ export function TailorClient({
               fetch(`/api/jobs/${job.id}/view`, { method: "POST" }).catch(() => {});
               window.dispatchEvent(new CustomEvent("jobhub:viewed", { detail: { jobId: job.id } }));
             }}
-            className="flex items-center gap-1 text-xs text-[#c2410c] hover:underline"
+            className="flex items-center gap-1 font-mono text-[11px] uppercase tracking-wider text-[#2137ff] underline decoration-2 underline-offset-2 hover:no-underline"
           >
             posting <ExternalLink className="size-3" />
           </a>
         </p>
-        <button onClick={() => setShowJd((s) => !s)} className="mt-2 text-xs text-[#8b877a] hover:text-[#4a473f]">
+        <button onClick={() => setShowJd((s) => !s)} className="mt-2 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground transition-colors hover:text-foreground">
           {showJd ? "Hide job description" : "Show job description"}
         </button>
         {showJd && (
-          <p className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-md border border-[#e6e3db] bg-[#f6f5f1] p-3 text-xs leading-relaxed text-[#6e6b61]">
+          <p className="mt-2 max-h-72 overflow-y-auto whitespace-pre-wrap rounded-none border-2 border-foreground bg-muted p-3 text-xs leading-relaxed text-foreground">
             {job.description || "No description stored for this job."}
           </p>
         )}
@@ -281,19 +290,19 @@ export function TailorClient({
 
       {/* Workday form-field cheat sheet: Workday ranks form data above the PDF */}
       {workdayTips && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
-          <p className="font-semibold">Workday application — the form outranks the PDF</p>
+        <div className="rounded-none border-2 border-foreground bg-accent p-3 text-xs leading-relaxed text-accent-foreground shadow-hard-sm">
+          <p className="font-heading font-bold uppercase tracking-wider">Workday application — the form outranks the PDF</p>
           <p className="mt-1">
             Workday weights what you type into its form fields more than the uploaded resume. When you apply:
           </p>
           <ul className="mt-1.5 list-disc pl-4">
             <li>
               Set <span className="font-medium">Current Title</span> to exactly:{" "}
-              <code className="rounded bg-amber-100 px-1 py-0.5 font-medium">{workdayTips.title}</code>
+              <code className="rounded-none border-2 border-foreground bg-card px-1 py-0.5 font-mono font-medium">{workdayTips.title}</code>
             </li>
             <li>
               Paste these exact terms into the skills/free-text fields:{" "}
-              <code className="rounded bg-amber-100 px-1 py-0.5">{workdayTips.terms.join(", ")}</code>
+              <code className="rounded-none border-2 border-foreground bg-card px-1 py-0.5 font-mono">{workdayTips.terms.join(", ")}</code>
             </li>
             <li>Fill every field — blank fields rank below completed ones, even when the PDF has the same info.</li>
           </ul>
@@ -301,78 +310,78 @@ export function TailorClient({
       )}
 
       {/* steps */}
-      <div className="flex items-center gap-1 rounded-lg border border-[#e6e3db]/70 bg-white p-1">
+      <div className="flex items-center gap-1 rounded-none border-2 border-foreground bg-card p-1 shadow-hard-sm">
         {steps.map((s, i) => (
           <div key={s} className="flex flex-1 items-center gap-2">
             <div
               className={cn(
-                "flex flex-1 items-center gap-2 rounded-md px-3 py-1.5 text-xs transition-colors",
-                i < step ? "text-[#15803d]" : i === step ? "bg-[#1c1b17] text-[#f6f5f1]" : "text-[#a8a294]"
+                "flex flex-1 items-center gap-2 rounded-none px-3 py-1.5 font-heading text-[11px] font-bold uppercase tracking-wider transition-colors",
+                i < step ? "text-foreground" : i === step ? "bg-primary text-primary-foreground" : "text-muted-foreground"
               )}
             >
               <span
                 className={cn(
-                  "flex size-4 items-center justify-center rounded-full text-[10px] font-semibold",
-                  i < step ? "bg-[#dcfce7] text-[#15803d]" : i === step ? "bg-[#c2410c] text-[#fdf8f3]" : "bg-[#f1efe9] text-[#a8a294]"
+                  "flex size-4 items-center justify-center rounded-none border-2 border-foreground font-mono text-[10px] font-bold",
+                  i < step ? "bg-[#0f766e] text-white" : i === step ? "bg-foreground text-background" : "bg-muted text-muted-foreground"
                 )}
               >
                 {i < step ? "✓" : i + 1}
               </span>
               {s}
             </div>
-            {i < steps.length - 1 && <span className="text-[#d5d1c6]">›</span>}
+            {i < steps.length - 1 && <span className="text-muted-foreground/40">›</span>}
           </div>
         ))}
       </div>
 
-      <Separator className="bg-[#f1efe9]" />
+      <Separator />
 
       {/* research */}
       <section>
         <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-sm font-medium text-[#1c1b17]">
-            <Building2 className="size-4 text-[#c2410c]" /> Company research
+          <h2 className="flex items-center gap-2 font-heading text-sm font-bold uppercase tracking-wider text-foreground">
+            <Building2 className="size-4" /> Company research
           </h2>
-          <Button size="sm" variant="outline" className="border-[#e6e3db]" disabled={researching} onClick={() => runResearch(Boolean(research))}>
+          <Button size="sm" variant="outline" disabled={researching} onClick={() => runResearch(Boolean(research))}>
             {researching ? <Loader2 className="size-3.5 animate-spin" /> : <FlaskConical className="size-3.5" />}
             {research ? "Refresh research" : "Research company"}
           </Button>
         </div>
         {research ? (
-          <div className="mt-3 grid gap-3 rounded-lg border border-[#e6e3db] bg-white p-4 text-sm">
-            <p className="text-[#4a473f]">{research.summary}</p>
-            <div className="grid gap-2 text-xs text-[#6e6b61] sm:grid-cols-2">
-              <p><span className="text-[#8b877a]">Mission: </span>{research.mission}</p>
-              <p><span className="text-[#8b877a]">Product: </span>{research.product}</p>
+          <div className="mt-3 grid gap-3 rounded-none border-2 border-foreground bg-card p-4 text-sm shadow-hard-sm">
+            <p className="text-foreground">{research.summary}</p>
+            <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+              <p><span className="font-mono text-[10px] uppercase tracking-[0.18em]">Mission: </span>{research.mission}</p>
+              <p><span className="font-mono text-[10px] uppercase tracking-[0.18em]">Product: </span>{research.product}</p>
             </div>
             {research.stack?.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {research.stack.map((s) => (
-                  <Badge key={s} variant="outline" className="border-[#e6e3db] text-[#6e6b61]">{s}</Badge>
+                  <Badge key={s} variant="outline">{s}</Badge>
                 ))}
               </div>
             )}
             {research.news?.length > 0 && (
-              <ul className="list-inside list-disc text-xs text-[#8b877a]">
+              <ul className="list-inside list-disc text-xs text-muted-foreground">
                 {research.news.map((n, i) => <li key={i}>{n}</li>)}
               </ul>
             )}
           </div>
         ) : (
-          <p className="mt-2 text-xs text-[#8b877a]">No research yet — it runs automatically on first generation, or run it now.</p>
+          <p className="mt-2 text-xs text-muted-foreground">No research yet — it runs automatically on first generation, or run it now.</p>
         )}
       </section>
 
-      <Separator className="bg-[#f1efe9]" />
+      <Separator />
 
       {/* direct contacts */}
       <section>
         <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-sm font-medium text-[#1c1b17]">
-            <Mail className="size-4 text-[#c2410c]" /> Direct contacts
-            <span className="text-xs font-normal text-[#a8a294]">verified emails of people at {job.company}</span>
+          <h2 className="flex items-center gap-2 font-heading text-sm font-bold uppercase tracking-wider text-foreground">
+            <Mail className="size-4" /> Direct contacts
+            <span className="font-mono text-[10px] font-normal normal-case text-muted-foreground">SMTP-checked people at {job.company} — not a guarantee they still work there</span>
           </h2>
-          <Button size="sm" variant="outline" className="border-[#e6e3db]" disabled={findingContacts} onClick={() => findContacts(Boolean(contacts))}>
+          <Button size="sm" variant="outline" disabled={findingContacts} onClick={() => findContacts(Boolean(contacts))}>
             {findingContacts ? <Loader2 className="size-3.5 animate-spin" /> : <MailSearch className="size-3.5" />}
             {contacts ? "Re-search" : "Find 2 contacts"}
           </Button>
@@ -381,49 +390,63 @@ export function TailorClient({
           contacts.contacts.length > 0 ? (
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               {contacts.contacts.map((c) => (
-                <div key={c.email} className="rounded-lg border border-[#e6e3db] bg-white p-3.5">
+                <div key={c.email} className="rounded-none border-2 border-foreground bg-card p-3.5 shadow-hard-sm">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-[#1c1b17]">
+                      <p className="truncate text-sm font-semibold text-foreground">
                         {c.name === "Unknown" ? `${job.company} hiring inbox` : c.name}
                       </p>
-                      <p className="truncate text-xs text-[#8b877a]">
+                      <p className="truncate text-xs text-muted-foreground">
                         {c.role === "hr" ? "Human Resources / Recruiting" : c.role || "—"}
                       </p>
-                      {c.why && <p className="mt-0.5 truncate text-[11px] font-medium text-[#c2410c]">{c.why}</p>}
+                      {c.why && <p className="mt-1 w-fit max-w-full truncate rounded-none border-2 border-foreground bg-accent px-1 py-0.5 font-mono text-[9px] font-bold uppercase tracking-wider text-accent-foreground">{c.why}</p>}
                     </div>
                     <span
                       className={cn(
-                        "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
-                        c.deliverability === "valid" ? "bg-[#dcfce7] text-[#15803d]" : "bg-[#fef3c7] text-[#92400e]"
+                        "shrink-0 rounded-none border-2 border-foreground px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wide",
+                        (c.quality ?? (c.patternDerived ? "guessed" : c.deliverability === "valid" ? "ok" : "catchall")) === "ok"
+                          ? "bg-[#0f766e] text-white"
+                          : (c.quality === "guessed" || c.patternDerived)
+                            ? "bg-destructive text-white"
+                            : "bg-accent text-accent-foreground"
                       )}
-                      title={c.deliverability === "valid" ? "Verified deliverable" : "Domain accepts all mail (unverifiable)"}
+                      title={
+                        c.patternDerived || c.quality === "guessed"
+                          ? "Built from the company email pattern. Higher chance it bounces — confirm on LinkedIn before sending."
+                          : c.deliverability === "valid"
+                            ? "Hunter SMTP check passed. The person may still have left the company."
+                            : "This domain accepts every address, so nobody can prove the inbox exists. High bounce risk."
+                      }
                     >
-                      {c.deliverability === "valid" ? "verified" : c.deliverability === "accept_all" ? "accept-all" : "unverified"}
+                      {c.patternDerived || c.quality === "guessed"
+                        ? "guessed"
+                        : c.deliverability === "valid"
+                          ? "smtp ok"
+                          : "catch-all"}
                     </span>
                   </div>
                   <div className="mt-2 flex items-center gap-1.5">
-                    <code className="min-w-0 flex-1 truncate rounded bg-[#f6f5f1] px-2 py-1 text-xs text-[#4a473f]">{c.email}</code>
+                    <code className="min-w-0 flex-1 truncate rounded-none border-2 border-foreground bg-muted px-2 py-1 font-mono text-xs text-foreground">{c.email}</code>
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText(c.email);
                         toast.success("Email copied");
                       }}
-                      className="text-[#a8a294] transition-colors hover:text-[#c2410c]"
+                      className="text-muted-foreground transition-colors hover:text-foreground"
                       title="Copy email"
                     >
                       <Copy className="size-3.5" />
                     </button>
                     <a
                       href={`mailto:${c.email}?subject=${encodeURIComponent(`${job.title} at ${job.company} — Kabir Narula`)}`}
-                      className="text-[#a8a294] transition-colors hover:text-[#c2410c]"
+                      className="text-muted-foreground transition-colors hover:text-foreground"
                       title="Compose email"
                     >
                       <Send className="size-3.5" />
                     </a>
                     <button
                       onClick={() => setEmailFor({ name: c.name, role: c.role, email: c.email })}
-                      className="text-[#a8a294] transition-colors hover:text-[#c2410c]"
+                      className="text-muted-foreground transition-colors hover:text-foreground"
                       title="Draft outreach email with AI"
                     >
                       <PenLine className="size-3.5" />
@@ -438,22 +461,22 @@ export function TailorClient({
                         setContacts((prev) =>
                           prev ? { ...prev, contacts: prev.contacts.filter((x) => x.email !== c.email) } : prev
                         );
-                        toast.success(`Removed ${c.email} everywhere at ${job.company}`);
+                        toast.success(`Removed ${c.email} — it won't come back on re-search`);
                       }}
-                      className="text-[#a8a294] transition-colors hover:text-red-600"
+                      className="text-muted-foreground transition-colors hover:text-destructive"
                       title="Bounced? Remove this address at this company"
                     >
                       <Ban className="size-3.5" />
                     </button>
                   </div>
-                  <div className="mt-1.5 flex items-center justify-between text-[10px] text-[#a8a294]">
+                  <div className="mt-1.5 flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
                     <span>
                       {c.patternDerived ? "pattern-matched · " : ""}confidence {c.confidence}%
                     </span>
                     {c.sources.length > 0 && (
                       <span className="flex gap-1.5">
                         {c.sources.map((s, i) => (
-                          <a key={i} href={s} target="_blank" rel="noreferrer" className="hover:text-[#c2410c] hover:underline">
+                          <a key={i} href={s} target="_blank" rel="noreferrer" className="text-[#2137ff] underline decoration-2 underline-offset-2 hover:no-underline">
                             source {i + 1}
                           </a>
                         ))}
@@ -464,26 +487,26 @@ export function TailorClient({
               ))}
             </div>
           ) : (
-            <p className="mt-2 text-xs text-[#8b877a]">
-              No verified contacts found at {contacts.domain} — this company keeps a low email profile. Try LinkedIn outreach instead.
+            <p className="mt-2 text-xs text-muted-foreground">
+              No sendable inboxes at {contacts.domain}. Catch-all and guessed addresses are hidden unless they pass SMTP. Try LinkedIn instead.
             </p>
           )
         ) : (
-          <p className="mt-2 text-xs text-[#8b877a]">
-            Finds 2 verified recruiter/hiring-manager emails at {job.company} (publicly-indexed, deliverability-checked via Hunter.io).
+          <p className="mt-2 text-xs text-muted-foreground">
+            Looks up people at {job.company} and SMTP-checks each address. Catch-all domains and pattern-guesses are labeled — don&apos;t treat them as confirmed. If one bounces, hit the ban icon so it never comes back.
           </p>
         )}
       </section>
 
-      <Separator className="bg-[#f1efe9]" />
+      <Separator />
 
       {/* generate */}
       <section className="flex items-center justify-between">
         <div>
-          <h2 className="flex items-center gap-2 text-sm font-medium text-[#1c1b17]">
-            <Sparkles className="size-4 text-[#c2410c]" /> Tailored documents
+          <h2 className="flex items-center gap-2 font-heading text-sm font-bold uppercase tracking-wider text-foreground">
+            <Sparkles className="size-4" /> Tailored documents
           </h2>
-          <p className="mt-1 text-xs text-[#8b877a]">
+          <p className="mt-1 text-xs text-muted-foreground">
             Rewrites experience bullets + cover letter only. Education, projects, company names, and layout are locked.
           </p>
         </div>
@@ -493,7 +516,6 @@ export function TailorClient({
               variant="outline"
               onClick={() => generate({ deepResearch: true })}
               disabled={generating}
-              className="border-[#e6e3db] text-[#6e6b61] hover:border-[#c2410c]/40 hover:text-[#c2410c]"
             >
               <FlaskConical className="size-4" />
               Regenerate with deeper research
@@ -502,7 +524,6 @@ export function TailorClient({
           <Button
             onClick={() => generate({})}
             disabled={generating}
-            className="bg-[#c2410c] text-[#fdf8f3] hover:bg-[#9a3412]"
           >
             {generating ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
             {generating ? "Generating…" : "Tailor for this job"}
@@ -512,11 +533,11 @@ export function TailorClient({
 
       {/* applied title optimizations */}
       {result && (result.appliedTitleChanges?.length ?? 0) > 0 && (
-        <div className="rounded-lg border border-[#c2410c]/30 bg-[#fdeadd]/60 p-4">
-          <p className="flex items-center gap-2 text-sm font-medium text-[#9a3412]">
+        <div className="rounded-none border-2 border-foreground bg-primary/40 p-4 shadow-hard-sm">
+          <p className="flex items-center gap-2 font-heading text-sm font-bold uppercase tracking-wider text-foreground">
             <CheckCircle2 className="size-4" /> Titles optimized for this posting (applied):
           </p>
-          <ul className="mt-2 text-xs text-[#9a3412]/90">
+          <ul className="mt-2 text-xs text-foreground">
             {result.appliedTitleChanges!.map((t, i) => (
               <li key={i} className="mt-1">
                 {t.company}: “{t.from}” → “{t.to}”
@@ -528,11 +549,11 @@ export function TailorClient({
 
       {/* title-change confirmation (only when title optimization was disabled) */}
       {result && result.pendingTitleChanges.length > 0 && (
-        <div className="rounded-lg border border-amber-600/40 bg-amber-500/5 p-4">
-          <p className="flex items-center gap-2 text-sm text-amber-800">
+        <div className="rounded-none border-2 border-foreground bg-accent p-4 shadow-hard-sm">
+          <p className="flex items-center gap-2 font-heading text-sm font-bold uppercase tracking-wider text-accent-foreground">
             <TriangleAlert className="size-4" /> Proposed title rewordings (not applied yet):
           </p>
-          <ul className="mt-2 text-xs text-amber-800/80">
+          <ul className="mt-2 text-xs text-accent-foreground">
             {result.pendingTitleChanges.map((t, i) => (
               <li key={i} className="mt-1">
                 {t.company}: “{t.from}” → “{t.to}”
@@ -540,10 +561,10 @@ export function TailorClient({
             ))}
           </ul>
           <div className="mt-3 flex gap-2">
-            <Button size="sm" className="bg-amber-500 text-[#fdf8f3] hover:bg-amber-600" disabled={generating} onClick={() => generate({ allowTitleChanges: true })}>
+            <Button size="sm" disabled={generating} onClick={() => generate({ allowTitleChanges: true })}>
               Regenerate with these titles
             </Button>
-            <Button size="sm" variant="outline" className="border-[#e6e3db]" onClick={() => setResult({ ...result, pendingTitleChanges: [] })}>
+            <Button size="sm" variant="outline" onClick={() => setResult({ ...result, pendingTitleChanges: [] })}>
               Keep original titles
             </Button>
           </div>
@@ -552,7 +573,7 @@ export function TailorClient({
 
       {/* warnings */}
       {result?.warnings.map((w, i) => (
-        <div key={i} className="rounded-lg border border-red-600/40 bg-red-600/5 p-3 text-xs text-red-700">
+        <div key={i} className="rounded-none border-2 border-foreground bg-destructive/20 p-3 text-xs text-foreground shadow-hard-sm">
           {w}
         </div>
       ))}
@@ -561,60 +582,61 @@ export function TailorClient({
       {result && (
         <div className="grid gap-3 sm:grid-cols-2">
           {result.droppedEntries && result.droppedEntries.length > 0 && (
-            <p className="text-xs text-[#8b877a] sm:col-span-2">
-              Hidden for this role (not relevant here): <span className="text-[#a8a294]">{result.droppedEntries.join(", ")}</span>
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              Hidden for this role (not relevant here): <span className="text-foreground/60">{result.droppedEntries.join(", ")}</span>
             </p>
           )}
           {result.chosenProjects && result.chosenProjects.length > 0 && (
-            <p className="text-xs text-[#8b877a] sm:col-span-2">
+            <p className="text-xs text-muted-foreground sm:col-span-2">
               Projects on this resume:{" "}
-              <span className="text-[#c2410c]">{result.chosenProjects.join(" + ")}</span> — picked as the best fit for this job
+              <span className="font-bold text-foreground">{result.chosenProjects.join(" + ")}</span> — picked as the best fit for this job
             </p>
           )}
           {result.resume.missingKeywords && result.resume.missingKeywords.length > 0 && (
-            <p className="text-xs text-[#8b877a] sm:col-span-2">
+            <p className="text-xs text-muted-foreground sm:col-span-2">
               Not covered (not in your real background — kept out on purpose):{" "}
-              <span className="text-[#a8a294]">{result.resume.missingKeywords.join(", ")}</span>
+              <span className="text-foreground/60">{result.resume.missingKeywords.join(", ")}</span>
             </p>
           )}
           {[
             { label: "Resume", id: result.resume.id, version: result.resume.version, pages: result.resume.pageCount, score: result.resume.matchScore, fillPct: result.resume.fillPct, diff: result.resume.diff },
             { label: "Cover letter", id: result.cover.id, version: result.cover.version, pages: result.cover.pageCount, score: null, fillPct: undefined, diff: result.cover.diff },
           ].map((d) => (
-            <div key={d.id} className="rounded-lg border border-[#e6e3db] bg-white p-4">
+            <div key={d.id} className="rounded-none border-2 border-foreground bg-card p-4 shadow-hard-sm">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-[#1c1b17]">{d.label} v{d.version}</p>
+                <p className="font-heading text-sm font-bold uppercase tracking-wider text-foreground">{d.label} v{d.version}</p>
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className={cn("border-[#15803d]/40 text-[#15803d]", d.pages !== 1 && "border-red-600/40 text-red-600")}>
+                  <Badge variant="outline" className={cn("bg-[#0f766e] text-white", d.pages !== 1 && "bg-destructive text-white")}>
                     {d.pages} page{d.pages === 1 ? "" : "s"}
                   </Badge>
                   {d.fillPct !== undefined && (
-                    <Badge variant="outline" className={cn("border-[#15803d]/40 text-[#15803d]", d.fillPct < 90 && "border-amber-600/40 text-amber-700")}>
+                    <Badge variant="outline" className={cn("bg-[#0f766e] text-white", d.fillPct < 90 && "bg-accent text-accent-foreground")}>
                       fill {d.fillPct}%
-                    </Badge>
-                  )}
-                  {d.label === "Resume" && (
-                    <Badge variant="outline" className="border-[#c2410c]/40 text-[#c2410c]">
-                      {d.score === null ? "ATS —" : `ATS ${d.score}%`}
                     </Badge>
                   )}
                 </div>
               </div>
+              {d.label === "Resume" && (
+                <div className="mt-3 flex items-end gap-3">
+                  <span className="font-display text-4xl font-bold leading-none">{d.score === null ? "—" : `${d.score}%`}</span>
+                  <span className="stamp tilt-r bg-primary text-[9px]">ATS match</span>
+                </div>
+              )}
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" className="border-[#e6e3db]" nativeButton={false} render={<a href={`/api/documents/${d.id}/pdf`} target="_blank" rel="noreferrer" />}>
+                <Button size="sm" variant="outline" nativeButton={false} render={<a href={`/api/documents/${d.id}/pdf`} target="_blank" rel="noreferrer" />}>
                   <FileText className="size-3.5" /> Preview
                 </Button>
-                <Button size="sm" variant="outline" className="border-[#e6e3db]" nativeButton={false} render={<a href={`/api/documents/${d.id}/pdf?download=1`} />}>
+                <Button size="sm" variant="outline" nativeButton={false} render={<a href={`/api/documents/${d.id}/pdf?download=1`} />}>
                   <Download className="size-3.5" /> Download
                 </Button>
-                <Button size="sm" variant="outline" className="border-[#e6e3db]" onClick={() => setDiffFor({ label: `${d.label} v${d.version}`, diff: d.diff })}>
+                <Button size="sm" variant="outline" onClick={() => setDiffFor({ label: `${d.label} v${d.version}`, diff: d.diff })}>
                   Diff vs master
                 </Button>
               </div>
             </div>
           ))}
           <div className="sm:col-span-2">
-            <Button onClick={finalize} disabled={finalized} className="bg-[#15803d] text-[#fdf8f3] hover:bg-[#166534]">
+            <Button onClick={finalize} disabled={finalized} className="bg-[#0f766e] text-white">
               <CheckCircle2 className="size-4" />
               {finalized ? "Finalized" : hasApplication ? "Finalize & attach to application" : "Finalize (attach after you track it)"}
             </Button>
@@ -624,9 +646,9 @@ export function TailorClient({
 
       {/* diff viewer */}
       {diffFor && (
-        <section className="rounded-lg border border-[#e6e3db]">
-          <div className="flex items-center justify-between border-b border-[#e6e3db] px-4 py-2">
-            <p className="text-sm text-[#1c1b17]">Diff — {diffFor.label} vs master</p>
+        <section className="rounded-none border-2 border-foreground bg-card shadow-hard">
+          <div className="flex items-center justify-between border-b-2 border-foreground bg-muted px-4 py-2">
+            <p className="font-heading text-xs font-bold uppercase tracking-wider text-foreground">Diff — {diffFor.label} vs master</p>
             <Button size="sm" variant="ghost" onClick={() => setDiffFor(null)}>Close</Button>
           </div>
           <DiffView diff={diffFor.diff} />
@@ -636,20 +658,20 @@ export function TailorClient({
       {/* version history */}
       {documents.length > 0 && (
         <section>
-          <h2 className="text-sm font-medium text-[#1c1b17]">Version history</h2>
-          <div className="mt-2 divide-y divide-[#e6e3db] rounded-lg border border-[#e6e3db]">
+          <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-foreground">Version history</h2>
+          <div className="mt-2 divide-y divide-foreground rounded-none border-2 border-foreground bg-card shadow-hard-sm">
             {documents.map((d) => (
               <div key={d.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                <span className="w-28 text-[#1c1b17]">{d.kind === "RESUME" ? "Resume" : "Cover"} v{d.version}</span>
-                <Badge variant="outline" className={cn("border-[#e6e3db] text-[#6e6b61]", d.status === "FINAL" && "border-[#15803d]/40 text-[#15803d]")}>
+                <span className="w-28 font-medium text-foreground">{d.kind === "RESUME" ? "Resume" : "Cover"} v{d.version}</span>
+                <Badge variant="outline" className={cn(d.status === "FINAL" && "bg-[#0f766e] text-white")}>
                   {d.status}
                 </Badge>
-                <span className="text-xs text-[#8b877a]">{d.pageCount}p{d.matchScore !== null ? ` · ATS ${d.matchScore}%` : ""}</span>
-                <span className="text-xs text-[#a8a294]">{new Date(d.createdAt).toLocaleString()}</span>
-                {d.titleChangeNote && <span className="text-xs text-amber-700">{d.titleChangeNote}</span>}
+                <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{d.pageCount}p{d.matchScore !== null ? ` · ATS ${d.matchScore}%` : ""}</span>
+                <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{new Date(d.createdAt).toLocaleString()}</span>
+                {d.titleChangeNote && <span className="rounded-none border-2 border-foreground bg-accent px-1 py-0.5 font-mono text-[9px] uppercase tracking-wider text-accent-foreground">{d.titleChangeNote}</span>}
                 <span className="ml-auto flex gap-2">
-                  <a href={`/api/documents/${d.id}/pdf`} target="_blank" rel="noreferrer" className="text-xs text-[#c2410c] hover:underline">PDF</a>
-                  <button onClick={() => viewDiffForDoc(d)} className="text-xs text-[#6e6b61] hover:text-[#1c1b17]">Diff</button>
+                  <a href={`/api/documents/${d.id}/pdf`} target="_blank" rel="noreferrer" className="font-mono text-[11px] uppercase tracking-wider text-[#2137ff] underline decoration-2 underline-offset-2 hover:no-underline">PDF</a>
+                  <button onClick={() => viewDiffForDoc(d)} className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground">Diff</button>
                 </span>
               </div>
             ))}

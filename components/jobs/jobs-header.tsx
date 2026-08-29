@@ -122,38 +122,38 @@ export function JobsHeader({
 
   return (
     <div className={cn(
-      "sticky top-0 z-30 -mx-8 border-b bg-[#f6f5f1]/85 px-8 py-3 backdrop-blur-md transition-all duration-300",
-      scrolled ? "border-[#dedad0] shadow-[0_8px_24px_-16px_rgba(28,27,23,0.25)]" : "border-[#e6e3db]"
+      "sticky top-0 z-30 -mx-8 border-b-2 border-foreground bg-background px-8 py-3 transition-all duration-300",
+      scrolled && "shadow-hard-sm"
     )}>
       <div className="flex items-center gap-3">
         {/* search */}
         <div className="relative w-72">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#a8a294]" />
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             ref={searchRef}
             value={q}
             onChange={(e) => onSearch(e.target.value)}
             placeholder="Search title, company, keyword…"
-            className="h-8 border-[#e6e3db] bg-white pl-8 pr-8 text-[13px] shadow-none focus-visible:border-[#c2410c]/50 focus-visible:ring-[#c2410c]/20"
+            className="h-9 pl-8 pr-8 text-[13px]"
           />
-          <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded border border-[#e6e3db] bg-[#f6f5f1] px-1 text-[10px] text-[#a8a294]">/</kbd>
+          <kbd className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-none border-2 border-foreground bg-muted px-1 font-mono text-[10px] font-bold text-foreground">/</kbd>
         </div>
 
         {/* location tabs with counts */}
-        <div className="flex items-center rounded-lg border border-[#e6e3db] bg-white p-0.5 shadow-[0_1px_2px_rgba(28,27,23,0.04)]">
+        <div className="flex items-center rounded-none border-2 border-foreground bg-card p-0.5 shadow-hard-sm">
           {BUCKETS.map((b) => (
             <button
               key={b.value}
               onClick={() => push({ bucket: b.value })}
               className={cn(
-                "rounded-md px-3 py-1 text-[13px] transition-all duration-150",
+                "rounded-none px-3 py-1 font-heading text-[11px] font-bold uppercase tracking-wider transition-all duration-150",
                 filters.bucket === b.value
-                  ? "bg-[#1c1b17] font-medium text-[#f6f5f1] shadow-sm"
-                  : "text-[#6e6b61] hover:text-[#1c1b17]"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
             >
               {b.label}
-              <span className={cn("ml-1.5 text-[11px]", filters.bucket === b.value ? "text-[#f2a86f]" : "text-[#a8a294]")}>
+              <span className={cn("ml-1.5 font-mono text-[10px]", filters.bucket === b.value ? "text-primary-foreground/70" : "text-muted-foreground/60")}>
                 {countFor(b.value)}
               </span>
             </button>
@@ -166,35 +166,35 @@ export function JobsHeader({
             render={
               <button
                 className={cn(
-                  "flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[13px] font-medium transition-colors",
+                  "flex h-9 items-center gap-1.5 rounded-none border-2 border-foreground px-3 font-heading text-[11px] font-bold uppercase tracking-wider shadow-hard-sm transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-hard",
                   activeFilters > 0
-                    ? "border-[#c2410c]/40 bg-[#fdeadd] text-[#9a3412]"
-                    : "border-[#e6e3db] bg-white text-[#6e6b61] hover:text-[#1c1b17]"
+                    ? "bg-accent text-accent-foreground"
+                    : "bg-card text-foreground"
                 )}
               >
                 <SlidersHorizontal className="size-3.5" />
                 Filters
                 {activeFilters > 0 && (
-                  <span className="flex size-4 items-center justify-center rounded-full bg-[#c2410c] text-[10px] font-bold text-white">
+                  <span className="flex size-4 items-center justify-center rounded-none border border-foreground bg-primary font-mono text-[10px] font-bold text-primary-foreground">
                     {activeFilters}
                   </span>
                 )}
               </button>
             }
           />
-          <PopoverContent align="end" className="w-80 border-[#e6e3db] bg-white p-4 shadow-[0_16px_40px_-16px_rgba(28,27,23,0.25)]">
+          <PopoverContent align="end" className="w-80 p-4">
             <div className="flex flex-col gap-4">
               {GROUPS.map((g) => (
                 <div key={g.key}>
-                  <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-[#a8a294]">{g.label}</p>
+                  <p className="mb-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{g.label}</p>
                   <div className="flex flex-wrap gap-1.5">
                     <button
                       onClick={() => push({ [g.key]: "" })}
                       className={cn(
-                        "rounded-md border px-2 py-1 text-xs transition-colors",
+                        "rounded-none border-2 px-2 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors",
                         !filters[g.key]
-                          ? "border-[#c2410c]/50 bg-[#fdeadd] font-medium text-[#9a3412]"
-                          : "border-[#e6e3db] text-[#6e6b61] hover:border-[#d5d1c6] hover:text-[#1c1b17]"
+                          ? "border-foreground bg-primary font-bold text-primary-foreground"
+                          : "border-foreground/40 text-muted-foreground hover:border-foreground hover:bg-accent hover:text-accent-foreground"
                       )}
                     >
                       Any
@@ -204,10 +204,10 @@ export function JobsHeader({
                         key={o.value}
                         onClick={() => push({ [g.key]: filters[g.key] === o.value ? "" : o.value })}
                         className={cn(
-                          "rounded-md border px-2 py-1 text-xs transition-colors",
+                          "rounded-none border-2 px-2 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors",
                           filters[g.key] === o.value
-                            ? "border-[#c2410c]/50 bg-[#fdeadd] font-medium text-[#9a3412]"
-                            : "border-[#e6e3db] text-[#6e6b61] hover:border-[#d5d1c6] hover:text-[#1c1b17]"
+                            ? "border-foreground bg-primary font-bold text-primary-foreground"
+                            : "border-foreground/40 text-muted-foreground hover:border-foreground hover:bg-accent hover:text-accent-foreground"
                         )}
                       >
                         {o.label}
@@ -219,7 +219,7 @@ export function JobsHeader({
               {activeFilters > 0 && (
                 <button
                   onClick={() => push({ seniority: "", category: "", workMode: "", posted: "" })}
-                  className="self-start text-xs text-[#8b877a] underline-offset-2 hover:text-[#c2410c] hover:underline"
+                  className="self-start font-mono text-[11px] uppercase tracking-wider text-[#2137ff] underline decoration-2 underline-offset-2 hover:no-underline"
                 >
                   Clear all filters
                 </button>
@@ -229,7 +229,7 @@ export function JobsHeader({
         </Popover>
 
         {/* sort toggle */}
-        <div className="ml-auto flex items-center rounded-lg border border-[#e6e3db] bg-white p-0.5 shadow-[0_1px_2px_rgba(28,27,23,0.04)]">
+        <div className="ml-auto flex items-center rounded-none border-2 border-foreground bg-card p-0.5 shadow-hard-sm">
           {[
             { value: "rec", label: "Recommended" },
             { value: "new", label: "Newest" },
@@ -238,10 +238,10 @@ export function JobsHeader({
               key={s.value}
               onClick={() => push({ sort: s.value === "rec" ? "" : s.value })}
               className={cn(
-                "rounded-md px-3 py-1 text-[13px] transition-all duration-150",
+                "rounded-none px-3 py-1 font-heading text-[11px] font-bold uppercase tracking-wider transition-all duration-150",
                 (filters.sort ?? "rec") === s.value
-                  ? "bg-[#1c1b17] font-medium text-[#f6f5f1] shadow-sm"
-                  : "text-[#6e6b61] hover:text-[#1c1b17]"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
             >
               {s.label}

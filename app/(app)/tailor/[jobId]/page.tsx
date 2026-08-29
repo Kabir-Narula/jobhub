@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { TailorClient } from "@/components/tailor/tailor-client";
 import { jdTerms } from "@/lib/tailor/match";
+import { bouncedEmailSet } from "@/lib/contacts/blocklist";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,20 @@ export default async function TailorPage({ params }: { params: Promise<{ jobId: 
     },
   });
   if (!job) notFound();
+
+  const blocked = await bouncedEmailSet();
+  const rawContacts = job.contacts as { domain?: string; contacts?: { email?: string; deliverability?: string }[]; searchedAt?: string } | null;
+  const initialContacts = rawContacts
+    ? {
+        ...rawContacts,
+        contacts: (rawContacts.contacts ?? []).filter((c) => {
+          const email = String(c.email ?? "").toLowerCase();
+          if (!email || blocked.has(email)) return false;
+          if (c.deliverability === "unknown") return false;
+          return true;
+        }),
+      }
+    : null;
 
   // Workday ranks application FORM data above the uploaded PDF — surface the
   // exact values to paste. Only relevant for Workday-hosted postings.
@@ -54,7 +69,7 @@ export default async function TailorPage({ params }: { params: Promise<{ jobId: 
         titleChangeNote: d.titleChangeNote,
       }))}
       initialResearch={job.companyResearch as never}
-      initialContacts={job.contacts as never}
+      initialContacts={initialContacts as never}
       hasApplication={job.applications.length > 0}
     />
   );

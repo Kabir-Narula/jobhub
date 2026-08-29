@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { markEmailBounced } from "@/lib/contacts/blocklist";
 
 interface StoredContacts {
   domain: string;
@@ -21,6 +22,7 @@ export async function POST(request: Request) {
   const job = await prisma.job.findUnique({ where: { id: jobId }, select: { company: true } });
   if (!job) return NextResponse.json({ error: "job not found" }, { status: 404 });
 
+  await markEmailBounced(email);
   const rows = await prisma.job.findMany({
     where: { company: job.company, contacts: { not: { equals: null } } },
     select: { id: true, contacts: true },

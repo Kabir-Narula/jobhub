@@ -8,8 +8,9 @@ import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { JobCard } from "./job-card";
 import { JobsHeader, type FilterState } from "./jobs-header";
+import { AddJobDialog } from "./add-job-dialog";
 import { ReturnPrompt } from "./return-prompt";
-import { Inbox, RefreshCw, CheckCircle2, ChevronDown, Sparkles } from "lucide-react";
+import { Inbox, RefreshCw, CheckCircle2, ChevronDown, Plus, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface RunInfo {
@@ -248,34 +249,39 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
 
   const failedSources = lastRun?.results.filter((r) => !r.ok).length ?? 0;
   const [showApplied, setShowApplied] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-end justify-between">
         <div>
-          <h1 className="font-display text-2xl font-semibold text-[#1c1b17]">Jobs</h1>
-          <p className="mt-0.5 text-xs text-[#8b877a]">
+          <span className="stamp tilt-l mb-2 bg-accent text-[10px]">est. 2026 // toronto</span>
+          <h1 className="font-display text-5xl font-bold uppercase leading-none tracking-tight text-foreground">Jobs</h1>
+          <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
             {lastRun ? (
               <>
                 {lastRun.newJobs > 0 ? (
-                  <span className="font-medium text-[#c2410c]">+{lastRun.newJobs} new last poll · </span>
+                  <span className="font-bold text-foreground">+{lastRun.newJobs} new last poll · </span>
                 ) : null}
                 {failedSources > 0 ? (
-                  <span className="text-red-600">{failedSources} source{failedSources > 1 ? "s" : ""} failing · </span>
+                  <span className="text-destructive">{failedSources} source{failedSources > 1 ? "s" : ""} failing · </span>
                 ) : null}
               </>
             ) : (
-              "No poll yet — hit refresh"
+              "No poll yet — hit refresh · "
             )}
             <span>j/k move · a apply · s save · d dismiss · t tailor · m mark applied</span>
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="secondary" onClick={() => setAddOpen(true)}>
+            <Plus className="size-3.5" />
+            Add job
+          </Button>
           {filters.savedOnly && visibleJobs.length > 0 && (
             <Button
               size="sm"
               onClick={tailorSaved}
               disabled={batching}
-              className="bg-[#c2410c] text-[#fdf8f3] hover:bg-[#9a3412]"
             >
               <Sparkles className={batching ? "size-3.5 animate-pulse" : "size-3.5"} />
               {batching ? "Tailoring…" : `Tailor all saved (${visibleJobs.length})`}
@@ -286,7 +292,6 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
             variant="outline"
             onClick={refresh}
             disabled={refreshing}
-            className="border-[#e6e3db] bg-white text-[#4a473f] shadow-none hover:border-[#c2410c]/40 hover:text-[#c2410c]"
           >
             <RefreshCw className={refreshing ? "size-3.5 animate-spin" : "size-3.5"} />
             {refreshing ? "Polling…" : "Refresh"}
@@ -298,12 +303,12 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
 
       {jobs.length === 0 ? (
         <div className="flex flex-col items-center gap-3 py-24 text-center">
-          <div className="flex size-12 items-center justify-center rounded-2xl border border-[#e6e3db] bg-white">
-            <Inbox className="size-5 text-[#a8a294]" />
+          <div className="tilt-r flex size-14 items-center justify-center rounded-none border-2 border-foreground bg-primary shadow-hard">
+            <Inbox className="size-6 text-primary-foreground" />
           </div>
           <div>
-            <p className="font-display text-sm font-semibold text-[#1c1b17]">Nothing here</p>
-            <p className="mt-1 text-xs text-[#8b877a]">Try widening the filters, or refresh to pull new postings.</p>
+            <p className="font-display text-lg font-bold uppercase tracking-tight text-foreground">Nothing here</p>
+            <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Try widening the filters, or refresh to pull new postings.</p>
           </div>
         </div>
       ) : (
@@ -340,9 +345,9 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
             <div className="mt-2">
               <button
                 onClick={() => setShowApplied((s) => !s)}
-                className="flex items-center gap-2 rounded-lg border border-[#e6e3db] bg-white px-3 py-2 text-xs font-medium text-[#6e6b61] transition-colors hover:text-[#1c1b17]"
+                className="flex items-center gap-2 rounded-none border-2 border-foreground bg-card px-3 py-2 font-mono text-[10px] font-bold uppercase tracking-wider text-foreground shadow-hard-sm transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-hard"
               >
-                <CheckCircle2 className="size-3.5 text-[#15803d]" />
+                <CheckCircle2 className="size-3.5 text-[#0f766e]" />
                 Applied ({appliedJobs.length})
                 <ChevronDown className={cn("size-3.5 transition-transform", showApplied && "rotate-180")} />
               </button>
@@ -368,6 +373,7 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
       )}
 
       <ReturnPrompt />
+      <AddJobDialog open={addOpen} onClose={() => setAddOpen(false)} />
     </div>
   );
 }

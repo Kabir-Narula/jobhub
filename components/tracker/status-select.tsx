@@ -12,12 +12,13 @@ export const STATUS_LABEL: Record<AppStatus, string> = {
   GHOSTED: "Ghosted",
 };
 
+/* status colors as mono uppercase badges with black 2px borders */
 export const STATUS_COLOR: Record<AppStatus, string> = {
-  APPLIED: "text-[#4a473f]",
-  INTERVIEWING: "text-[#c2410c]",
-  OFFER: "text-[#15803d]",
-  REJECTED: "text-red-600",
-  GHOSTED: "text-[#8b877a]",
+  APPLIED: "bg-[#0f766e] text-white",
+  INTERVIEWING: "bg-accent text-accent-foreground",
+  OFFER: "bg-primary text-primary-foreground",
+  REJECTED: "bg-muted text-muted-foreground",
+  GHOSTED: "bg-card text-muted-foreground",
 };
 
 export function StatusSelect({
@@ -29,12 +30,12 @@ export function StatusSelect({
 }) {
   return (
     <Select value={app.status} onValueChange={(v) => v && onChange(app.id, v as AppStatus)}>
-      <SelectTrigger className={cn("h-7 w-36 bg-white text-xs", STATUS_COLOR[app.status])}>
+      <SelectTrigger className={cn("h-7 w-36 font-mono text-[10px] font-bold uppercase tracking-[0.18em]", STATUS_COLOR[app.status])}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
         {(Object.keys(STATUS_LABEL) as AppStatus[]).map((s) => (
-          <SelectItem key={s} value={s} className={STATUS_COLOR[s]}>
+          <SelectItem key={s} value={s} className={cn("font-mono text-[10px] font-bold uppercase tracking-[0.18em]", STATUS_COLOR[s])}>
             {STATUS_LABEL[s]}
           </SelectItem>
         ))}

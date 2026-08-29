@@ -66,8 +66,7 @@ outreach email to go with them.
 - **Verified contacts** per company (Hunter.io): recruiter/hiring-manager emails with confidence scores,
   public source links, and deliverability checks. Companies with no public footprint fall back to
   GPT-known names × the company's confirmed email pattern × verification (labeled "pattern-matched").
-- **Outreach drafts** grounded in your finalized résumé, the company research, and **Reddit candidate
-  intel** (PullPush digest of real interview threads) — ≤120 words, proven structure, zero template smell.
+- **Outreach drafts** in your voice: already-applied, resume attached, one project in spoken English, ask matched to recruiter vs engineer vs manager. No metric-hook, no resume bullets, no P.S.
 
 ## Architecture
 

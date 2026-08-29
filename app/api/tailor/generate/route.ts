@@ -20,7 +20,7 @@ import { ACHIEVEMENTS } from "@/lib/tailor/achievements";
 import { generateContent, findNewNumbers, type GeneratedContent } from "@/lib/tailor/generate";
 import { researchCompany, type CompanyResearch } from "@/lib/tailor/research";
 import { compileLatex } from "@/lib/tailor/compile";
-import { matchScore, missingTerms, jdTerms, placementGaps } from "@/lib/tailor/match";
+import { matchScore, missingTerms, claimableJdTerms, isTechTerm, placementGaps } from "@/lib/tailor/match";
 import { pageFill } from "@/lib/tailor/fill";
 import { PROJECTS, projectById } from "@/lib/tailor/projects";
 import { ensureBucket, uploadPdf } from "@/lib/supabase";
@@ -191,7 +191,7 @@ export async function POST(request: Request) {
   const parsedForJob = { ...parsedResume, entries: entriesToUse };
 
   const companyTokens = job.company.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-  const targetKeywords = jdTerms(job.description, 25, companyTokens);
+  const targetKeywords = claimableJdTerms(job.description, 25, companyTokens);
 
   let generated: GeneratedContent = await generateContent({
     entries: parsedForJob.entries,
@@ -264,7 +264,9 @@ export async function POST(request: Request) {
       " " +
       (gen.projects ?? []).flatMap((p) => p.bullets ?? []).join(" ")
     ).toLowerCase();
-    const hardAllowed = jdTerms(job!.description, 40, companyTokens).filter((t) => t.split(" ").every((w) => genText.includes(w)));
+    const hardAllowed = claimableJdTerms(job!.description, 40, companyTokens)
+      .filter(isTechTerm) // only skill-shaped terms may enter a skills block
+      .filter((t) => t.split(" ").every((w) => genText.includes(w)));
     const allowedExtra = [...new Set([...softSkills, ...hardAllowed])];
     tex = assembleSkillsSection(parseSkillsSection(tex), gen.skills ?? null, clamps.compactSkills ?? 0, lensSuppress, allowedExtra);
     // Placement fix: bullet-backed JD terms the skills block missed get

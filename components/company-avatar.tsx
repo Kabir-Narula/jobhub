@@ -12,9 +12,9 @@ export function CompanyAvatar({ company, className }: { company: string; classNa
   return (
     <div
       aria-hidden
-      className={cn("flex shrink-0 items-center justify-center rounded-lg text-sm font-semibold text-white/90", className)}
+      className={cn("flex shrink-0 items-center justify-center rounded-none border-2 border-foreground text-sm font-semibold text-foreground", className)}
       style={{
-        background: `linear-gradient(135deg, hsl(${hue} 55% 45% / 0.9), hsl(${(hue + 40) % 360} 55% 32% / 0.9))`,
+        background: `hsl(${hue} 75% 72%)`,
       }}
     >
       {letter}

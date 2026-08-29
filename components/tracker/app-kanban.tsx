@@ -6,7 +6,7 @@ import { differenceInDays } from "date-fns";
 import type { AppStatus } from "@prisma/client";
 import { FileText, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { STATUS_COLOR, STATUS_LABEL } from "./status-select";
+import { STATUS_LABEL } from "./status-select";
 import { CompanyAvatar } from "@/components/company-avatar";
 import { agingClass } from "./app-table";
 import type { AppWithJob } from "./types";
@@ -14,11 +14,11 @@ import type { AppWithJob } from "./types";
 const COLUMNS: AppStatus[] = ["APPLIED", "INTERVIEWING", "OFFER", "REJECTED", "GHOSTED"];
 
 const STATUS_DOT: Record<AppStatus, string> = {
-  APPLIED: "bg-[#8b877a]",
-  INTERVIEWING: "bg-[#c2410c]",
-  OFFER: "bg-emerald-400",
-  REJECTED: "bg-red-400",
-  GHOSTED: "bg-[#d5d1c6]",
+  APPLIED: "bg-[#0f766e]",
+  INTERVIEWING: "bg-accent",
+  OFFER: "bg-primary",
+  REJECTED: "bg-muted",
+  GHOSTED: "bg-card",
 };
 
 function KanbanCard({ app, onRemove }: { app: AppWithJob; onRemove: (id: string) => void }) {
@@ -32,28 +32,28 @@ function KanbanCard({ app, onRemove }: { app: AppWithJob; onRemove: (id: string)
       {...attributes}
       style={{ transform: CSS.Translate.toString(transform) }}
       className={cn(
-        "cursor-grab rounded-lg border border-[#e6e3db] bg-white p-3 transition-colors hover:border-[#e6e3db] active:cursor-grabbing",
-        isDragging && "z-50 border-[#c2410c]/60 opacity-90 shadow-lg"
+        "cursor-grab rounded-none border-2 border-foreground bg-card p-3 shadow-hard-sm transition-all hover:-translate-x-0.5 hover:-translate-y-0.5 hover:shadow-hard active:cursor-grabbing",
+        isDragging && "z-50 opacity-90 shadow-hard-lg"
       )}
     >
       <div className="flex items-start gap-2.5">
-        <CompanyAvatar company={app.job.company} className="size-7 rounded-md text-xs" />
+        <CompanyAvatar company={app.job.company} className="size-7 rounded-none border-2 border-foreground text-xs" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[13px] font-medium text-[#1c1b17]">{app.job.company}</p>
-          <p className="truncate text-xs text-[#8b877a]">{app.job.title}</p>
+          <p className="truncate font-heading text-[13px] font-bold uppercase tracking-tight text-foreground">{app.job.company}</p>
+          <p className="truncate text-xs text-muted-foreground">{app.job.title}</p>
         </div>
         <button
           onClick={(e) => {
             e.stopPropagation();
             onRemove(app.id);
           }}
-          className="text-[#a8a294] transition-colors hover:text-red-600"
+          className="text-muted-foreground transition-colors hover:text-destructive"
         >
           <Trash2 className="size-3.5" />
         </button>
       </div>
-      <div className="mt-2.5 flex items-center justify-between text-[11px] text-[#8b877a]">
-        <span className={cn("rounded bg-[#f1efe9] px-1.5 py-0.5", agingClass(app))}>{days}d</span>
+      <div className="mt-2.5 flex items-center justify-between font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        <span className={cn("rounded-none border-2 border-foreground bg-muted px-1.5 py-0.5", agingClass(app))}>{days}d</span>
         <span className="flex gap-1.5">
           {app.resumeVersion && (
             <a
@@ -61,7 +61,7 @@ function KanbanCard({ app, onRemove }: { app: AppWithJob; onRemove: (id: string)
               target="_blank"
               rel="noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-0.5 transition-colors hover:text-[#c2410c]"
+              className="flex items-center gap-0.5 text-[#2137ff] underline decoration-2 underline-offset-2 transition-colors hover:no-underline"
             >
               <FileText className="size-3" />R
             </a>
@@ -72,7 +72,7 @@ function KanbanCard({ app, onRemove }: { app: AppWithJob; onRemove: (id: string)
               target="_blank"
               rel="noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-0.5 transition-colors hover:text-[#c2410c]"
+              className="flex items-center gap-0.5 text-[#2137ff] underline decoration-2 underline-offset-2 transition-colors hover:no-underline"
             >
               <FileText className="size-3" />C
             </a>
@@ -97,16 +97,16 @@ function KanbanColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex min-h-96 w-52 shrink-0 flex-col gap-2 rounded-lg border border-[#e6e3db] bg-[#f6f5f1] p-2 transition-colors",
-        isOver && "border-[#c2410c]/50 bg-[#fdeadd]/60"
+        "flex min-h-96 w-52 shrink-0 flex-col gap-2 rounded-none border-2 border-foreground bg-muted p-2 shadow-hard-sm transition-all",
+        isOver && "border-ring bg-primary/40"
       )}
     >
       <div className="flex items-center justify-between px-1.5 py-1.5">
-        <span className={cn("flex items-center gap-1.5 text-xs font-medium", STATUS_COLOR[status])}>
-          <span className={cn("size-1.5 rounded-full", STATUS_DOT[status])} />
+        <span className="flex items-center gap-1.5 font-heading text-xs font-bold uppercase tracking-wider text-foreground">
+          <span className={cn("size-2 rounded-none border-2 border-foreground", STATUS_DOT[status])} />
           {STATUS_LABEL[status]}
         </span>
-        <span className="rounded bg-[#f1efe9] px-1.5 py-0.5 text-[10px] text-[#8b877a]">{apps.length}</span>
+        <span className="rounded-none border-2 border-foreground bg-card px-1.5 py-0.5 font-mono text-[10px] font-bold text-foreground">{apps.length}</span>
       </div>
       {apps.map((app) => (
         <KanbanCard key={app.id} app={app} onRemove={onRemove} />
@@ -138,9 +138,12 @@ export function AppKanban({
 
   if (apps.length === 0) {
     return (
-      <p className="py-16 text-center text-sm text-[#8b877a]">
-        No applications yet. Apply to a job from the Jobs page and confirm when you return.
-      </p>
+      <div className="flex flex-col items-center gap-3 py-16">
+        <p className="stamp tilt-r bg-accent">No applications yet</p>
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+          Apply to a job from the Jobs page and confirm when you return.
+        </p>
+      </div>
     );
   }
 

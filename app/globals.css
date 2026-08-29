@@ -39,63 +39,111 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-2xl: 0;
+  --radius-3xl: 0;
+  --radius-4xl: 0;
 }
 
+/*
+ * ANTI-DESIGN SYSTEM (neo-brutalism, visual friction on purpose):
+ * soft bone + graph grid, ink-black 2px borders, hard offset shadows,
+ * ink primary actions, a single International-Klein-Blue signature accent,
+ * deep teal success, zero radius, uppercase display type, deliberate tilts.
+ */
 :root {
-  --background: #f6f5f1;
-  --foreground: #1c1b17;
+  --background: #f6f5f0;
+  --foreground: #0f0f12;
   --card: #ffffff;
-  --card-foreground: #1c1b17;
+  --card-foreground: #0f0f12;
   --popover: #ffffff;
-  --popover-foreground: #1c1b17;
-  --primary: #c2410c;
-  --primary-foreground: #fdf8f3;
-  --secondary: #efede7;
-  --secondary-foreground: #1c1b17;
-  --muted: #efede7;
-  --muted-foreground: #6e6b61;
-  --accent: #fdeadd;
-  --accent-foreground: #9a3412;
-  --destructive: #b91c1c;
-  --border: #e6e3db;
-  --input: #dedad0;
-  --ring: #c2410c;
-  --chart-1: #c2410c;
-  --chart-2: #ea7c3f;
-  --chart-3: #f2a86f;
-  --chart-4: #f7cfa8;
-  --chart-5: #fbe3cf;
-  --radius: 0.625rem;
-  --sidebar: #fbfaf7;
-  --sidebar-foreground: #1c1b17;
-  --sidebar-primary: #c2410c;
-  --sidebar-primary-foreground: #fdf8f3;
-  --sidebar-accent: #fdeadd;
-  --sidebar-accent-foreground: #9a3412;
-  --sidebar-border: #e6e3db;
-  --sidebar-ring: #c2410c;
+  --popover-foreground: #0f0f12;
+  --primary: #0f0f12;
+  --primary-foreground: #f6f5f0;
+  --secondary: #ffffff;
+  --secondary-foreground: #0f0f12;
+  --muted: #eceadf;
+  --muted-foreground: #57554e;
+  --accent: #e9e6ff;
+  --accent-foreground: #0f0f12;
+  --destructive: #dc2626;
+  --border: #0f0f12;
+  --input: #0f0f12;
+  --ring: #2137ff;
+  --chart-1: #2137ff;
+  --chart-2: #8f86ff;
+  --chart-3: #0f766e;
+  --chart-4: #b45309;
+  --chart-5: #0f0f12;
+  --radius: 0;
+  --sidebar: #0f0f12;
+  --sidebar-foreground: #f6f5f0;
+  --sidebar-primary: #2137ff;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1b1b21;
+  --sidebar-accent-foreground: #9aa2ff;
+  --sidebar-border: #0f0f12;
+  --sidebar-ring: #2137ff;
+}
+
+/* hard offset shadows — the neo-brutalist signature */
+@utility shadow-hard-sm {
+  box-shadow: 2px 2px 0 0 var(--border);
+}
+@utility shadow-hard {
+  box-shadow: 4px 4px 0 0 var(--border);
+}
+@utility shadow-hard-lg {
+  box-shadow: 8px 8px 0 0 var(--border);
+}
+/* deliberate awkward tilts */
+@utility tilt-l {
+  transform: rotate(-1.4deg);
+}
+@utility tilt-r {
+  transform: rotate(1.1deg);
+}
+/* stamped label: mono, uppercase, boxed */
+@utility stamp {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  border: 2px solid var(--border);
+  padding: 0.15rem 0.5rem;
+  display: inline-block;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    @apply font-sans;
+    scroll-behavior: smooth;
+  }
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "ss01", "cv11";
-  }
-  html {
-    @apply font-sans;
+    /* faint graph-paper grid — friction you can see */
+    background-image:
+      linear-gradient(rgb(15 15 18 / 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(15 15 18 / 0.04) 1px, transparent 1px);
+    background-size: 32px 32px;
   }
   h1, h2, h3, .font-display {
     font-family: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
+    font-weight: 700;
+  }
+  ::selection {
+    background: var(--ring);
+    color: #ffffff;
+  }
+  /* smooth interactions: snappy but soft */
+  a, button {
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
   }
 }

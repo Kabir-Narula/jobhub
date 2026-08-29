@@ -71,11 +71,13 @@ export function TrackerClient({
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-end justify-between">
-        <h1 className="font-display text-2xl font-semibold text-[#1c1b17]">Tracker</h1>
+        <div>
+          <p className="stamp tilt-l bg-accent">Pipeline</p>
+          <h1 className="mt-3 font-display text-4xl font-bold uppercase tracking-tight md:text-5xl">Tracker</h1>
+        </div>
         <Button
           size="sm"
           variant="outline"
-          className="border-[#e6e3db] bg-white text-[#6e6b61] hover:text-[#1c1b17]"
           nativeButton={false}
           render={<a href="/api/applications/export" download />}
         >
@@ -85,28 +87,28 @@ export function TrackerClient({
 
       {/* analytics strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <div className="rounded-lg border border-[#e6e3db] bg-white p-3">
-          <p className="text-xs text-[#8b877a]">Applications</p>
-          <p className="mt-1 text-2xl font-semibold text-[#1c1b17]"><AnimatedNumber value={analytics.total} /></p>
+        <div className="rounded-none border-2 border-foreground bg-card p-3 shadow-hard-sm">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Applications</p>
+          <p className="mt-1 font-display text-2xl font-bold"><AnimatedNumber value={analytics.total} /></p>
         </div>
-        <div className="rounded-lg border border-[#e6e3db] bg-white p-3">
-          <p className="text-xs text-[#8b877a]">Response rate</p>
-          <p className="mt-1 text-2xl font-semibold text-[#c2410c]"><AnimatedNumber value={analytics.responseRate} />%</p>
+        <div className="rounded-none border-2 border-foreground bg-card p-3 shadow-hard-sm">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Response rate</p>
+          <p className="mt-1 inline-block border-2 border-foreground bg-primary px-1 font-display text-2xl font-bold shadow-hard-sm"><AnimatedNumber value={analytics.responseRate} />%</p>
         </div>
-        <div className="rounded-lg border border-[#e6e3db] bg-white p-3">
-          <p className="text-xs text-[#8b877a]">Avg days to response</p>
-          <p className="mt-1 text-2xl font-semibold text-[#1c1b17]">
+        <div className="rounded-none border-2 border-foreground bg-card p-3 shadow-hard-sm">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Avg days to response</p>
+          <p className="mt-1 font-display text-2xl font-bold">
             {analytics.avgDaysToResponse ?? "—"}
           </p>
         </div>
-        <div className="rounded-lg border border-[#e6e3db] bg-white p-3">
-          <p className="text-xs text-[#8b877a]">Per week (8w)</p>
+        <div className="rounded-none border-2 border-foreground bg-card p-3 shadow-hard-sm">
+          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Per week (8w)</p>
           <div className="mt-2 flex h-8 items-end gap-1">
             {analytics.weeks.map((w, i) => (
               <div
                 key={i}
                 title={`${w.label}: ${w.count}`}
-                className="flex-1 rounded-sm bg-[#ea7c3f]"
+                className="flex-1 rounded-none bg-primary"
                 style={{ height: `${Math.max(6, (w.count / maxWeek) * 100)}%` }}
               />
             ))}
@@ -118,32 +120,32 @@ export function TrackerClient({
       {((analytics.atsBuckets?.some((b) => b.total > 0) ?? false) || (analytics.bySource?.some((s) => s.total > 0) ?? false)) && (
         <div className="grid gap-3 sm:grid-cols-2">
           {analytics.atsBuckets?.some((b) => b.total > 0) && (
-            <div className="rounded-lg border border-[#e6e3db] bg-white p-4">
-              <p className="text-xs font-medium text-[#8b877a]">Response rate by resume ATS score</p>
+            <div className="rounded-none border-2 border-foreground bg-card p-4 shadow-hard-sm">
+              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Response rate by resume ATS score</p>
               <div className="mt-2 flex flex-col gap-1.5">
                 {analytics.atsBuckets.map((b) => (
-                  <div key={b.label} className="flex items-center gap-2 text-xs">
-                    <span className="w-20 text-[#6e6b61]">{b.label}</span>
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#f1efe9]">
-                      <div className="h-full rounded-full bg-[#c2410c] transition-all duration-500" style={{ width: `${b.rate}%` }} />
+                  <div key={b.label} className="flex items-center gap-2">
+                    <span className="w-20 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{b.label}</span>
+                    <div className="h-3 flex-1 rounded-none border-2 border-foreground bg-card">
+                      <div className="h-full bg-primary transition-all duration-500" style={{ width: `${b.rate}%` }} />
                     </div>
-                    <span className="w-14 text-right text-[#4a473f]">{b.rate}% <span className="text-[#a8a294]">({b.positive}/{b.total})</span></span>
+                    <span className="w-14 text-right font-mono text-[10px] font-bold">{b.rate}% <span className="font-normal text-muted-foreground">({b.positive}/{b.total})</span></span>
                   </div>
                 ))}
               </div>
             </div>
           )}
           {analytics.bySource?.some((s) => s.total > 0) && (
-            <div className="rounded-lg border border-[#e6e3db] bg-white p-4">
-              <p className="text-xs font-medium text-[#8b877a]">Response rate by source</p>
+            <div className="rounded-none border-2 border-foreground bg-card p-4 shadow-hard-sm">
+              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground">Response rate by source</p>
               <div className="mt-2 flex flex-col gap-1.5">
                 {analytics.bySource.map((s) => (
-                  <div key={s.label} className="flex items-center gap-2 text-xs">
-                    <span className="w-20 truncate text-[#6e6b61]">{s.label}</span>
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#f1efe9]">
-                      <div className="h-full rounded-full bg-[#c2410c] transition-all duration-500" style={{ width: `${s.rate}%` }} />
+                  <div key={s.label} className="flex items-center gap-2">
+                    <span className="w-20 truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{s.label}</span>
+                    <div className="h-3 flex-1 rounded-none border-2 border-foreground bg-card">
+                      <div className="h-full bg-primary transition-all duration-500" style={{ width: `${s.rate}%` }} />
                     </div>
-                    <span className="w-14 text-right text-[#4a473f]">{s.rate}% <span className="text-[#a8a294]">({s.positive}/{s.total})</span></span>
+                    <span className="w-14 text-right font-mono text-[10px] font-bold">{s.rate}% <span className="font-normal text-muted-foreground">({s.positive}/{s.total})</span></span>
                   </div>
                 ))}
               </div>
@@ -154,7 +156,7 @@ export function TrackerClient({
 
       <Tabs defaultValue="kanban">
         <div className="flex items-center justify-between gap-3">
-          <TabsList className="bg-white">
+          <TabsList>
             <TabsTrigger value="kanban">Kanban</TabsTrigger>
             <TabsTrigger value="table">Table</TabsTrigger>
           </TabsList>
@@ -162,7 +164,7 @@ export function TrackerClient({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Filter by company or role…"
-            className="h-8 w-56 border-[#e6e3db] bg-white text-[13px]"
+            className="h-8 w-56"
           />
         </div>
         <TabsContent value="kanban">

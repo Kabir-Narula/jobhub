@@ -4,15 +4,16 @@ const STOPWORDS = new Set(
 );
 
 /** Normalize a token for matching: lowercase, edge-trim, singular-ish. */
+const NO_DEPLURAL = new Set(["kubernetes"]); // ends in 's' but isn't a plural
 function norm(w: string): string {
   let x = w.toLowerCase().replace(/^[./#+-]+|[./#+-]+$/g, "");
-  if (x.length > 4 && x.endsWith("s") && !x.endsWith("ss")) x = x.slice(0, -1);
+  if (x.length > 4 && x.endsWith("s") && !x.endsWith("ss") && !x.includes(".") && !NO_DEPLURAL.has(x)) x = x.slice(0, -1);
   return x;
 }
 
 /** Words that make a phrase noise, not a skill signal. */
 const PHRASE_NOISE = new Set(
-  "care genuine people team tool tools work company culture environment fast paced passionate dynamic love loved strong great good excellent world class day life way things thing lot make makes made help helps helping including across areas area support supporting clients client services service members member firm firms global network methodology methodologies trillion requisition compensation tuition reimbursement rrsp 401k dental winning enthusiastic purpose ulc inclusive perks perk benefits benefit leader leadership participate actively community communities forum forums mindset familiarity discovery focusing individual committed collaborate grow growth impact innovation knowledge understanding success goal value values mission interest range career graduate show technology technologies using advanced hands related field qualification degree master phd bachelor summary general innovator well health responsibilitie technologie".split(" ")
+  "care genuine people team tool tools work company culture environment fast paced passionate dynamic love loved strong great good excellent world class day life way things thing lot make makes made help helps helping including across areas area support supporting clients client services service members member firm firms global network methodology methodologies trillion requisition compensation tuition reimbursement rrsp 401k dental winning enthusiastic purpose ulc inclusive perks perk benefits benefit leader leadership participate actively community communities forum forums mindset familiarity discovery focusing individual committed collaborate grow growth impact innovation knowledge understanding success goal value values mission interest range career graduate show technology technologies using advanced hands related field qualification degree master phd bachelor summary general innovator well health responsibilitie technologie excited exciting curious curiosity driven thrive enjoy enjoying commitment lifelong learner learners exceptionally smart dedicated confident ideal tasked duties duty assist hiring hire hired want feel creative creativity consultancy consulting consultant financial group offering offerings digital consumer consumers enterprise enterprises hundred million billion thousand worldwide generation looking vary based pay type best track record forward thinking innovative employee employees employer location locations level eg".split(" ")
 );
 
 /** Well-known equivalences so Postgres == PostgreSQL, k8s == Kubernetes, etc. */
@@ -24,7 +25,7 @@ const SYNONYMS: [RegExp, string][] = [
   [/^ml$/, "machinelearning"],
   [/^machine learning$/, "machinelearning"],
   [/^ai$/, "artificialintelligence"],
-  [/^(ci\/?cd|cicd)$/, "cicd"],
+  [/^(ci\/?cd|ci cd|cicd)$/, "cicd"],
   [/^(rest|restful|rest api|rest apis)$/, "restapi"],
   [/^(sql server|microsoft sql server|mssql)$/, "sqlserver"],
   [/^(gcp|google cloud|google cloud platform)$/, "googlecloud"],
@@ -94,9 +95,18 @@ export function jdTerms(jobDescription: string, cap = 40, excludeTokens: string[
   }
 
   const scored = new Map<string, number>();
-  for (const [t, f] of uniFreq) scored.set(canon(t), (scored.get(canon(t)) ?? 0) + f);
+  // Tech-lexicon terms are what ATS ranking actually keys on — boost them so a
+  // single "Kafka" outranks paragraphs of marketing prose at equal frequency.
+  const techBoost = (t: string) => (isTechTerm(t) || CANON_TECH.has(t) ? 4 : 1);
+  for (const [t, f] of uniFreq) {
+    const c = canon(t);
+    scored.set(c, (scored.get(c) ?? 0) + f * techBoost(c));
+  }
   for (const [t, f] of biFreq) {
-    if (f >= 2) scored.set(canon(t), (scored.get(canon(t)) ?? 0) + f * 2.5); // phrases matter more
+    if (f >= 2) {
+      const c = canon(t);
+      scored.set(c, (scored.get(c) ?? 0) + f * 2.5 * (techBoost(c) > 1 ? 2 : 1)); // phrases matter more
+    }
   }
   return [...scored.entries()]
     .sort((a, b) => b[1] - a[1])
@@ -139,7 +149,7 @@ function covered(term: string, plain: string, plainSquash: string): boolean {
 
 export function matchScore(jobDescription: string, resumeTex: string, companyName = ""): number | null {
   if (!jobDescription.trim()) return null; // no JD to score against — display as "—", not 0%
-  const terms = jdTerms(jobDescription, 40, companyName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+  const terms = claimableJdTerms(jobDescription, 40, companyName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
   if (terms.length === 0) return null;
   const plain = plainTex(resumeTex);
   const plainSquash = plain.replace(/\s+/g, "");
@@ -161,21 +171,62 @@ export function isTechTerm(term: string): boolean {
   const t = term.toLowerCase().trim();
   if (!t) return false;
   if (t.length < 2 && t !== "r") return false; // "c" alone is JD noise; "C++" is the real term
+  if (/^[a-z0-9-]+\.(com|ca|io|ai|org|net|dev|co|app)$/.test(t)) return false; // bare domains are never skills
+  if (/^([a-z]\.)+[a-z]?$/.test(t)) return false; // abbreviations like "u.s", "u.k"
   if (/[+#0-9]/.test(t)) return true; // c++, c#, .net, 3scale...
   if (t.includes(".") && !t.endsWith(".")) return true; // node.js, next.js, asp.net
   const words = t.split(/\s+/);
   if (words.every((w) => TECH_LEXICON.has(w))) return true;
   // bigrams with a tech head noun: "rest api", "machine learning", "data pipeline"
   if (words.length === 2 && /^(api|apis|sql|nosql|cloud|ml|ai|ci|cd|ui|ux|os)$/.test(words[1])) return true;
-  if (words.length === 2 && /^(machine|deep|data|distributed|cloud|rest|graphql|event|stream|batch|ci|test)/.test(words[0])) return true;
+  // tech-prefix bigrams need a tech-noun head too — "event streaming" yes, "event driven" no
+  if (
+    words.length === 2 &&
+    /^(machine|deep|data|distributed|cloud|rest|graphql|event|stream|batch|ci|test)/.test(words[0]) &&
+    /^(learning|pipelines?|streaming|processing|computing|systems?|services?)$/.test(words[1])
+  )
+    return true;
   return false;
 }
 
-/** Missing terms for display (what the resume doesn't cover). */
+/** Canonical single-token forms produced by SYNONYMS above — all tech terms. */
+const CANON_TECH = new Set(
+  "postgresql kubernetes javascript typescript machinelearning artificialintelligence cicd restapi sqlserver googlecloud aws llm etl database businessintelligence".split(" ")
+);
+
+/**
+ * Claimable = something a candidate can truthfully have on a resume and an
+ * ATS can rank: a tech term, or a skill-shaped phrase with a concrete head
+ * noun ("code review", "computer science", "data pipelines"). Attitude words
+ * ("curious", "forward thinking") and unclaimable domain nouns ("satellite")
+ * are excluded — they must never drive the score or the boost pass.
+ */
+const CLAIM_HEADS = new Set(
+  "api apis application applications system systems service services pipeline pipelines database databases schema schemas review reviews testing test tests deployment deployments infrastructure monitoring security automation integration integrations migration migrations optimization optimizations design designs pattern patterns architecture architectures debugging documentation framework frameworks cloud clouds container containers algorithm algorithms structure structures network networking server servers development engineering science computing programming stack stacks frontend backend fullstack mobile web ui ux data ml ai ci cd os devops observability reliability scalability performance concurrency threading parsing rendering caching authentication authorization".split(" ")
+);
+
+export function isClaimableTerm(term: string): boolean {
+  const t = term.toLowerCase().trim();
+  if (!t) return false;
+  if (CANON_TECH.has(t)) return true;
+  if (isTechTerm(t)) return true;
+  const words = t.split(/\s+/);
+  if (words.length < 2) return false; // a lone non-tech word is prose, not a skill
+  return CLAIM_HEADS.has(words[words.length - 1]);
+}
+
+/** JD terms worth optimizing for: distinctive AND claimable. Extracts from a deep
+ *  pool so thin/fluffy JDs still surface their few real tech terms (frequency
+ *  ranking buries f=1 tools like "Kafka" under benefits prose in a top-40 cut). */
+export function claimableJdTerms(jobDescription: string, cap = 40, excludeTokens: string[] = []): string[] {
+  return jdTerms(jobDescription, Math.max(cap * 3, 120), excludeTokens).filter(isClaimableTerm).slice(0, cap);
+}
+
+/** Missing terms for display (what the resume doesn't cover) — claimable only. */
 export function missingTerms(jobDescription: string, resumeTex: string, cap = 12, companyName = ""): string[] {
   const plain = plainTex(resumeTex);
   const plainSquash = plain.replace(/\s+/g, "");
-  return jdTerms(jobDescription, 60, companyName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean))
+  return claimableJdTerms(jobDescription, 60, companyName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean))
     .filter((t) => !covered(t, plain, plainSquash))
     .slice(0, cap);
 }

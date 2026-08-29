@@ -149,21 +149,21 @@ export function ReturnPrompt() {
 
   return (
     <Dialog open={Boolean(pending)} onOpenChange={(open) => !open && onNo()}>
-      <DialogContent className="border-[#e6e3db] bg-white sm:max-w-md">
+      <DialogContent className="sm:max-w-md">
         {pending && step === "ask" && (
           <>
             <DialogHeader>
               <DialogTitle className="font-display">Welcome back</DialogTitle>
               <DialogDescription>
-                Did you apply to <span className="font-medium text-[#1c1b17]">{pending.title}</span> at{" "}
-                <span className="font-medium text-[#1c1b17]">{pending.company}</span>?
+                Did you apply to <span className="font-medium text-foreground">{pending.title}</span> at{" "}
+                <span className="font-medium text-foreground">{pending.company}</span>?
               </DialogDescription>
             </DialogHeader>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" className="border-[#e6e3db]" onClick={onNo}>
+              <Button variant="outline" onClick={onNo}>
                 Not yet
               </Button>
-              <Button className="bg-[#c2410c] text-[#fdf8f3] hover:bg-[#9a3412]" onClick={onYes}>
+              <Button onClick={onYes}>
                 Yes, I applied
               </Button>
             </div>
@@ -180,9 +180,9 @@ export function ReturnPrompt() {
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
-                  <Label className="text-xs text-[#8b877a]">Resume version</Label>
+                  <Label className="text-xs text-muted-foreground">Resume version</Label>
                   <Select value={resumeId} onValueChange={(v) => setResumeId(v ?? "none")}>
-                    <SelectTrigger className="bg-white">
+                    <SelectTrigger>
                       <SelectValue placeholder="None" />
                     </SelectTrigger>
                     <SelectContent>
@@ -196,9 +196,9 @@ export function ReturnPrompt() {
                   </Select>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label className="text-xs text-[#8b877a]">Cover letter version</Label>
+                  <Label className="text-xs text-muted-foreground">Cover letter version</Label>
                   <Select value={coverId} onValueChange={(v) => setCoverId(v ?? "none")}>
-                    <SelectTrigger className="bg-white">
+                    <SelectTrigger>
                       <SelectValue placeholder="None" />
                     </SelectTrigger>
                     <SelectContent>
@@ -213,20 +213,19 @@ export function ReturnPrompt() {
                 </div>
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label className="text-xs text-[#8b877a]">Notes</Label>
+                <Label className="text-xs text-muted-foreground">Notes</Label>
                 <Textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Referral? Contact? Anything to remember…"
-                  className="min-h-20 bg-white"
+                  className="min-h-20"
                 />
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" className="border-[#e6e3db]" onClick={() => setStep("ask")}>
+                <Button variant="outline" onClick={() => setStep("ask")}>
                   Back
                 </Button>
                 <Button
-                  className="bg-[#c2410c] text-[#fdf8f3] hover:bg-[#9a3412]"
                   onClick={onSave}
                   disabled={saving}
                 >

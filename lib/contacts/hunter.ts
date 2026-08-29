@@ -20,6 +20,8 @@ export interface ContactResult {
   patternDerived?: boolean;
   /** Why this person is worth emailing (shown in the UI). */
   why?: string;
+  /** Honest quality: ok = SMTP-confirmed person; catchall = domain accepts anything; guessed = pattern-built. */
+  quality?: "ok" | "catchall" | "guessed";
 }
 
 interface HunterEmail {
@@ -96,32 +98,60 @@ function rankContacts(emails: HunterEmail[]): HunterEmail[] {
   return [...emails].sort((a, b) => score(b) - score(a));
 }
 
-async function verify(email: string): Promise<ContactResult["deliverability"]> {
+interface VerifyResult {
+  deliverability: ContactResult["deliverability"] | "invalid";
+  score: number;
+  smtpCheck: boolean | null;
+}
+
+async function verify(email: string): Promise<VerifyResult> {
   try {
-    const data = await hunterGet<{ data?: { status?: string; score?: number } }>("email-verifier", { email });
-    const status = data.data?.status ?? "unknown";
-    if (status === "valid") return "valid";
-    if (status === "accept_all") return "accept_all";
-    return "unknown";
+    const data = await hunterGet<{
+      data?: {
+        status?: string;
+        result?: string;
+        score?: number;
+        smtp_check?: boolean | null;
+        mx_records?: boolean | null;
+        gibberish?: boolean;
+        block?: boolean;
+        accept_all?: boolean;
+      };
+    }>("email-verifier", { email });
+    const d = data.data ?? {};
+    const status = (d.status ?? "unknown").toLowerCase();
+    const result = (d.result ?? "").toLowerCase();
+    const smtpCheck = typeof d.smtp_check === "boolean" ? d.smtp_check : null;
+    const score = typeof d.score === "number" ? d.score : 0;
+
+    if (d.block || d.gibberish || result === "undeliverable" || status === "invalid" || status === "disposable") {
+      return { deliverability: "invalid", score, smtpCheck };
+    }
+    if (smtpCheck === false && status !== "accept_all") {
+      return { deliverability: "invalid", score, smtpCheck };
+    }
+    if (status === "valid" && result !== "risky") return { deliverability: "valid", score, smtpCheck };
+    if (status === "accept_all" || d.accept_all) return { deliverability: "accept_all", score, smtpCheck };
+    if (status === "valid") return { deliverability: "valid", score, smtpCheck };
+    return { deliverability: "unknown", score, smtpCheck };
   } catch {
-    return "unknown";
+    return { deliverability: "unknown", score: 0, smtpCheck: null };
   }
 }
 
 const GENERIC_LOCAL = /^(info|careers|jobs|job|hr|humanresources|support|assist|hello|contact|admin|recruiting|recruitment|talent|hiring|people|apply|applications|no-?reply|team|mail|office|general|inquiries|help)@/i;
 
 /**
- * Find up to `count` verified contacts at a company domain.
- * Searches engineering AND hr departments (niche strategy: hiring managers
- * and team engineers over flooded recruiters), then a general search to fill.
- * Generic inboxes (careers@/jobs@/info@) are dropped — a named person or
- * nothing. Emails that verify as invalid are dropped.
+ * Find up to `count` contacts at a company domain that are actually worth sending to.
+ * Drops Hunter-invalid / SMTP-fail / bounced addresses. Catch-all domains and
+ * pattern-guessed addresses are only kept as a last resort and labeled as such —
+ * those are why earlier "verified" emails bounced.
  */
-export async function findCompanyContacts(domain: string, count = 2): Promise<ContactResult[]> {
-  // Hunter's valid department filters: executive, it, finance, management,
-  // sales, legal, support, hr, marketing, communication, education, design,
-  // health, operations. "engineering" is NOT one (HTTP 400) — engineers live
-  // under "it", hiring managers under "management".
+export async function findCompanyContacts(
+  domain: string,
+  count = 2,
+  exclude: Set<string> = new Set()
+): Promise<ContactResult[]> {
   const [hr, it, mgmt] = await Promise.all([
     domainSearch(domain, "hr"),
     domainSearch(domain, "it"),
@@ -131,46 +161,64 @@ export async function findCompanyContacts(domain: string, count = 2): Promise<Co
   const seen = new Set<string>();
   let candidates = [...it.emails, ...mgmt.emails, ...hr.emails].filter((c) => {
     const k = c.value.toLowerCase();
-    if (seen.has(k)) return false;
+    if (seen.has(k) || exclude.has(k) || GENERIC_LOCAL.test(c.value)) return false;
     seen.add(k);
     return true;
   });
   candidates = rankContacts(candidates);
 
-  if (candidates.length < count) {
+  if (candidates.length < 8) {
     const general = await domainSearch(domain);
     if (!pattern) pattern = general.pattern;
-    candidates = [...candidates, ...rankContacts(general.emails).filter((c) => !seen.has(c.value.toLowerCase()))];
+    candidates = [
+      ...candidates,
+      ...rankContacts(general.emails).filter((c) => {
+        const k = c.value.toLowerCase();
+        if (seen.has(k) || exclude.has(k) || GENERIC_LOCAL.test(c.value)) return false;
+        seen.add(k);
+        return true;
+      }),
+    ];
   }
 
-  // named people first; generic inboxes only as the absolute last resort
-  const named = candidates.filter((c) => !GENERIC_LOCAL.test(c.value));
-  const generic = candidates.filter((c) => GENERIC_LOCAL.test(c.value));
-
   const out: ContactResult[] = [];
-  // named people first; one generic inbox only if named contacts run out
-  for (const c of [...named, ...generic.slice(0, 1)].slice(0, count + 1)) {
+  for (const c of candidates) {
     if (out.length >= count) break;
-    const deliverability = await verify(c.value);
-    if (deliverability === "unknown" && c.confidence < 60) continue; // unverifiable + low confidence = skip
+    const v = await verify(c.value);
+    if (v.deliverability === "invalid") continue;
+    // Unverifiable + no public source = the "looks real, never arrives" class.
+    if (v.deliverability === "unknown") continue;
+    if (v.deliverability === "accept_all" && (c.sources ?? []).length === 0) continue;
+    const named = [c.first_name, c.last_name].filter(Boolean).join(" ");
+    if (!named && v.deliverability !== "valid") continue;
+    const quality: ContactResult["quality"] =
+      v.deliverability === "accept_all" ? "catchall" : "ok";
     out.push({
-      name: [c.first_name, c.last_name].filter(Boolean).join(" ") || "Unknown",
+      name: named || "Unknown",
       role: c.position || c.department || "",
       email: c.value,
-      confidence: c.confidence ?? 0,
-      deliverability,
+      confidence: Math.max(c.confidence ?? 0, v.score),
+      deliverability: v.deliverability,
       sources: (c.sources ?? []).map((s) => s.uri).slice(0, 3),
-      why: GENERIC_LOCAL.test(c.value) ? "Generic inbox — last resort, low response rate" : whyContact(c),
+      why: whyContact(c),
+      quality,
     });
   }
 
-  // Layer 2: nothing found publicly — construct from the company's known email
-  // pattern + GPT-suggested manager/peer names, then verify each before showing.
-  if (out.length < count) {
-    const derived = await patternDerivedContacts(domain, pattern, count - out.length);
-    out.push(...derived);
+  // Prefer SMTP-valid named people. Catch-all only fills remaining slots.
+  out.sort((a, b) => {
+    const rank = (x: ContactResult) =>
+      (x.deliverability === "valid" ? 100 : 0) + (x.sources.length ? 20 : 0) + x.confidence / 10;
+    return rank(b) - rank(a);
+  });
+  const strict = out.filter((c) => c.deliverability === "valid").slice(0, count);
+  const kept = strict.length >= count ? strict : out.slice(0, count);
+
+  if (kept.length < count) {
+    const derived = await patternDerivedContacts(domain, pattern, count - kept.length, exclude);
+    kept.push(...derived);
   }
-  return out;
+  return kept;
 }
 
 // ---------- layer 2: pattern-derived + verified ----------
@@ -226,7 +274,12 @@ async function gptContactNames(company: string, domain: string): Promise<{ first
   }
 }
 
-async function patternDerivedContacts(domain: string, pattern: string | null, needed: number): Promise<ContactResult[]> {
+async function patternDerivedContacts(
+  domain: string,
+  pattern: string | null,
+  needed: number,
+  exclude: Set<string> = new Set()
+): Promise<ContactResult[]> {
   if (needed <= 0) return [];
   const company = domain.split(".")[0];
   const names = await gptContactNames(company, domain);
@@ -234,21 +287,25 @@ async function patternDerivedContacts(domain: string, pattern: string | null, ne
   for (const person of names) {
     if (out.length >= needed) break;
     for (const email of patternEmails(person.first, person.last, pattern, domain)) {
-      const deliverability = await verify(email);
-      if (deliverability === "unknown") continue; // don't show unverifiable guesses
+      if (exclude.has(email.toLowerCase())) continue;
+      const v = await verify(email);
+      // Catch-all + guessed name is how dead addresses get a green badge.
+      if (v.deliverability !== "valid") continue;
+      if (v.smtpCheck === false) continue;
       out.push({
         name: `${person.first} ${person.last}`,
         role: person.role,
         email,
-        confidence: deliverability === "valid" ? 80 : 50,
-        deliverability,
+        confidence: Math.min(70, v.score || 50),
+        deliverability: "valid",
         sources: [],
         patternDerived: true,
+        quality: "guessed",
         why: /recruit|talent|hr|campus|university/i.test(person.role)
-          ? "Recruiting contact — pattern-derived, verified"
-          : "Manager/peer track — pattern-derived, verified; referral path",
+          ? "Guessed from company email pattern (SMTP ok, not publicly listed) — still a bounce risk"
+          : "Guessed from company email pattern (SMTP ok, not publicly listed) — still a bounce risk",
       });
-      break; // one address per person
+      break;
     }
   }
   return out;

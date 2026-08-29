@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { findCompanyContacts, type ContactResult } from "@/lib/contacts/hunter";
+import { bouncedEmailSet } from "@/lib/contacts/blocklist";
 
 export const maxDuration = 120;
 
@@ -158,9 +159,15 @@ export async function POST(request: Request) {
   const job = await prisma.job.findUnique({ where: { id: jobId } });
   if (!job) return NextResponse.json({ error: "job not found" }, { status: 404 });
 
-  const storedContacts = (job.contacts as unknown as StoredContacts | null);
+  const blocked = await bouncedEmailSet();
+  const withoutBounced = (stored: StoredContacts): StoredContacts => ({
+    ...stored,
+    contacts: (stored.contacts ?? []).filter((c) => !blocked.has(c.email.toLowerCase())),
+  });
+
+  const storedContacts = job.contacts as unknown as StoredContacts | null;
   if (storedContacts && storedContacts.contacts.length > 0 && !body?.force) {
-    return NextResponse.json({ ...storedContacts, cached: true });
+    return NextResponse.json({ ...withoutBounced(storedContacts), cached: true });
   }
 
   // Company-level cache: reuse contacts found for a sibling job (saves Hunter quota).
@@ -170,13 +177,12 @@ export async function POST(request: Request) {
     orderBy: { contactsAt: "desc" },
   });
   if (sibling?.contacts && !body?.force) {
-    const stored = sibling.contacts as unknown as StoredContacts;
+    const stored = withoutBounced(sibling.contacts as unknown as StoredContacts);
     if (stored.contacts.length > 0) {
       await prisma.job.update({ where: { id: job.id }, data: { contacts: stored as never, contactsAt: new Date() } });
       return NextResponse.json({ ...stored, cached: true });
     }
   }
-
   const candidates = await domainCandidates(job.company, job.companyResearch, { sourceUrl: job.sourceUrl, applyUrl: job.applyUrl });
   if (!candidates.length) {
     return NextResponse.json({ error: `Couldn't determine ${job.company}'s email domain` }, { status: 422 });
@@ -187,7 +193,9 @@ export async function POST(request: Request) {
   let lastError: string | null = null;
   for (const domain of candidates) {
     try {
-      const contacts = await findCompanyContacts(domain, 3);
+      const contacts = (await findCompanyContacts(domain, 3, blocked)).filter(
+        (c) => !blocked.has(c.email.toLowerCase())
+      );
       if (contacts.length === 0) continue;
       const stored: StoredContacts = { domain, contacts, searchedAt: new Date().toISOString() };
       await prisma.job.update({ where: { id: job.id }, data: { contacts: stored as never, contactsAt: new Date() } });

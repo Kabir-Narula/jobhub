@@ -37,14 +37,16 @@ REQUIREMENT-TO-BULLET MAPPING (the ATS core):
 - You are given target_keywords extracted from the posting. Every bullet in the two expanded entries must naturally carry at least ONE target keyword where genuinely claimable — and the FIRST bullet of the most recent entry must carry the posting's #1 requirement.
 - Map bullets to requirements in priority order: the posting's top 3 requirements must each be visibly answered by at least one bullet somewhere in the resume.
 - Use the posting's exact phrasing for the concept (if it says "agentic solutions", write agentic; if it says "data pipelines", write data pipelines) — never a synonym the ATS won't match.
-- FREQUENCY (density ranking): the posting's #1 term should appear 3-4 times across the whole resume — first bullet of the most recent entry, the skills section, and 1-2 more bullets or project lines — always in natural context, never stacked in adjacent sentences, never in the same phrasing twice.
+- FREQUENCY (density ranking): the posting's #1 term appears at most 3 times across the whole resume — first bullet of the most recent entry, the skills section, and one more bullet or project line — always in natural context, never stacked in adjacent sentences or adjacent bullets, never in the same phrasing twice. More than 3 reads as keyword stuffing to a tuned parser.
 - For SWE-flavored postings, weave real algorithmic substance where truthful: data structures, query optimization, complexity, indexing, execution plans — the candidate's PostgreSQL and systems work supports this genuinely.
 
 BULLET CRAFT (this is what gets read):
 - 3-4 bullets per experience entry, 2-3 per project.
 - Each bullet is 1-2 lines max (~18-28 words). One idea per bullet. Scannable in 2 seconds.
 - Front-load the strong verb and the technology. Formula: verb + what built + tech + short outcome (outcome ONLY if in the source).
-- NO VAGUE TAILS: never end a bullet on filler like "keeping X responsive", "improving reliability", "building shared knowledge", "enhancing user experience", "ensuring quality". If a bullet has no concrete outcome, end on the artifact itself (the endpoint, the schema, the queue, the gate) — substance over filler.
+- END ON THE ARTIFACT, NOT THE BENEFIT: every bullet ends on the concrete thing (the endpoint, the schema, the queue, the migration, the runbook) or a verified number. A trailing purpose clause is banned in ANY wording — never end a bullet with "keeping...", "so the...", "so that...", "giving...", "ensuring...", "helping...", "allowing...", "to make...", "to keep...", "enabling...". If the outcome is not a verified number, delete the tail and let the artifact stand.
+- NAME ONE ARTIFACT PER BULLET: each experience bullet contains at least one concrete noun a recruiter can ask about (a service, an endpoint, a queue, a schema, a pipeline, a migration, a gate). Process words alone (workflows, defects, tradeoffs, issues) are not artifacts. Fog like "moving jobs off request paths required by concurrent internal users" is an instant AI tell; "moved the GLB extraction job off the FastAPI request path" is a conversation. Artifacts are named in PLAIN ENGLISH — never code identifiers, table names, file names, or snake_case tokens (no retry_records, no partner_ingest, no error_contract). If the source material has no proper name for the thing, describe it in words.
+- NEVER SELF-APPLY THE POSTING'S EVALUATION ADJECTIVES: "maintainable", "testable", "performant", "analytical", "clean", "efficient", "robust" read as the JD echoed back at the person who wrote it. Name the practice that proves it instead: tests in CI, code review gates, indexed queries, small modules.
 - CUT ruthlessly: no "in order to", no trailing "so that" chains, no stacked "and/while/by" clauses, no filler ("worked on", "helped with", "was responsible for", "various", "multiple", "successfully"). If a word earns nothing, delete it.
 - Two short bullets beat one long one — always split compound thoughts.
 - Fill the page with MORE short bullets, never with longer ones.
@@ -55,11 +57,13 @@ VERIFIED NUMBERS (use them, sparingly):
 
 THE AUTHENTICITY BALANCE (user-authorized expanded mode):
 - For the TWO most relevant experience entries, you MAY embed the posting's required technologies and tools as work the candidate did — written plausibly, small in scope, and always embedded inside that entry's real context (e.g. a feature, an internal tool, an integration, a migration). If the posting asks Java, the candidate built a sensible internal service or tool in Java. If it asks React, the candidate shipped a real UI surface in React.
+- Stretch ONLY toward what the posting explicitly names (target_keywords and the JD text). If the posting names few or no concrete tools, embed nothing extra — write the candidate's real stack well. A fluffy posting is not a license to invent a tech stack.
 - Write stretched tech like real work, not like a keyword list: attach it to something concrete and mundane (a module, an endpoint, a migration, a dashboard) — small-scope claims survive interviews; grandiose ones don't.
 - NEVER invent numbers, metrics, percentages, user counts, or scale — for ANY content. No "40,000+ users", no "99.9%", no "3x". Not anywhere. This rule is absolute.
 - The THIRD entry (least relevant) stays 100% true to the source material — tech, scope, everything.
 - Company names, employers, and education never change. Seniority never inflates.
 - Stretched content should still prefer technologies that are plausible-adjacent to the candidate's world (coursework: Java, C/C++, HPC, OS, computer vision; real stack: Python, TypeScript, React, Node, SQL/PostgreSQL, ML inference, Docker, Linux) — but when the posting's core requirement is a specific tool, include it in one of the two expanded entries rather than leaving the resume silent.
+- A stretched technology appears in EXACTLY ONE experience entry. Embedding the same tool in two entries (Kafka in both the internship and the freelance role) is the template tell recruiters pattern-match instantly.
 
 LENS SELECTION (per posting, per entry):
 - For each experience entry, select which REAL aspects and technologies to foreground for THIS posting — and which to quietly omit. History is never deleted, but nothing irrelevant is volunteered.
@@ -75,7 +79,7 @@ JOB TITLES — the 2-of-3 rule:
 - Hard rules still apply: never upgrade seniority (no Senior/Staff/Lead/Principal), never change the function family to something untrue (no "data scientist", no "consultant" unless the work was consulting).
 - Set "titleChanged": true whenever you reword.
 
-SKILLS SECTION: build 4 rich lines (5-7 items per line) from the provided master lines PLUS the additional verified pool — choose the items most relevant to this posting and order by relevance. Keep the four line labels, adjusting only which items each line carries. Technologies embedded into experience bullets via expanded mode may also be added to the skills section for this job — skills and bullets must always stay consistent with each other (a technology that matters in the bullets must appear in skills, and every skill line item that matters to the posting must be backed by at least one bullet). You MAY also append ONE extra line labeled "Professional" with 3-5 soft skills from soft_skills_allowed (only items from that list, most relevant to the posting). Never add anything beyond these four sources: master lines, verified pool, expanded-mode technologies, soft_skills_allowed.
+SKILLS SECTION: build 4 rich lines (5-7 items per line) from the provided master lines PLUS the additional verified pool — choose the items most relevant to this posting and order by relevance. Keep the four line labels AND each item's line assignment fixed: re-rank order WITHIN a line only; an item never moves to a different label to fill space (Agile/Scrum and Jira are tools-and-practices items, never Languages or Frameworks). Technologies embedded into experience bullets via expanded mode may also be added to the skills section for this job — skills and bullets must always stay consistent with each other (a technology that matters in the bullets must appear in skills, and every skill line item that matters to the posting must be backed by at least one bullet). You MAY also append ONE extra line labeled "Professional" with 3-5 soft skills from soft_skills_allowed (only items from that list, most relevant to the posting). Never add anything beyond these four sources: master lines, verified pool, expanded-mode technologies, soft_skills_allowed.
 
 PROJECTS SECTION: choose the 2 projects from the library that best match this job (stack + domain). For each, return 2-3 bullets written from its real bullets for relevance — same facts, sharper framing, substantive length.
 
@@ -91,7 +95,7 @@ HUMAN VOICE / ANTI-AI-DETECTION (2026 recruiters actively screen for AI tells):
 - BANNED words and phrases (instant AI tell): spearheaded, spearhead, leveraged, leverage (as a verb), orchestrated, cutting-edge, robust, dynamic, results-oriented, synergize, transformative, pivotal, utilize, in order to, fast-paced, passionate, proven track record, best-in-class, seamless, seamlessly, state-of-the-art, innovative, world-class, adept at, instrumental in.
 - Vary sentence shapes naturally (mostly 10-22 words); do NOT make every bullet follow the same identical structure — identical rhythm is a known AI tell.
 - Every technology must appear attached to a concrete artifact (an endpoint, a queue, a schema, a migration, a dashboard) — never a bare name-drop. Skills listed in the skills section must also appear in at least one bullet when they matter to the posting (recruiters cross-check).
-- Entry-level must SOUND entry-level: no "architected", no "led", no mastery/expert framing, no leadership scope.
+- Entry-level must SOUND entry-level: no "architected", no "led", no "architecture" scope claims ("shipped event-driven architecture" reads senior), no mastery/expert framing, no leadership scope.
 - One uniform tone across the whole resume: plain, direct engineering fact. If a phrase sounds like marketing copy, rewrite it as plain fact.
 
 Output valid JSON only. Plain text everywhere: no markdown, no LaTeX, no backslashes, no asterisks, no pipe characters, no "~". Plain hyphens and quotes only.`;
@@ -205,7 +209,7 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
       company: e.company, // frozen — ignore whatever the model returned
       title: typeof gen.title === "string" && gen.title.trim() ? gen.title.trim() : e.title,
       titleChanged: Boolean(gen.titleChanged),
-      bullets: gen.bullets.map((b) => String(b).trim()).filter(Boolean),
+      bullets: gen.bullets.map((b) => polishBullet(String(b).trim())).filter(Boolean),
     };
   });
   if (!parsed.coverLetter || !Array.isArray(parsed.coverLetter.bodyParagraphs)) {
@@ -213,7 +217,14 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
   }
   parsed.coverLetter.bodyParagraphs = parsed.coverLetter.bodyParagraphs.map(String).filter(Boolean);
   if (parsed.skills && !Array.isArray(parsed.skills)) parsed.skills = null;
-  if (parsed.projects && !Array.isArray(parsed.projects)) parsed.projects = null;
+  if (parsed.projects && !Array.isArray(parsed.projects)) {
+    parsed.projects = null;
+  } else if (parsed.projects) {
+    parsed.projects = parsed.projects.map((pr) => ({
+      id: String(pr?.id ?? ""),
+      bullets: (Array.isArray(pr?.bullets) ? pr.bullets : []).map((b) => polishBullet(String(b))).filter(Boolean),
+    }));
+  }
   return parsed;
 }
 
@@ -232,4 +243,34 @@ export function findNewNumbers(originalText: string, generatedText: string[]): s
     }
   }
   return [...found];
+}
+
+/**
+ * Deterministic bullet polish — backstop for the voice rules in SYSTEM_PROMPT.
+ * The model keeps reintroducing two AI-register tells despite prompt bans:
+ *  1. trailing purpose-clause tails ("..., keeping the APIs responsive")
+ *  2. self-applied evaluation adjectives ("maintainable", "analytical")
+ * Conservative by design: only the trailing clause is cut, only fixed-list
+ * adjectives are removed, and the result is re-punctuated.
+ */
+const VAGUE_TAIL =
+  /,?\s*\b(?:keeping|so that|so the|so it|so they|giving|ensuring|helping|allowing|to make|to keep|to ensure|to give|to help|enabling)\b[^.]*\.?$/i;
+const SELF_PRAISE =
+  /\b(?:maintainable|testable|performant|analytical|world[- ]class|best[- ]in[- ]class|cutting[- ]edge|state[- ]of[- ]the[- ]art|seamless(?:ly)?|innovative|transformative|pivotal|robust)\b\s*/gi;
+
+export function polishBullet(bullet: string): string {
+  let s = bullet
+    // code identifiers are fabrication-flavored noise in prose ("retry_records table")
+    .replace(/([A-Za-z])_([A-Za-z])/g, "$1 $2")
+    .replace(SELF_PRAISE, "");
+  s = s.replace(VAGUE_TAIL, "");
+  s = s
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.;:])/g, "$1")
+    .replace(/[,;:\s]+$/g, "")
+    // cutting a gerund tail can leave a dangling connector ("...and." ) — drop it
+    .replace(/\s+(?:and|or|with|then|to|for|which|that|the|a|an)$/i, "")
+    .trim();
+  if (s && !/[.!?]$/.test(s)) s += ".";
+  return s;
 }

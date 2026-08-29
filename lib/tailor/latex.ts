@@ -9,7 +9,7 @@
  * order, education, projects, and company names cannot change — by construction.
  */
 
-import { extraSkillsPool } from "./skills-extra";
+import { EXTRA_SKILLS, extraSkillsPool } from "./skills-extra";
 
 // ---------- engine compatibility ----------
 
@@ -389,18 +389,42 @@ export function assembleSkillsSection(
   }
   const suppressSet = new Set(suppress.map((s) => s.toLowerCase()));
 
-  const lines = section.lines.map((orig) => {
-    const u = update?.find((x) => x.label.replace(/\\&/g, "&") === orig.label.replace(/\\&/g, "&"));
-    let items = orig.items;
-    if (u && Array.isArray(u.items) && u.items.length > 0) {
-      const validated = u.items
-        .map((i) => canon.get(i.trim().toLowerCase()))
-        .filter((x): x is string => Boolean(x));
-      if (validated.length > 0) items = validated;
+  // Canonical label homes: master items belong to their master line; verified
+  // pool items carry a declared label. The model re-ranks WITHIN a line —
+  // anything it places under a wrong label is re-homed here deterministically
+  // (Agile/Scrum under "ML & Infra" was the bug that motivated this).
+  const unescapeItem = (s: string) => s.replace(/\\([&%$#_{}])/g, "$1");
+  const home = new Map<string, string>(); // lowercased plain item -> master line label
+  for (const l of section.lines) for (const i of l.items) home.set(unescapeItem(i).toLowerCase(), l.label);
+  for (const e of EXTRA_SKILLS) {
+    const target = section.lines.find((l) => unescapeItem(l.label).toLowerCase() === e.label.toLowerCase());
+    if (target) home.set(e.item.toLowerCase(), target.label);
+  }
+
+  const buckets = new Map<string, string[]>();
+  const seen = new Set<string>();
+  for (const u of update ?? []) {
+    const targetLine = section.lines.find((l) => l.label.replace(/\\&/g, "&") === u.label.replace(/\\&/g, "&"));
+    for (const raw of Array.isArray(u.items) ? u.items : []) {
+      const validated = canon.get(String(raw).trim().toLowerCase());
+      if (!validated) continue;
+      const key = unescapeItem(validated).toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      // unknown-home items (JD-allowed extras) stay where the model put them
+      const label = home.get(key) ?? targetLine?.label;
+      if (!label) continue;
+      const arr = buckets.get(label) ?? [];
+      arr.push(validated);
+      buckets.set(label, arr);
     }
+  }
+
+  const lines = section.lines.map((orig) => {
+    let items = buckets.get(orig.label) ?? [];
     // lens suppression: real but irrelevant tech stays off for this posting
     items = items.filter((i) => {
-      const plain = i.replace(/\\([&%$#_{}])/g, "$1").toLowerCase();
+      const plain = unescapeItem(i).toLowerCase();
       for (const s of suppressSet) if (plain.includes(s)) return false;
       return true;
     });

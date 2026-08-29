@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { draftOutreachEmail, draftFollowUpEmail } from "@/lib/tailor/email";
-import { PROJECTS } from "@/lib/tailor/projects";
+import { draftOutreachEmail, draftFollowUpEmail, projectsFromResumeTex } from "@/lib/tailor/email";
 import type { CompanyResearch } from "@/lib/tailor/research";
 import type { ContactResult } from "@/lib/contacts/hunter";
 
@@ -22,7 +21,6 @@ export async function POST(request: Request) {
     ? storedContacts.find((c) => c.email.toLowerCase() === contactEmail.toLowerCase()) ?? null
     : (storedContacts[0] ?? null);
 
-  // Highlights from the most recent FINAL resume (fall back to latest draft).
   const doc =
     (await prisma.documentVersion.findFirst({
       where: { jobId: job.id, kind: "RESUME", status: "FINAL" },
@@ -33,15 +31,6 @@ export async function POST(request: Request) {
       orderBy: { version: "desc" },
     }));
 
-  const bullets: string[] = [];
-  if (doc) {
-    const re = /\\resumeItem\{((?:[^{}]|\{[^{}]*\})*)\}/g;
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(doc.texContent)) && bullets.length < 6) {
-      bullets.push(m[1].replace(/\\([&%$#_{}])/g, "$1"));
-    }
-  }
-
   const hasFinalDocs = Boolean(
     await prisma.documentVersion.findFirst({ where: { jobId: job.id, status: "FINAL" }, select: { id: true } })
   );
@@ -50,13 +39,13 @@ export async function POST(request: Request) {
     job: { title: job.title, company: job.company, description: job.description },
     contact,
     research,
-    resumeHighlights: bullets,
-    projectLinks: PROJECTS.map((p) => ({ name: p.name, url: p.githubUrl })),
+    projects: projectsFromResumeTex(doc?.texContent),
     hasFinalDocs,
     candidateName: "Kabir Narula",
   };
 
-  if (body?.mode === "followup") {
+  const followup = body?.mode === "followup" || body?.kind === "followup";
+  if (followup) {
     const daysSinceApplied = Math.max(1, Number(body?.daysSinceApplied) || 7);
     const draft = await draftFollowUpEmail({ ...base, daysSinceApplied });
     return NextResponse.json({ draft, contact });
