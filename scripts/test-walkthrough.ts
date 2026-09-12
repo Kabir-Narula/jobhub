@@ -14,6 +14,7 @@ import { parseResume, parseSkillsSection } from "../lib/tailor/latex";
 import { detectLens } from "../lib/tailor/lens";
 import { softSkillsFor } from "../lib/tailor/soft-skills";
 import { claimableJdTerms, missingTerms } from "../lib/tailor/match";
+import { auditExperienceBullets, bannedNumberShapes, highSeverityCount } from "../lib/tailor/bullet-quality";
 
 const p = new PrismaClient();
 const hr = (t: string) => console.log(`\n${"=".repeat(78)}\n${t}\n${"=".repeat(78)}`);
@@ -104,6 +105,17 @@ async function main() {
   }
   const dropped = before.entries.filter((b) => !after.entries.some((a) => a.company === b.company));
   for (const d of dropped) console.log(`\n### ${d.company} — REMOVED for this posting`);
+
+  hr("BULLET DOCTRINE AUDIT (deterministic, same check the route runs)");
+  const audit = auditExperienceBullets(
+    after.entries.map((e) => ({ company: e.company, bullets: e.bullets })),
+    { expandedCount: Math.min(2, after.entries.length - 1) }
+  );
+  const banned = bannedNumberShapes(after.entries.flatMap((e) => e.bullets));
+  console.log(`high-severity issues: ${highSeverityCount(audit)}`);
+  console.log(`indefensible number shapes: ${banned.join(", ") || "(none)"}`);
+  for (const i of audit) console.log(`  [${i.severity}] ${i.company.slice(0, 28)}: ${i.message}`);
+  if (audit.length === 0) console.log("  (clean)");
 
   hr("SKILLS — MASTER vs TAILORED");
   const sb = parseSkillsSection(master.texContent);

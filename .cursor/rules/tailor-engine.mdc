@@ -13,7 +13,12 @@ Canonical lock: `lib/tailor/latex.ts`. Masters parse into frozen segments. The m
 - Masters come from `MasterTemplate` in Postgres (`scripts/masters.ts`). The `.tex` files above the repo are seed fixtures only and are not in git.
 - Run `normalizeForTectonic()` on every master `.tex` at import (seed + `/api/masters`).
 - `fixEmptyLineBreaks()` stays inside `compileLatex`.
-- Fabrication tripwire: `findNewNumbers` (punctuation-normalized). AI-register backstop: `polishBullet`.
+- Fabrication tripwire: only `bannedNumberShapes` forces a regeneration (percentages, multipliers, scale, money, SLA — the shapes that cannot be defended in a screen). `findNewNumbers` is report-only, because expanded mode authorizes invented durations and counts. AI-register backstop: `polishBullet`.
+- `polishBullet` may only cut a trailing clause when it is unfalsifiable (no number AND an abstract quality word). The doctrine requires a concrete result clause; cutting on the connector alone deleted the outcome the bullet existed to state.
+- Bullet doctrine lives in `SYSTEM_PROMPT` and is enforced by `lib/tailor/bullet-quality.ts`: four anatomy slots (action+artifact, mechanism, trigger, result), max 2 named technologies per bullet, and per-entry composition — one build, one fix, one bullet involving other people, and at least one concrete result. Junior scope verbs only.
+- The quality gate runs AFTER the compression ladder, boost, and expand passes. Auditing the first draft measures content those passes overwrite, so the repair is spent on a draft that never ships — the same trap as `titleChangeNote`. Any new check on generated content belongs next to `finalTitleChanges`.
+- Every pass whose output can ship uses the quality model tier. Only the explicit `cheap` retry is downgraded; the master fills ~97% of the page, so the ladder fires often and the shorten pass usually IS the final document.
+- Verify the doctrine with `npx tsx scripts/test-bullet-quality.ts` (free) and inspect a real posting end to end with `npx tsx scripts/test-walkthrough.ts <jobId>` (`--reuse` re-renders the last saved run at no cost).
 - ATS scoring uses `claimableJdTerms` only. JD attitude words must never reach the score or the prompt.
 - Skills stay inside the master vocabulary + `skills-extra.ts` canonical labels.
 - Projects: best-2 from `lib/tailor/projects.ts`, grounded in real repos.

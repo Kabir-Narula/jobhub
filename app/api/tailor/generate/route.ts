@@ -18,6 +18,12 @@ import {
 } from "@/lib/tailor/latex";
 import { ACHIEVEMENTS } from "@/lib/tailor/achievements";
 import { generateContent, findNewNumbers, type GeneratedContent } from "@/lib/tailor/generate";
+import {
+  auditExperienceBullets,
+  bannedNumberShapes,
+  highSeverityCount,
+  qualityFeedback,
+} from "@/lib/tailor/bullet-quality";
 import { researchCompany, type CompanyResearch } from "@/lib/tailor/research";
 import { compileLatex } from "@/lib/tailor/compile";
 import { matchScore, missingTerms, claimableJdTerms, isTechTerm, placementGaps } from "@/lib/tailor/match";
@@ -135,6 +141,7 @@ export async function POST(request: Request) {
   }
 
   const warnings: string[] = [];
+  const requestStart = Date.now();
 
   // Jobs without a stored JD (Simplify rows, LinkedIn cards) get hydrated
   // on demand — without it the tailor and ATS score have nothing to work from.
@@ -229,13 +236,23 @@ export async function POST(request: Request) {
     ...generated.coverLetter.bodyParagraphs,
   ];
 
-  let newNumbers = findNewNumbers(originalText, generatedText());
-  if (newNumbers.length > 0) {
+  // Expanded mode authorizes invented durations and counts, so a number simply
+  // being absent from the source material no longer justifies a regeneration —
+  // that retried on every legitimate outcome and then warned about it. Only
+  // indefensible shapes (percentages, multipliers, scale, money, SLA) force a
+  // retry; other new numbers are reported so they can be reviewed, since they
+  // are what has to be defended in an interview.
+  let banned = bannedNumberShapes(generatedText());
+  if (banned.length > 0) {
     generated = await generateContent({ ...baseInput, cheap: true });
-    newNumbers = findNewNumbers(originalText, generatedText());
-    if (newNumbers.length > 0) {
-      warnings.push(`Review carefully: these numbers are NOT in your source material: ${newNumbers.join(", ")}`);
+    banned = bannedNumberShapes(generatedText());
+    if (banned.length > 0) {
+      warnings.push(`Remove before sending — these cannot be defended in a screen: ${banned.join(", ")}`);
     }
+  }
+  const inventedNumbers = findNewNumbers(originalText, generatedText());
+  if (inventedNumbers.length > 0) {
+    warnings.push(`Invented figures you will need to defend in an interview: ${inventedNumbers.join(", ")}`);
   }
 
   // --- title changes require explicit confirmation ---
@@ -373,6 +390,60 @@ export async function POST(request: Request) {
         fillPct = expandedFill;
       }
     }
+  }
+
+  // --- bullet doctrine gate, on the draft that actually ships ---
+  // Deliberately last: the prompt alone drifts back to filler, keyword lists and
+  // entries built from three identical greenfield bullets, and auditing the FIRST
+  // draft measured content the cheap-tier shorten pass then overwrote — the
+  // repair was spent on a draft nobody would ever see. Same trap as the title
+  // note. One repair, only for high-severity issues, and only if it survives the
+  // same page and ATS bars as every other pass.
+  const auditOpts = { expandedCount: Math.min(2, parsedForJob.entries.length - 1) };
+  let bulletIssues = auditExperienceBullets(generated.experience, auditOpts);
+  // A repair costs one quality-tier call plus a compile. Skipping it when the
+  // request is already close to maxDuration is better than being killed after
+  // the work is done but before anything is saved.
+  const timeForRepair = Date.now() - requestStart < 200_000;
+  if (highSeverityCount(bulletIssues) > 0 && timeForRepair) {
+    const repaired = await generateContent({
+      ...baseInput,
+      qualityIssues: qualityFeedback(bulletIssues),
+      // Keep whichever length mode made the page fit, or the repair overflows and
+      // gets discarded for a reason that has nothing to do with bullet quality.
+      ...(wasCompressed ? { shorten: true } : {}),
+    });
+    const repairedIssues = auditExperienceBullets(repaired.experience, auditOpts);
+    if (
+      highSeverityCount(repairedIssues) < highSeverityCount(bulletIssues) &&
+      bannedNumberShapes(repaired.experience.flatMap((e) => e.bullets)).length === 0
+    ) {
+      const repairedTex = buildTex(repaired, activeClamps);
+      const repairedResult = await compileLatex(repairedTex);
+      const repairedScore = matchScore(job.description, repairedTex, job.company);
+      // Better prose is not worth falling out of the keyword ranking, and it is
+      // never worth a second page.
+      if (
+        repairedResult.pageCount <= RESUME_PAGE_LIMIT &&
+        (score === null || repairedScore === null || repairedScore >= score)
+      ) {
+        resumeTex = repairedTex;
+        resumeResult = repairedResult;
+        generated = repaired;
+        bulletIssues = repairedIssues;
+        if (repairedScore !== null) score = repairedScore;
+        fillPct = Math.round((await pageFill(repairedResult.pdf)) * 100);
+      }
+    }
+  }
+  if (highSeverityCount(bulletIssues) > 0) {
+    warnings.push(
+      `Bullet quality — fix before sending: ${bulletIssues
+        .filter((i) => i.severity === "high")
+        .slice(0, 3)
+        .map((i) => i.message)
+        .join(" | ")}`
+    );
   }
 
   // Every pass that could replace `generated` has now run.
