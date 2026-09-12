@@ -16,7 +16,7 @@ import {
 import { researchCompany } from "../lib/tailor/research";
 import { generateContent, findNewNumbers } from "../lib/tailor/generate";
 import { compileLatex } from "../lib/tailor/compile";
-import { matchScore } from "../lib/tailor/match";
+import { matchScore, claimableJdTerms } from "../lib/tailor/match";
 import { pageFill } from "../lib/tailor/fill";
 import { PROJECTS, projectById } from "../lib/tailor/projects";
 import { loadMasters } from "./masters";
@@ -55,7 +55,18 @@ async function main() {
   console.log(`   ${research.summary.slice(0, 140)}`);
 
   console.log("2) generate (gpt-5.5)…");
-  const generated = await generateContent({ entries: parsedResume.entries, skills: skillsSection, job: JOB, research });
+  // Pass targetKeywords like the route does — omitting them here is why the
+  // route silently losing them on every refinement pass went unnoticed.
+  const companyTokens = JOB.company.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const targetKeywords = claimableJdTerms(JOB.description, 25, companyTokens);
+  console.log(`   target keywords (${targetKeywords.length}): ${targetKeywords.slice(0, 8).join(", ")}`);
+  const generated = await generateContent({
+    entries: parsedResume.entries,
+    skills: skillsSection,
+    job: JOB,
+    research,
+    targetKeywords,
+  });
 
   console.log(`   projects chosen: ${(generated.projects ?? []).map((p) => p.id).join(", ")}`);
   console.log(`   skills returned: ${(generated.skills ?? []).map((s) => `${s.label}(${s.items.length})`).join(", ")}`);

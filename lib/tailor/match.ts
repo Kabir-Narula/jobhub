@@ -7,6 +7,10 @@ const STOPWORDS = new Set(
 const NO_DEPLURAL = new Set(["kubernetes"]); // ends in 's' but isn't a plural
 function norm(w: string): string {
   let x = w.toLowerCase().replace(/^[./#+-]+|[./#+-]+$/g, "");
+  // Never de-pluralize a known technology. "devops"->"devop", "jenkins"->"jenkin",
+  // "pandas"->"panda" and "rails"->"rail" all fall out of TECH_LEXICON, so
+  // isTechTerm rejects them and the term is dropped from both targeting and scoring.
+  if (TECH_LEXICON.has(x)) return x;
   if (x.length > 4 && x.endsWith("s") && !x.endsWith("ss") && !x.includes(".") && !NO_DEPLURAL.has(x)) x = x.slice(0, -1);
   return x;
 }
@@ -138,13 +142,39 @@ function plainTex(tex: string): string {
  * found in the resume text. Rough but much closer to real ATS behavior
  * than single-word overlap.
  */
+/**
+ * Broader JD terms that a more specific resume technology genuinely satisfies.
+ * Substring matching used to grant these for free — along with false ones like
+ * "java" from "javascript" — so they are now enumerated instead of inferred.
+ */
+const IMPLIES: Record<string, string[]> = {
+  sql: ["postgresql", "mysql", "sqlserver", "sqlite", "tsql", "plsql", "bigquery", "redshift"],
+  database: ["postgresql", "mysql", "mongodb", "mongo", "redis", "sqlite", "dynamodb"],
+  cloud: ["aws", "azure", "googlecloud", "gcp"],
+  nosql: ["mongodb", "mongo", "dynamodb", "cassandra", "redis"],
+};
+
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** Word-ish boundary: LaTeX-stripped text has no reliable \b behaviour around symbols. */
+const hasWord = (needle: string, hay: string) =>
+  new RegExp(`(^|[^a-z0-9])${esc(needle)}([^a-z0-9]|$)`, "i").test(hay);
+
 /** A term is covered when: exact phrase, squashed phrase, or every word present (ATS-style proximity). */
 function covered(term: string, plain: string, plainSquash: string): boolean {
+  const words = term.split(" ").filter(Boolean);
+
+  // Single tokens must match as words. `plain.includes("java")` was true for a
+  // resume that only said JavaScript, crediting a requirement it did not meet.
+  if (words.length === 1) {
+    if (hasWord(term, plain)) return true;
+    return (IMPLIES[term] ?? []).some((specific) => hasWord(specific, plain));
+  }
+
   if (plain.includes(term)) return true;
   if (plainSquash.includes(term.replace(/\s+/g, ""))) return true;
-  const words = term.split(" ").filter((w) => w.length > 2);
-  if (words.length === 0) return false;
-  return words.every((w) => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i").test(plain));
+  const parts = words.filter((w) => w.length > 2);
+  if (parts.length === 0) return false;
+  return parts.every((w) => hasWord(w, plain));
 }
 
 export function matchScore(jobDescription: string, resumeTex: string, companyName = ""): number | null {
@@ -164,7 +194,11 @@ export function matchScore(jobDescription: string, resumeTex: string, companyNam
  * recruiters read it as keyword stuffing.
  */
 const TECH_LEXICON = new Set(
-  `python java javascript typescript kotlin swift go golang rust ruby scala php perl r matlab c c++ c# haskell sql mysql postgres postgresql sqlite mongodb mongo redis elasticsearch cassandra dynamodb snowflake redshift bigquery databricks spark pyspark hadoop kafka airflow flink etl elt dbt hive presto clickhouse react nextjs next.js node node.js express fastapi django flask spring springboot angular vue svelte rails laravel dotnet .net asp.net graphql rest grpc trpc prisma drizzle sqlalchemy hibernate docker kubernetes k8s terraform ansible jenkins gitlabci circleci cicd ci/cd aws azure gcp ec2 s3 lambda ecs eks rds cloudflare vercel render heroku linux unix bash git github gitlab jira confluence agile scrum devops sre ml ai nlp llm rag openai pytorch tensorflow keras sklearn pandas numpy opencv cuda mlops langchain fastapi supabase firebase stripe bullmq celery rabbitmq nginx prometheus grafana splunk datadog selenium cypress playwright jest vitest pytest junit mockito espresso xctest xcode android ios`.split(/\s+/)
+  `python java javascript typescript kotlin swift go golang rust ruby scala php perl r matlab c c++ c# haskell sql mysql postgres postgresql sqlite mongodb mongo redis elasticsearch cassandra dynamodb snowflake redshift bigquery databricks spark pyspark hadoop kafka airflow flink etl elt dbt hive presto clickhouse react nextjs next.js node node.js express fastapi django flask spring springboot angular vue svelte rails laravel dotnet .net asp.net graphql rest grpc trpc prisma drizzle sqlalchemy hibernate docker kubernetes k8s terraform ansible jenkins gitlabci circleci cicd ci/cd aws azure gcp ec2 s3 lambda ecs eks rds cloudflare vercel render heroku linux unix bash git github gitlab jira confluence agile scrum devops sre ml ai nlp llm rag openai pytorch tensorflow keras sklearn pandas numpy opencv cuda mlops langchain fastapi supabase firebase stripe bullmq celery rabbitmq nginx prometheus grafana splunk datadog selenium cypress playwright jest vitest pytest junit mockito espresso xctest xcode android ios
+   gemini claude anthropic copilot llamaindex huggingface transformers embeddings embedding bedrock sagemaker vertexai
+   pinecone weaviate qdrant chromadb chroma faiss milvus pgvector ollama vllm llamacpp mlflow kubeflow triton
+   langgraph langsmith autogen crewai spacy nltk xgboost lightgbm onnx tensorrt jax
+   powerbi tableau looker dagster prefect kinesis pubsub`.split(/\s+/)
 );
 
 export function isTechTerm(term: string): boolean {

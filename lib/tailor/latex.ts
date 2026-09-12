@@ -31,11 +31,25 @@ export function normalizeForTectonic(tex: string): string {
 
 // ---------- LaTeX escaping (LLM content is plain text) ----------
 
+/**
+ * One pass, so replacements can't escape each other's output. A backslash used
+ * to survive untouched and start a LaTeX command, turning one stray character in
+ * model output into a hard Tectonic failure — the prompt bans backslashes but
+ * that is not an enforceable guarantee. Every caller passes plain text.
+ */
 export function escapeLatex(s: string): string {
-  return s
-    .replace(/([&%$#_{}])/g, "\\$1")
-    .replace(/~/g, "\\textasciitilde{}")
-    .replace(/\^/g, "\\textasciicircum{}");
+  return s.replace(/[\\&%$#_{}~^]/g, (c) => {
+    switch (c) {
+      case "\\":
+        return "\\textbackslash{}";
+      case "~":
+        return "\\textasciitilde{}";
+      case "^":
+        return "\\textasciicircum{}";
+      default:
+        return `\\${c}`;
+    }
+  });
 }
 
 // ---------- brace-aware group reading ----------
@@ -285,17 +299,27 @@ export function parseProjectsSection(tex: string): ProjectsSection {
   const firstHead = tex.indexOf("\\resumeProjectHeading", secIdx);
   if (firstHead < 0) throw new Error("No \\resumeProjectHeading found");
 
+  // Same bound as parseResume: stop at the next \section so a later section
+  // using \resumeProjectHeading can never be absorbed into Projects.
+  const nextSection = tex.indexOf("\\section{", secIdx + "\\section{Projects}".length);
+  const sectionEnd = nextSection < 0 ? tex.length : nextSection;
+
   let count = 0;
   let lastEnd = -1;
   let cursor = firstHead;
   while (true) {
     const headIdx = tex.indexOf("\\resumeProjectHeading", cursor);
-    if (headIdx < 0) break;
+    if (headIdx < 0 || headIdx >= sectionEnd) break;
     const listEnd = tex.indexOf("\\resumeItemListEnd", headIdx);
-    if (listEnd < 0) break;
+    if (listEnd < 0 || listEnd >= sectionEnd) break;
     count++;
     lastEnd = listEnd + "\\resumeItemListEnd".length;
     cursor = lastEnd;
+  }
+  // lastEnd stays -1 when nothing parsed, and tex.slice(-1) would silently
+  // reduce `after` to the final character, deleting every later section.
+  if (count === 0 || lastEnd < 0) {
+    throw new Error("Malformed projects section in master resume: no complete \\resumeProjectHeading entry");
   }
 
   return {

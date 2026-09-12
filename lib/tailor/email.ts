@@ -147,10 +147,13 @@ export function classifyRecipient(role: string | undefined | null): RecipientKin
   if (/engineering manager|hiring manager|director|head of|team lead|tech lead|\bvp\b|vice president|\bcto\b|founder|\bmanager\b/i.test(t)) {
     return "manager";
   }
-  if (/software|engineer|developer|swe|programmer|architect/i.test(t)) return "engineer";
+  // Recruiter before engineer: "Engineering Recruiter" and "Software Talent
+  // Acquisition" match the engineer pattern too, and testing engineer first sent
+  // them the referral ask instead of the review-my-application ask.
   if (/recruit|talent|sourcer|staffing|people ops|\bhr\b|human resources/i.test(t)) {
     return "recruiter";
   }
+  if (/software|engineer|developer|swe|programmer|architect/i.test(t)) return "engineer";
   return "unknown";
 }
 
@@ -340,15 +343,12 @@ export function polishEmail(
   if (paras.length && (COMMANDING_CLOSE.test(paras[paras.length - 1]) || FAKE_HUMILITY.test(paras[paras.length - 1]))) {
     paras[paras.length - 1] = SIMPLE_QUESTION;
   }
+  // Guarantees at least one paragraph, so no empty-body case remains below.
   if (!paras.some((p) => /\?\s*$/.test(p))) paras.push(SIMPLE_QUESTION);
-  if (paras.length === 0) paras = [SIMPLE_QUESTION];
 
   const parts = [greetingLine(opts)];
   for (const p of paras) {
     parts.push("", p);
-  }
-  if (paras.length === 0) {
-    parts.push("", SIMPLE_QUESTION);
   }
   parts.push("", "Thanks,", "", ...EMAIL_SIGNATURE);
 

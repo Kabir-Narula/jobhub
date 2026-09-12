@@ -41,8 +41,8 @@ REQUIREMENT-TO-BULLET MAPPING (the ATS core):
 - For SWE-flavored postings, weave real algorithmic substance where truthful: data structures, query optimization, complexity, indexing, execution plans — the candidate's PostgreSQL and systems work supports this genuinely.
 
 BULLET CRAFT (this is what gets read):
-- 3-4 bullets per experience entry, 2-3 per project.
-- Each bullet is 1-2 lines max (~18-28 words). One idea per bullet. Scannable in 2 seconds.
+- Bullet COUNT and WORD COUNT per experience entry come from the bullet_count_rule field. That field is the single authority — follow it exactly and ignore any other count implied anywhere in these instructions. 2-3 bullets per project.
+- Each bullet is 1-2 lines max. One idea per bullet. Scannable in 2 seconds.
 - Front-load the strong verb and the technology. Formula: verb + what built + tech + short outcome (outcome ONLY if in the source).
 - END ON THE ARTIFACT, NOT THE BENEFIT: every bullet ends on the concrete thing (the endpoint, the schema, the queue, the migration, the runbook) or a verified number. A trailing purpose clause is banned in ANY wording — never end a bullet with "keeping...", "so the...", "so that...", "giving...", "ensuring...", "helping...", "allowing...", "to make...", "to keep...", "enabling...". If the outcome is not a verified number, delete the tail and let the artifact stand.
 - NAME ONE ARTIFACT PER BULLET: each experience bullet contains at least one concrete noun a recruiter can ask about (a service, an endpoint, a queue, a schema, a pipeline, a migration, a gate). Process words alone (workflows, defects, tradeoffs, issues) are not artifacts. Fog like "moving jobs off request paths required by concurrent internal users" is an instant AI tell; "moved the GLB extraction job off the FastAPI request path" is a conversation. Artifacts are named in PLAIN ENGLISH — never code identifiers, table names, file names, or snake_case tokens (no retry_records, no partner_ingest, no error_contract). If the source material has no proper name for the thing, describe it in words.
@@ -155,17 +155,31 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
           reddit_intel_from_real_candidates: input.research.redditIntel ?? null,
         }
       : null,
-    task: input.shorten
-      ? "Same job, second pass: the resume overflowed one page. Compress: exactly 3 bullets per experience entry at 16-22 words each, only 2 bullets per project, drop the weakest 1-2 items from each skills line, cover letter to 3 paragraphs. All other rules still apply."
-      : input.expand
-        ? "Same job, but the resume came out TOO EMPTY (large gap at the bottom). Fill the page by ADDING bullets, not length: 4 short bullets per experience entry (1-2 lines each), 3 per project, skills section full. Keep every bullet punchy."
-        : input.boost
-          ? `Same job, ATS-boost pass: the draft scored low on keyword coverage. Weave these missing job-description terms into the resume WHERE GENUINELY CLAIMABLE from the source material (never a tool the candidate hasn't used): ${input.boost.missingTerms.join(", ")}. Work them into bullets via the vocabulary-translation rules and into the skills lines. Do NOT keyword-stuff: max one JD term per bullet, vary sentence shapes so it reads human, never as a list of synonyms. Rewrite everything fresh (all other rules apply).`
+    // Length mode and ATS-boost are composable: a resume that overflowed AND
+    // scored low needs both. Making them exclusive branches meant the boost
+    // terms were dropped whenever compression was also required.
+    task: [
+      input.shorten
+        ? "Same job, second pass: the resume overflowed one page. Compress: only 2 bullets per project, drop the weakest 1-2 items from each skills line, cover letter to 3 paragraphs. Bullet counts and lengths come from bullet_count_rule. All other rules still apply."
+        : input.expand
+          ? "Same job, but the resume came out TOO EMPTY (large gap at the bottom). Fill the page by ADDING bullets, never by lengthening them: 3 bullets per project, skills section full. Bullet counts and lengths come from bullet_count_rule. Keep every bullet punchy."
           : "Tailor this candidate for this job: rewrite experience bullets from scratch (page-filling; the resume also has an achievements section, so space is tight), re-rank skills, choose the best 2 projects, write the cover letter.",
-    bullet_count_rule:
-      input.entries.length <= 3
-        ? "3-4 short punchy bullets per entry (there are only 3 entries — give them more weight)"
-        : "exactly 3 short punchy bullets per entry (4 entries — keep the page tight)",
+      input.boost
+        ? `ATS-boost pass: the draft scored low on keyword coverage. Weave these missing job-description terms into the resume WHERE GENUINELY CLAIMABLE from the source material (never a tool the candidate hasn't used): ${input.boost.missingTerms.join(", ")}. Work them into bullets via the vocabulary-translation rules and into the skills lines. Do NOT keyword-stuff: max one JD term per bullet, vary sentence shapes so it reads human, never as a list of synonyms. Rewrite everything fresh (all other rules apply).`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" "),
+    // Single authority for bullet count and length. The system prompt, the
+    // task text, and output_schema all defer here; stating counts in more than
+    // one place produced contradictory payloads (e.g. "exactly 3" alongside "4").
+    bullet_count_rule: input.shorten
+      ? "exactly 3 bullets per entry, 16-22 words each"
+      : input.expand
+        ? "4 bullets per entry, 14-20 words each — more short bullets, never longer ones"
+        : input.entries.length <= 3
+          ? "3-4 short punchy bullets per entry, 16-26 words each (only 3 entries — give them more weight)"
+          : "exactly 3 short punchy bullets per entry, 16-26 words each (4 entries — keep the page tight)",
     target_keywords: input.targetKeywords ?? [],
     output_schema: {
       experience: [
@@ -173,7 +187,7 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
           company: "MUST equal the input company byte-for-byte",
           title: "final title (reworded per title rules if useful)",
           titleChanged: "boolean",
-          bullets: ["exactly 3 bullets, each 16-26 words, one idea, punchy"],
+          bullets: ["count and length per bullet_count_rule, one idea each, punchy"],
         },
       ],
       skills: [{ label: "exact label from input", items: ["only items from that line's pool, re-ranked"] }],
@@ -187,8 +201,13 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
     },
   };
 
+  // Boost decides ATS ranking, so it keeps the quality tier even when it also has
+  // to compress. shorten/expand on their own are mechanical edits.
+  const tier =
+    input.cheap ? "cheap" : input.boost ? "quality" : input.shorten || input.expand ? "cheap" : "quality";
+
   const res = await openai().chat.completions.create({
-    model: model(input.shorten || input.expand || input.cheap ? "cheap" : "quality"),
+    model: model(tier),
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: JSON.stringify(user) },

@@ -10,10 +10,16 @@ function norm(s: string): string {
 
 /** Normalized company for dedupe (also strips corporate descriptors). */
 export function normCompany(s: string): string {
-  return norm(s)
+  const base = norm(s);
+  const stripped = base
     .replace(/\b(bank|banking|securities|financial|capital|consulting|consultants|solutions|services|systems|global|canada|canadian|digital|online|enterprises?)\b/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+  // Names built entirely from generic descriptors ("Global Solutions Inc",
+  // "Canadian Technology Services") stripped down to "", so every one of them
+  // shared a fingerprint and unrelated postings deduped into a single job.
+  // Fall back to progressively less aggressive normalization instead.
+  return stripped || base || s.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
 /** Normalized title for dedupe (strips level fluff, keeps real distinctions). */

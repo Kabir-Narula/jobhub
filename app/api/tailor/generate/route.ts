@@ -193,7 +193,11 @@ export async function POST(request: Request) {
   const companyTokens = job.company.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   const targetKeywords = claimableJdTerms(job.description, 25, companyTokens);
 
-  let generated: GeneratedContent = await generateContent({
+  // Every pass shares this. Spelling the arguments out per call silently dropped
+  // targetKeywords from all four refinement passes, so the resume that actually
+  // shipped (usually the shortened one) was written with no ATS keyword targeting
+  // while the prompt still demanded keyword coverage.
+  const baseInput = {
     entries: parsedForJob.entries,
     skills: skillsSection,
     job: jobInput,
@@ -201,7 +205,9 @@ export async function POST(request: Request) {
     lensNote,
     softSkills,
     targetKeywords,
-  });
+  };
+
+  let generated: GeneratedContent = await generateContent(baseInput);
 
   // --- fabrication tripwire over everything the LLM touched ---
   const { verifiedNumbersText } = await import("@/lib/tailor/verified-numbers");
@@ -225,7 +231,7 @@ export async function POST(request: Request) {
 
   let newNumbers = findNewNumbers(originalText, generatedText());
   if (newNumbers.length > 0) {
-    generated = await generateContent({ entries: parsedForJob.entries, skills: skillsSection, job: jobInput, research, lensNote, softSkills, shorten: false, cheap: true });
+    generated = await generateContent({ ...baseInput, cheap: true });
     newNumbers = findNewNumbers(originalText, generatedText());
     if (newNumbers.length > 0) {
       warnings.push(`Review carefully: these numbers are NOT in your source material: ${newNumbers.join(", ")}`);
@@ -233,14 +239,18 @@ export async function POST(request: Request) {
   }
 
   // --- title changes require explicit confirmation ---
-  const pendingTitleChanges = generated.experience
-    .map((g, i) => ({
-      company: g.company,
-      from: parsedForJob.entries[i].title,
-      to: g.title,
-      changed: g.titleChanged && g.title !== parsedForJob.entries[i].title,
-    }))
-    .filter((t) => t.changed);
+  // Computed from whichever generation actually ships. Reading `generated` here
+  // instead reported the first draft's titles, which the ladder, boost, and
+  // expand passes then replaced — so the note disagreed with the saved PDF.
+  const titleChangesFor = (gen: GeneratedContent) =>
+    gen.experience
+      .map((g, i) => ({
+        company: g.company,
+        from: parsedForJob.entries[i].title,
+        to: g.title,
+        changed: g.titleChanged && g.title !== parsedForJob.entries[i].title,
+      }))
+      .filter((t) => t.changed);
 
   // --- assemble the full document: experience -> projects -> skills -> achievements ---
   interface Clamps {
@@ -295,20 +305,25 @@ export async function POST(request: Request) {
     { compactSkills: 4, maxExpBullets: 3, maxProjBullets: 2, achievements: 0 },
     { compactSkills: 4, maxExpBullets: 2, maxProjBullets: 2, achievements: 0 },
   ];
+  // The clamp step that made the page fit. Later passes must rebuild with it:
+  // rebuilding unclamped guarantees an overflow and the pass gets discarded.
+  let activeClamps: Clamps = {};
   for (let attempt = 0; attempt < LADDER.length && resumeResult.pageCount > RESUME_PAGE_LIMIT; attempt++) {
     const clamps = LADDER[attempt];
     // One shorten call, reused across clamp steps — the task text is identical
     // for every step, so regenerating per clamp just burns tokens.
     if (!shortenedGen) {
-      shortenedGen = await generateContent({ entries: parsedForJob.entries, skills: skillsSection, job: jobInput, research, lensNote, softSkills, shorten: true });
+      shortenedGen = await generateContent({ ...baseInput, shorten: true });
     }
     resumeTex = buildTex(shortenedGen, clamps);
     resumeResult = await compileLatex(resumeTex);
     if (resumeResult.pageCount <= RESUME_PAGE_LIMIT) {
       generated = shortenedGen;
+      activeClamps = clamps;
       break;
     }
   }
+  const wasCompressed = shortenedGen !== null;
   if (resumeResult.pageCount > RESUME_PAGE_LIMIT) {
     return NextResponse.json(
       { error: `Resume came out to ${resumeResult.pageCount} pages even after ${LADDER.length} compression passes — not saving. Try again.` },
@@ -321,8 +336,12 @@ export async function POST(request: Request) {
   if (score !== null && score < 70) {
     const missing = missingTerms(job.description, resumeTex, 25, job.company);
     if (missing.length > 0) {
-      const boosted = await generateContent({ entries: parsedForJob.entries, skills: skillsSection, job: jobInput, research, lensNote, softSkills, boost: { missingTerms: missing } });
-      const boostedTex = buildTex(boosted);
+      const boosted = await generateContent({
+        ...baseInput,
+        boost: { missingTerms: missing },
+        ...(wasCompressed ? { shorten: true } : {}),
+      });
+      const boostedTex = buildTex(boosted, activeClamps);
       const boostedResult = await compileLatex(boostedTex);
       if (boostedResult.pageCount === 1) {
         const boostedScore = matchScore(job.description, boostedTex, job.company);
@@ -338,9 +357,12 @@ export async function POST(request: Request) {
 
   // --- closed-loop page fill: measure actual text coverage, expand if sparse ---
   let fillPct = Math.round((await pageFill(resumeResult.pdf)) * 100);
-  if (fillPct < FILL_TARGET * 100 && resumeResult.pageCount === 1) {
-    const expanded = await generateContent({ entries: parsedForJob.entries, skills: skillsSection, job: jobInput, research, lensNote, softSkills, expand: true });
-    const expandedTex = buildTex(expanded);
+  // Skip when the ladder already ran: asking for more content right after
+  // compressing to fit is self-defeating, and the clamps would trim the extra
+  // bullets straight back off. The sparseness there is the clamps, not the draft.
+  if (fillPct < FILL_TARGET * 100 && resumeResult.pageCount === 1 && !wasCompressed) {
+    const expanded = await generateContent({ ...baseInput, expand: true });
+    const expandedTex = buildTex(expanded, activeClamps);
     const expandedResult = await compileLatex(expandedTex);
     if (expandedResult.pageCount === 1) {
       const expandedFill = Math.round((await pageFill(expandedResult.pdf)) * 100);
@@ -353,6 +375,8 @@ export async function POST(request: Request) {
     }
   }
 
+  // Every pass that could replace `generated` has now run.
+  const finalTitleChanges = titleChangesFor(generated);
   const { chosen: chosenProjects } = resolveProjects(generated.projects);
 
   // --- cover letter ---
@@ -393,8 +417,8 @@ export async function POST(request: Request) {
   const application = await prisma.application.findFirst({ where: { jobId: job.id } });
 
   const titleNote =
-    allowTitleChanges && pendingTitleChanges.length
-      ? `Title changes applied with your confirmation: ${pendingTitleChanges.map((t) => `"${t.from}" → "${t.to}"`).join("; ")}`
+    allowTitleChanges && finalTitleChanges.length
+      ? `Title changes applied with your confirmation: ${finalTitleChanges.map((t) => `"${t.from}" → "${t.to}"`).join("; ")}`
       : "";
 
   const [resumeDoc, coverDoc] = await prisma.$transaction([
@@ -433,8 +457,8 @@ export async function POST(request: Request) {
     resume: { id: resumeDoc.id, version: resumeVersion, pageCount: resumeResult.pageCount, matchScore: score, fillPct, missingKeywords: missing, diff: resumeDiff },
     cover: { id: coverDoc.id, version: coverVersion, pageCount: coverResult.pageCount, diff: coverDiff },
     warnings,
-    appliedTitleChanges: allowTitleChanges ? pendingTitleChanges : [],
-    pendingTitleChanges: allowTitleChanges ? [] : pendingTitleChanges,
+    appliedTitleChanges: allowTitleChanges ? finalTitleChanges : [],
+    pendingTitleChanges: allowTitleChanges ? [] : finalTitleChanges,
     chosenProjects,
     droppedEntries,
     research,
