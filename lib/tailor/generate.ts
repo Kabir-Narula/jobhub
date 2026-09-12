@@ -39,17 +39,26 @@ THE FAILURE MODE TO AVOID: a resume that satisfies only readers 2 and 3 — tech
 YOUR TASK — REWRITE, DON'T EDIT:
 Write the experience bullets FROM SCRATCH for this specific job. Do not lightly edit the originals — compose new bullets that select and frame the candidate's real work as the perfect answer to this posting.
 
-REQUIREMENT-TO-BULLET MAPPING (the ATS core):
-- You are given target_keywords extracted from the posting. Every bullet in the two expanded entries must naturally carry at least ONE target keyword where genuinely claimable — and the FIRST bullet of the most recent entry must carry the posting's #1 requirement.
-- Map bullets to requirements in priority order: the posting's top 3 requirements must each be visibly answered by at least one bullet somewhere in the resume.
-- Use the posting's exact phrasing for the concept (if it says "agentic solutions", write agentic; if it says "data pipelines", write data pipelines) — never a synonym the ATS won't match.
-- FREQUENCY (density ranking): the posting's #1 term appears at most 3 times across the whole resume — first bullet of the most recent entry, the skills section, and one more bullet or project line — always in natural context, never stacked in adjacent sentences or adjacent bullets, never in the same phrasing twice. More than 3 reads as keyword stuffing to a tuned parser.
-- For SWE-flavored postings, weave real algorithmic substance where truthful: data structures, query optimization, complexity, indexing, execution plans — the candidate's PostgreSQL and systems work supports this genuinely.
+REQUIREMENT-TO-BULLET MAPPING (ATS lives in SKILLS; experience answers the WORK):
+- The skills section is where ATS parsers and LLM screeners look first. Put claimable posting tools there. Experience bullets answer the work (a pipeline, a slow query, a review) — they are not a second keyword list.
+- Do NOT put a target keyword in every bullet. That is how FastAPI, Spark, and Keras ended up in lines that were about timeouts, indexes, and code review. A 10-second human scan reads that as stuffing; a tuned ATS already scored the skills block.
+- Map the posting's top 2-3 WORK TYPES onto the resume (data pipelines, REST services, query tuning, inference, CI). Product names are optional on those bullets.
+- The posting's #1 product name (if it has one) appears at most TWICE on the whole resume: once in skills, once in a single experience or project bullet, never in adjacent bullets, never in two employers. Portable terms (SQL, REST API, pipeline, CI, tests, schema, index, queue) may repeat — they describe the work, not a vendor.
+- Use the posting's exact phrasing for the CONCEPT (if it says "data pipelines", write data pipelines). Do not substitute a home-stack product (FastAPI, Next.js, Prisma) as if it were that concept, and do not paste every target_keyword into experience.
+- For SWE-flavored postings, weave real algorithmic substance where truthful: data structures, query optimization, indexing, execution plans. That substance does not require naming FastAPI.
+
+TECHNOLOGY DISCIPLINE — product names vs portable terms:
+- PORTABLE (repeat freely): SQL, REST API, HTTP, CI, tests, schema, index, query, queue, pipeline, worker, Git, Linux, report, export. These transfer across companies. Prefer them.
+- PRODUCT NAMES (FastAPI, Django, Flask, Fastify, Next.js, React, Prisma, tRPC, BullMQ, Kotlin, Spark, PyTorch, TensorFlow, Keras, LangChain, Redis, Docker, Kubernetes, Spring): at most ONCE across all experience bullets unless the posting names that exact product, in which case at most TWICE and never in two different employers. The candidate's home stack is FastAPI / Next.js / Prisma / React — those are the default nouns the model overuses. If the posting does not name FastAPI, write "REST API" or "the extraction service". A related API stack is correct; repeating FastAPI at three internships is a template tell.
+- Do NOT import the whole JD tool list into experience. Stretch at most ONE posting-specific product into ONE bullet (already the stretch rule). The rest of the JD tools belong in skills if they are claimable, or nowhere.
+- A technique without a product name is valid and often better. "Filtered the export before the join" does not need FastAPI in the sentence.
+- Projects are the right place to name the candidate's real stack — those repos actually use FastAPI, Prisma, Next.js. Do not copy that stack into every job.
 
 BULLET ANATOMY — four slots, and this is the whole craft:
 Every experience bullet is assembled from the slots below. Each bullet must carry AT LEAST THREE of the four, and across the bullets of one entry all four must appear.
 - ACTION + ARTIFACT: the concrete thing that changed, in plain English — an endpoint, a nightly job, a queue, a schema, a report, a build step, an admin screen, an export. Never a code identifier, never snake_case, never a table name. If the source has no proper name for the thing, describe it in words.
-- MECHANISM: how it was actually done. The technology named INSIDE the work, plus the specific technique — a composite index, a background worker, a retry with backoff, a feature flag, a fixture-based test, a batched upsert. AT MOST TWO named technologies per bullet: three or more turns the sentence into a keyword list, which is the single clearest machine-written tell on a resume.
+- MECHANISM: how it was actually done. Prefer the technique (a composite index, a background worker, a retry with backoff, filtering before joins). A named product is optional here — include one only when it is necessary to make the work believable or when it is the posting's actual tool. AT MOST TWO named product technologies per bullet; zero is fine when the technique stands alone.
+- NEVER NAME A TECHNOLOGY WITHOUT ITS TECHNIQUE. "Tested a Spark transformation in the CI pipeline" passes a keyword scan and then collapses the moment an interviewer asks how Spark was used — it says nothing about partitions, shuffles, or joins. Either state the mechanism ("repartitioned the Spark job so one skewed key stopped dominating the shuffle") or state what changed. A technology named with neither is keyword placement, not experience, and the reader who decides your offer is the one who notices.
 - TRIGGER: why the work existed. This is the slot almost every resume is missing and the one that makes a bullet read like a real job instead of a portfolio entry. Real triggers: a support ticket, users hitting timeouts on large uploads, a manual step in the release checklist, a flaky test blocking the pipeline, a slow report, a code review finding, a sprint goal, an on-call page, a data mismatch someone noticed, a request from the ops lead.
 - RESULT: what observably changed afterwards. A state change, never an adjective.
 
@@ -63,11 +72,11 @@ Within each expanded entry the bullets must cover DIFFERENT KINDS of work. Three
 - At least one BUILD bullet: shipped a feature, service, endpoint, screen, or pipeline.
 - At least one OPERATE/FIX bullet: traced a bug, cut a slow query, removed a flaky test, migrated data, handled an edge case found in production, brought a job's runtime down.
 - MANDATORY: at least one bullet per expanded entry must state a concrete RESULT — a duration that dropped, a manual step that no longer exists, an error class that stopped happening, a person or team that stopped waiting. This is not optional and expanded mode gives you no excuse to skip it: you are composing this work, so compose one bullet where something measurably changed. An entry whose bullets are all setup and no consequence reads as a task list to every reader in group 4.
-- At least one TEAM bullet: work that visibly involved other people — a code review, a design doc or runbook somebody else used, pairing with a senior engineer, a sprint-review demo, handing something off with tests, splitting work with another developer, turning a non-technical stakeholder's request into a ticket. The TEAM bullet STILL names technology and STILL carries an artifact; "collaborated with stakeholders" on its own is worthless. Write it like this: "Walked the ops lead through the new export format at sprint review, then added the two columns they asked for behind a flag."
+- At least one TEAM bullet: work that visibly involved other people — a code review, a design doc or runbook somebody else used, pairing with a senior engineer, a sprint-review demo, handing something off with tests, splitting work with another developer, turning a non-technical stakeholder's request into a ticket. The TEAM bullet still names an artifact; it does NOT need a product name. "Walked the ops lead through the new export format at sprint review, then added the two columns they asked for behind a flag." is complete without FastAPI.
 INTERN AND JUNIOR REALITY — get this wrong and nothing else matters: at this level you do not own systems, you own tasks inside them. Scope verbs that fit: added, fixed, moved, wired, tested, documented, migrated, instrumented, extended, traced, cut, shipped. Scope verbs that read as inflated and get resumes discarded: architected, owned, led, drove, spearheaded, designed-from-scratch, re-platformed. A staff engineer spots inflated scope faster than anything else on the page.
 
 BULLET MECHANICS:
-- Bullet COUNT and WORD COUNT per experience entry come from the bullet_count_rule field. That field is the single authority — follow it exactly and ignore any other count implied anywhere in these instructions. 2-3 bullets per project.
+- Bullet COUNT and WORD COUNT per experience entry come from the bullet_count_rule field. That field is the single authority — follow it exactly and ignore any other count implied anywhere in these instructions. Projects are always exactly 2 bullets (purpose, then implementation) — bullet_count_rule does not apply to them.
 - One idea per bullet. Two short bullets beat one long one — split compound thoughts. Fill the page with MORE short bullets, never with longer ones.
 - VARY THE OPENING AND THE SHAPE. No two bullets in one entry may start with the same verb, and no entry may repeat the same skeleton (e.g. three consecutive "Verb + object, gerund-clause + noun" sentences). Identical rhythm across bullets is a known machine-written signature. Mix shapes: lead with the trigger sometimes ("After users hit timeouts on large uploads, moved..."), lead with the action other times, lead with the result occasionally.
 - NEVER SELF-APPLY THE POSTING'S EVALUATION ADJECTIVES: "maintainable", "testable", "performant", "analytical", "clean", "efficient", "robust" read as the job description echoed back at the person who wrote it. Name the practice that proves it instead: tests in CI, code review gates, indexed queries, small modules.
@@ -79,6 +88,7 @@ NUMBERS AND OUTCOMES — plausibility is the constraint:
 - ALLOWED shapes: a before/after duration on something slow or manual ("a 40-minute manual export down to about 5 minutes"), a count a junior engineer would genuinely know ("three services", "a 12-person team", "about 40 test cases", "two release cycles", "six recurring ticket types"), or an explicit approximation in words ("roughly", "about", "just over").
 - BANNED OUTRIGHT in every section: improvement percentages ("cut latency 47%"), multipliers ("3x faster"), user/revenue/traffic scale ("40,000 users", "millions of requests", "$2M ARR"), uptime and SLA figures ("99.9%"), and anything implying instrumentation an intern would not have owned. These are precisely the numbers that get a resume dismissed as inflated, and they cannot be defended in a technical screen.
 - Prefer a qualitative state change over a weak number. "The nightly reconciliation stopped failing on partial files" is stronger AND safer than "improved reliability by 30%".
+- BUT AT LEAST ONE BULLET ON THE WHOLE RESUME MUST CARRY A MAGNITUDE. A page with no numbers anywhere reads soft in a 10-second scan and gives the executive reader nothing to hold. One allowed-shape figure is enough: a duration ("a 40-minute manual export down to about 5"), a volume ("roughly 200,000 rows a night"), a count ("about 40 test cases", "three services", "a 12-person team"). Put it in the most relevant entry's strongest bullet, where a skimmer will actually see it.
 
 THE AUTHENTICITY BALANCE (user-authorized expanded mode):
 - COMPOSE THE TWO MOST RELEVANT ENTRIES AS IF THE ORIGINAL BULLETS DID NOT EXIST. Read the source bullets only to learn what kind of company it was, what the product did, and roughly what the candidate touched — then write a fresh, coherent account of a junior engineer's few months on that team, aimed at THIS posting. Do not paraphrase the source bullets, do not preserve their order, do not keep their sentence skeletons. If a new bullet reads like a rewording of a source bullet, replace it.
@@ -93,8 +103,8 @@ THE AUTHENTICITY BALANCE (user-authorized expanded mode):
 
 LENS SELECTION (per posting, per entry):
 - For each experience entry, select which REAL aspects and technologies to foreground for THIS posting — and which to quietly omit. History is never deleted, but nothing irrelevant is volunteered.
-- If the posting wants Kotlin/Android/mobile, foreground the candidate's Kotlin Android work. If it wants Python/AI/LLM/RAG, foreground the OpenAI inference, FastAPI services, and ML pipelines — and do not mention Kotlin at all. If it wants Node/TypeScript/cloud, foreground TypeScript/React/CI-CD and workers.
-- The bullets must read like a natural account of that job, written by someone who happens to match the posting — never like a keyword-alignment exercise. One dominant technology theme per entry.
+- If the posting wants Kotlin/Android/mobile, foreground the candidate's Kotlin Android work. If it wants Python/AI/LLM/RAG, foreground Python services, inference, and ML pipelines — name FastAPI only if the posting names it. If it wants Node/TypeScript/cloud, foreground TypeScript/React/CI and workers.
+- The bullets must read like a natural account of that job, written by someone who happens to match the posting — never like a keyword-alignment exercise. One dominant WORK theme per entry (data, APIs, infra), not one dominant product name.
 - Authentic work-type phrasing: name the artifact and the action (built, shipped, wired, automated, documented, diagnosed, migrated) — not the posting's duty statements copied back.
 
 VOCABULARY TRANSLATION (apply to every bullet): re-label the candidate's real work with the posting's exact domain terms wherever the underlying work genuinely matches. Worker queues and background jobs become "data pipelines" or "ETL-style batch processing" when the posting is data-flavored; ML inference services become "ML data pipelines"; a budgeting app with charts becomes "analytics dashboards for financial data visualization"; API integration becomes "building data services". Use the posting's nouns for the candidate's real verbs.
@@ -105,9 +115,13 @@ JOB TITLES — the 2-of-3 rule:
 - Hard rules still apply: never upgrade seniority (no Senior/Staff/Lead/Principal), never change the function family to something untrue (no "data scientist", no "consultant" unless the work was consulting).
 - Set "titleChanged": true whenever you reword.
 
-SKILLS SECTION: build 4 rich lines (5-7 items per line) from the provided master lines PLUS the additional verified pool — choose the items most relevant to this posting and order by relevance. Keep the four line labels AND each item's line assignment fixed: re-rank order WITHIN a line only; an item never moves to a different label to fill space (Agile/Scrum and Jira are tools-and-practices items, never Languages or Frameworks). Technologies embedded into experience bullets via expanded mode may also be added to the skills section for this job — skills and bullets must always stay consistent with each other (a technology that matters in the bullets must appear in skills, and every skill line item that matters to the posting must be backed by at least one bullet). You MAY also append ONE extra line labeled "Professional" with 3-5 soft skills from soft_skills_allowed (only items from that list, most relevant to the posting). Never add anything beyond these four sources: master lines, verified pool, expanded-mode technologies, soft_skills_allowed.
+SKILLS SECTION: this is the ATS home. Build 4 rich lines (5-7 items per line) from the provided master lines PLUS the additional verified pool — choose the items most relevant to this posting and order by relevance. Keep the four line labels AND each item's line assignment fixed: re-rank order WITHIN a line only; an item never moves to a different label to fill space (Agile/Scrum and Jira are tools-and-practices items, never Languages or Frameworks). Technologies named in experience or projects MUST appear in skills (a recruiter who sees Spark in a bullet and not in skills flags it). The reverse is false: skills MAY list claimable JD tools that do not appear in a bullet. Do not back-fill every skills item into experience — that stuffed product names into every line. You MAY also append ONE extra line labeled "Professional" with 3-5 soft skills from soft_skills_allowed (only items from that list, most relevant to the posting). Never add anything beyond these four sources: master lines, verified pool, expanded-mode technologies, soft_skills_allowed.
 
-PROJECTS SECTION: choose the 2 projects from the library that best match this job (stack + domain). For each, return 2-3 bullets written from its real bullets for relevance — same facts, sharper framing, substantive length.
+PROJECTS SECTION — count comes from project_count_rule (2 or 3). That field is the single authority. Each project still has EXACTLY 2 bullets with FIXED roles — never two implementation bullets, never a third bullet, never a one-line stub.
+Choose the library projects that best match this posting AND cover DIFFERENT requirement clusters. Do not pick two LLM/inference apps (BetterMind + Axom) when a data, infra, or product project would answer a different JD requirement. Order strongest-fit first so a later clamp can drop the last one without losing the best match.
+- BULLET 1 (WHAT IT IS): one sentence a 10-second scanner, a recruiter, and an ATS can all parse. Name the product in plain English, who it is for, and the user-visible loop (what happens after they use it). Ground this in the library summary, not in a rewrite of an implementation bullet. A reader who stops after this line must still know what was built. Technologies here are optional and at most one; start with the user or the job the product does, never the stack. BAD: "Added OpenAI API inference pipelines to a Next.js product, recording sentiment scores for downstream analysis." GOOD: "Mental wellness app that scores daily journal entries and surfaces mood patterns so a companion chat can answer from the user's own history."
+- BULLET 2 (HOW, ALIGNED TO THIS JOB): three things in one sentence — (1) a distinctive feature that is not the stack (the scheduler, the undo journal, the heuristic that works without an LLM key, the fuzzy dedupe, the spatial review pins), (2) at most two named technologies, (3) the specific technique used to implement them, framed toward THIS posting. A staff engineer should be able to ask a follow-up about that distinctive choice. Same facts as the library; sharper framing, never invented scope.
+- Both bullets stay inside the library. Do not invent a product the repo is not. Do not paste the summary verbatim into bullet 1 and the first library bullet into bullet 2 — rewrite for this posting, keep the facts.
 
 COVER LETTER v2 (this is where interviews are won or lost — the first line decides if it gets read):
 - PARAGRAPH 1 (the hook): open with the hookFact from the research — a SPECIFIC, current fact about THIS company (their metric, their product detail, their recent move) — and immediately connect it to the matching thing the candidate built. Structure: "When I read that {company} {hookFact}, it caught my attention because {one line connecting to the candidate's real matching work}." Name the exact role somewhere in the first two sentences. Never open with "I am excited", never open with the candidate's name or degree.
@@ -120,7 +134,7 @@ COVER LETTER v2 (this is where interviews are won or lost — the first line dec
 HUMAN VOICE / ANTI-AI-DETECTION (2026 recruiters actively screen for AI tells):
 - BANNED words and phrases (instant AI tell): spearheaded, spearhead, leveraged, leverage (as a verb), orchestrated, cutting-edge, robust, dynamic, results-oriented, synergize, transformative, pivotal, utilize, in order to, fast-paced, passionate, proven track record, best-in-class, seamless, seamlessly, state-of-the-art, innovative, world-class, adept at, instrumental in.
 - Vary sentence shapes naturally (mostly 10-22 words); do NOT make every bullet follow the same identical structure — identical rhythm is a known AI tell.
-- Every technology must appear attached to a concrete artifact (an endpoint, a queue, a schema, a migration, a dashboard) — never a bare name-drop. Skills listed in the skills section must also appear in at least one bullet when they matter to the posting (recruiters cross-check).
+- Every product name must appear attached to a concrete artifact — never a bare name-drop. Skills may list tools that are not in a bullet; a bullet that names a tool MUST have that tool in skills.
 - Entry-level must SOUND entry-level: no "architected", no "led", no "architecture" scope claims ("shipped event-driven architecture" reads senior), no mastery/expert framing, no leadership scope.
 - One uniform tone across the whole resume: plain, direct engineering fact. If a phrase sounds like marketing copy, rewrite it as plain fact.
 
@@ -143,6 +157,8 @@ interface GenerateInput {
   cheap?: boolean;
   /** Repair pass: specific bullet-doctrine failures from auditExperienceBullets. */
   qualityIssues?: string;
+  /** 2 when experience already fills the page, 3 when a slot is open. */
+  projectCount?: number;
 }
 
 export async function generateContent(input: GenerateInput): Promise<GeneratedContent> {
@@ -188,12 +204,12 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
     // terms were dropped whenever compression was also required.
     task: [
       input.shorten
-        ? "Same job, second pass: the resume overflowed one page. Compress: only 2 bullets per project, drop the weakest 1-2 items from each skills line, cover letter to 3 paragraphs. Bullet counts and lengths come from bullet_count_rule. All other rules still apply."
+        ? "Same job, second pass: the resume overflowed one page. Compress: keep 2 projects, drop the weakest 1-2 items from each skills line, cover letter to 3 paragraphs. Bullet counts and lengths come from bullet_count_rule. All other rules still apply."
         : input.expand
-          ? "Same job, but the resume came out TOO EMPTY (large gap at the bottom). Fill the page by ADDING bullets, never by lengthening them: 3 bullets per project, skills section full. Bullet counts and lengths come from bullet_count_rule. Keep every bullet punchy."
-          : "Tailor this candidate for this job: rewrite experience bullets from scratch (page-filling; the resume also has an achievements section, so space is tight), re-rank skills, choose the best 2 projects, write the cover letter.",
+          ? "Same job, but the resume came out TOO EMPTY (large gap at the bottom). Fill the page by ADDING a third project if project_count_rule allows it, plus experience bullets and skills items, never by lengthening them. Each project stays at exactly 2 bullets (purpose, then implementation). Bullet counts and lengths come from bullet_count_rule. Keep every bullet punchy."
+          : "Tailor this candidate for this job: rewrite experience bullets from scratch (page-filling; the resume also has an achievements section, so space is tight), re-rank skills, choose projects per project_count_rule, write the cover letter.",
       input.boost
-        ? `ATS-boost pass: the draft scored low on keyword coverage. Weave these missing job-description terms into the resume WHERE GENUINELY CLAIMABLE from the source material (never a tool the candidate hasn't used): ${input.boost.missingTerms.join(", ")}. Work them into bullets via the vocabulary-translation rules and into the skills lines. Do NOT keyword-stuff: max one JD term per bullet, vary sentence shapes so it reads human, never as a list of synonyms. Rewrite everything fresh (all other rules apply).`
+        ? `ATS-boost pass: the draft scored low on keyword coverage. Missing terms: ${input.boost.missingTerms.join(", ")}. Add them to the SKILLS lines first (that is what parsers weight). Weave a term into an experience bullet ONLY if it is a work-type (pipeline, SQL, CI) or the posting's actual core tool, and into at most ONE bullet total. Never a product the candidate would only have used if that company ran it. Do NOT keyword-stuff. Rewrite everything fresh (all other rules apply, including technology discipline).`
         : "",
       input.qualityIssues ?? "",
     ]
@@ -209,6 +225,7 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
         : input.entries.length <= 3
           ? "3-4 short punchy bullets per entry, 16-26 words each (only 3 entries — give them more weight)"
           : "exactly 3 short punchy bullets per entry, 16-26 words each (4 entries — keep the page tight)",
+    project_count_rule: `${input.projectCount ?? 2} projects, exactly 2 bullets each (purpose then implementation), different stacks, strongest first`,
     target_keywords: input.targetKeywords ?? [],
     output_schema: {
       experience: [
@@ -220,7 +237,15 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
         },
       ],
       skills: [{ label: "exact label from input", items: ["only items from that line's pool, re-ranked"] }],
-      projects: [{ id: "library id", bullets: ["2 bullets reworded from its real bullets"] }],
+      projects: [
+        {
+          id: "library id — return project_count_rule items, strongest first",
+          bullets: [
+            "bullet 1: what the product is, who it is for, the user-visible loop — plain English, at most one technology",
+            "bullet 2: distinctive non-stack feature + tech + technique, framed to this posting — at most two technologies",
+          ],
+        },
+      ],
       coverLetter: {
         addresseeCompany: "company name",
         addresseeCity: "office city from the posting (e.g. 'Toronto, ON'); if unknown use the posting's location",
@@ -275,9 +300,17 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
   if (parsed.projects && !Array.isArray(parsed.projects)) {
     parsed.projects = null;
   } else if (parsed.projects) {
-    parsed.projects = parsed.projects.map((pr) => ({
+    const cap = input.projectCount ?? 2;
+    parsed.projects = parsed.projects.slice(0, cap).map((pr) => ({
       id: String(pr?.id ?? ""),
-      bullets: (Array.isArray(pr?.bullets) ? pr.bullets : []).map((b) => polishBullet(String(b))).filter(Boolean),
+      // Doctrine is exactly two: purpose, then implementation. A third bullet
+      // was implementation-shaped and crowded the page; a single bullet hid
+      // the product. Slice after polish so a trailing empty string cannot sneak
+      // a stub onto the PDF.
+      bullets: (Array.isArray(pr?.bullets) ? pr.bullets : [])
+        .map((b) => polishBullet(String(b)))
+        .filter(Boolean)
+        .slice(0, 2),
     }));
   }
   return parsed;

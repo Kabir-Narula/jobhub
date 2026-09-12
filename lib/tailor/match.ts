@@ -6,7 +6,12 @@ const STOPWORDS = new Set(
 /** Normalize a token for matching: lowercase, edge-trim, singular-ish. */
 const NO_DEPLURAL = new Set(["kubernetes"]); // ends in 's' but isn't a plural
 function norm(w: string): string {
-  let x = w.toLowerCase().replace(/^[./#+-]+|[./#+-]+$/g, "");
+  const lower = w.toLowerCase();
+  // Check the lexicon BEFORE edge-trimming. Trimming "+" and "#" first turned
+  // "c++" and "c#" into "c", which keep() then discarded for being too short —
+  // so those languages could never be extracted from a posting at all.
+  if (TECH_LEXICON.has(lower)) return lower;
+  let x = lower.replace(/^[./#+-]+|[./#+-]+$/g, "");
   // Never de-pluralize a known technology. "devops"->"devop", "jenkins"->"jenkin",
   // "pandas"->"panda" and "rails"->"rail" all fall out of TECH_LEXICON, so
   // isTechTerm rejects them and the term is dropped from both targeting and scoring.
@@ -17,7 +22,7 @@ function norm(w: string): string {
 
 /** Words that make a phrase noise, not a skill signal. */
 const PHRASE_NOISE = new Set(
-  "care genuine people team tool tools work company culture environment fast paced passionate dynamic love loved strong great good excellent world class day life way things thing lot make makes made help helps helping including across areas area support supporting clients client services service members member firm firms global network methodology methodologies trillion requisition compensation tuition reimbursement rrsp 401k dental winning enthusiastic purpose ulc inclusive perks perk benefits benefit leader leadership participate actively community communities forum forums mindset familiarity discovery focusing individual committed collaborate grow growth impact innovation knowledge understanding success goal value values mission interest range career graduate show technology technologies using advanced hands related field qualification degree master phd bachelor summary general innovator well health responsibilitie technologie excited exciting curious curiosity driven thrive enjoy enjoying commitment lifelong learner learners exceptionally smart dedicated confident ideal tasked duties duty assist hiring hire hired want feel creative creativity consultancy consulting consultant financial group offering offerings digital consumer consumers enterprise enterprises hundred million billion thousand worldwide generation looking vary based pay type best track record forward thinking innovative employee employees employer location locations level eg".split(" ")
+  "care genuine people team tool tools work company culture environment fast paced passionate dynamic love loved strong great good excellent world class day life way things thing lot make makes made help helps helping including across areas area support supporting clients client services service members member firm firms global network methodology methodologies trillion requisition compensation tuition reimbursement rrsp 401k dental winning enthusiastic purpose ulc inclusive perks perk benefits benefit leader leadership participate actively community communities forum forums mindset familiarity discovery focusing individual committed collaborate grow growth impact innovation knowledge understanding success goal value values mission interest range career graduate show technology technologies using advanced hands related field qualification degree master phd bachelor summary general innovator well health responsibilitie technologie excited exciting curious curiosity driven thrive enjoy enjoying commitment lifelong learner learners exceptionally smart dedicated confident ideal tasked duties duty assist hiring hire hired want feel creative creativity consultancy consulting consultant financial group offering offerings digital consumer consumers enterprise enterprises hundred million billion thousand worldwide generation looking vary based pay type best track record forward thinking innovative employee employees employer location locations level eg self ongoing continuous personally professionally".split(" ")
 );
 
 /** Well-known equivalences so Postgres == PostgreSQL, k8s == Kubernetes, etc. */
@@ -41,7 +46,13 @@ const SYNONYMS: [RegExp, string][] = [
 ];
 
 function canon(term: string): string {
-  const n = term.toLowerCase().replace(/[-/]+/g, " ").trim();
+  const raw = term.toLowerCase().trim();
+  // "C/C++" survives tokenization as "c/c", and the [-/] -> " " rewrite below
+  // then produced the term "c c" — which matches nothing in any resume, so a
+  // posting naming C/C++ permanently lost that point. Fold every variant onto
+  // the lexicon's "c++".
+  if (/^c\s*[/+ ]?\s*c(\s*\+\+)?$/.test(raw) || raw === "c++") return "c++";
+  const n = raw.replace(/[-/]+/g, " ").trim();
   for (const [re, canon] of SYNONYMS) {
     if (re.test(n)) return canon;
   }
@@ -152,6 +163,8 @@ const IMPLIES: Record<string, string[]> = {
   database: ["postgresql", "mysql", "mongodb", "mongo", "redis", "sqlite", "dynamodb"],
   cloud: ["aws", "azure", "googlecloud", "gcp"],
   nosql: ["mongodb", "mongo", "dynamodb", "cassandra", "redis"],
+  spark: ["pyspark", "sparksql"],
+  machinelearning: ["pytorch", "tensorflow", "keras", "sklearn", "xgboost", "lightgbm"],
 };
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -198,7 +211,12 @@ const TECH_LEXICON = new Set(
    gemini claude anthropic copilot llamaindex huggingface transformers embeddings embedding bedrock sagemaker vertexai
    pinecone weaviate qdrant chromadb chroma faiss milvus pgvector ollama vllm llamacpp mlflow kubeflow triton
    langgraph langsmith autogen crewai spacy nltk xgboost lightgbm onnx tensorrt jax
-   powerbi tableau looker dagster prefect kinesis pubsub`.split(/\s+/)
+   powerbi tableau looker dagster prefect kinesis pubsub
+   sas spss stata alteryx knime qlik jupyter anaconda dask polars duckdb
+   regression classification clustering forecasting segmentation statistics statistical
+   econometrics bayesian anova pca randomforest catboost timeseries arima
+   parquet avro orc iceberg deltalake cdc ssis ssrs impala oozie sqoop
+   athena glue emr synapse dataproc dataflow`.split(/\s+/)
 );
 
 export function isTechTerm(term: string): boolean {

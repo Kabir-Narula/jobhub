@@ -54,7 +54,7 @@ const ARTIFACT =
 
 /** A result is a state change: something stopped, dropped, or went away. */
 const RESULT_SIGNAL =
-  /\b(?:stopped|no longer|eliminat\w+|removed|cut|down to|dropped from|reduced|from \d+[^.]* to \d+|unblock\w+|without manual|by hand|automatic\w*|instead of manually|freed|caught|prevent\w+ the|surfac\w+)\b/i;
+  /\b(?:stopped|no longer|eliminat\w+|removed|cut|down to|dropped from|reduced|from \d+[^.]* to \d+|unblock\w+|without manual|by hand|automatic\w*|instead of manually|freed|caught|prevent\w+ the|surfac\w+|replac\w+)\b/i;
 
 /** Evidence other humans existed: the slot that makes an entry read like a job. */
 const TEAM_SIGNAL =
@@ -68,6 +68,28 @@ const TEAM_SIGNAL =
  */
 const FIX_SIGNAL =
   /\b(?:trac\w+|debug\w*|diagnos\w+|fixed|fix|root cause|investigat\w+|migrat\w+|backfill\w*|flaky|regression|slow|timeout|timed out|timing out|reproduc\w+|patch\w*|hardened|cleaned up|refactor\w*|optimiz\w+|index\w*|broke|breaking|fail\w+|bug|defect|malformed|inconsistent|mismatch\w*|duplicate|stale|edge case|dropp\w+|missing)\b/i;
+
+/**
+ * A specific engineering mechanism — the thing a technical screener probes.
+ * Deliberately excludes generic verbs ("built", "tested", "used"): the failure
+ * this catches is a technology named with nothing behind it, e.g. "tested a
+ * Spark transformation in GitHub Actions", which passes a keyword scan and then
+ * collapses the moment someone asks how Spark was actually used.
+ */
+const TECHNIQUE_SIGNAL =
+  /\b(?:composite index|index(?:ed|es|ing)?|partition\w*|shuffle|broadcast|window function|aggregat\w+|grouping key|join\w*|upsert\w*|batch\w*|backfill\w*|incremental|idempoten\w+|retry|backoff|connection pool\w*|cache|caching|feature flag|fixture\w*|mock\w*|transaction\w*|migration|normaliz\w+|denormaliz\w+|execution plan\w*|query plan\w*|schema\w*|contract\w*|queue\w*|worker\w*|chunk\w*|checksum|validation|validat\w+|pars\w+|serializ\w+|compress\w+|throttl\w+|rate limit\w*|pagination|materialized view|stored procedure|constraint\w*|foreign key|primary key|filtering before|before joins|streaming|dedupl\w+|fingerprint\w*)\b/i;
+
+/**
+ * Product/framework names. Repeating these across experience bullets is the
+ * FastAPI-at-every-employer tell. Languages and portable work terms (python,
+ * sql, rest) are excluded — those describe the work and may recur.
+ */
+const PRODUCT_BRAND =
+  /\b(?:fastapi|django|flask|fastify|trpc|next\.?js|react|vue|angular|spring ?boot|pytorch|tensorflow|keras|langchain|llamaindex|hugging ?face|spark|prisma|drizzle|redis|bullmq|docker|kubernetes|kotlin|openai)\b/gi;
+
+function brandsIn(text: string): string[] {
+  return [...new Set((text.match(PRODUCT_BRAND) ?? []).map((t) => t.toLowerCase().replace(/\s+/g, "")))];
+}
 
 const ABSTRACT_ENDING =
   /\b(?:ensuring|keeping|allowing|enabling|so that|giving)\b[^.]*\b(?:responsive|reliab\w*|scalab\w*|maintainab\w*|consisten\w*|stabl\w*|efficien\w*|performan\w*|clean\w*|secur\w*|robust|quality|better|faster|easier)\b/i;
@@ -125,6 +147,21 @@ export function auditExperienceBullets(
         add(company, "high", `"${short}" names ${techNames.length} technologies (${techNames.join(", ")}) — max 2 per bullet, or it reads as a keyword list`);
       }
 
+      // A bullet naming a technology should carry a mechanism, an outcome, or be
+      // about working with people (where the collaboration IS the substance and
+      // re-explaining the mechanism would bloat it). Depth is enforced at entry
+      // level below; here it is only advisory, because a per-bullet hard rule
+      // forces every line into mechanism-speak and stops the entry reading like
+      // a real job.
+      if (techNames.length > 0 && !TECHNIQUE_SIGNAL.test(b)) {
+        const excused = RESULT_SIGNAL.test(b) || /\d/.test(b) || TEAM_SIGNAL.test(b);
+        add(
+          company,
+          excused ? "low" : "high",
+          `"${short}" name-drops ${techNames.join(", ")} with no technique and no outcome — say HOW it was used (an index, a partition, a retry, a fixture) or what changed`
+        );
+      }
+
       if (!ARTIFACT.test(b)) {
         add(company, "high", `"${short}" names no concrete artifact (endpoint, job, schema, migration, test, report) — nothing here a recruiter can ask about`);
       }
@@ -134,7 +171,12 @@ export function auditExperienceBullets(
       }
 
       const w = wordCount(b);
-      if (w < minWords || w > maxWords) {
+      if (w < minWords - 4) {
+        // A stub next to full-length neighbours looks like the writer ran out of
+        // things to say about that job — visible at a glance, unlike a word or
+        // two of drift.
+        add(company, "high", `"${short}" is only ${w} words next to full-length bullets (target ${minWords}-${maxWords}) — it reads as nothing left to say`);
+      } else if (w < minWords || w > maxWords) {
         add(company, "low", `"${short}" is ${w} words (target ${minWords}-${maxWords})`);
       }
     }
@@ -146,6 +188,18 @@ export function auditExperienceBullets(
       }
       if (!bullets.some((b) => TEAM_SIGNAL.test(b))) {
         add(company, "high", `no bullet in this entry shows other people — add one that involves code review, a sprint demo, a runbook someone used, or a stakeholder request`);
+      }
+      // Technical depth, measured across the entry rather than per bullet. An
+      // entry where only one line of three shows a real mechanism reads as
+      // keyword-shaped to a staff engineer even when every bullet passes on its
+      // own: the technologies are all present, the engineering is not.
+      const withTechnique = bullets.filter((b) => TECHNIQUE_SIGNAL.test(b)).length;
+      if (bullets.length >= 3 && withTechnique * 2 < bullets.length) {
+        add(
+          company,
+          "high",
+          `only ${withTechnique} of ${bullets.length} bullets in this entry show a real mechanism — a technical screener reads the rest as keywords; name the index, partition, grouping key, retry, fixture or contract that made the work work`
+        );
       }
       if (!bullets.some((b) => FIX_SIGNAL.test(b))) {
         add(company, "high", `every bullet in this entry is greenfield building — real jobs include tracing a bug, cutting a slow query, or a migration`);
@@ -163,6 +217,115 @@ export function auditExperienceBullets(
     }
   });
 
+  // ---- resume-wide checks ----
+  const expanded = entries.slice(0, expandedCount);
+  const expandedBullets = expanded.flatMap((e) => e.bullets);
+
+  // At least one magnitude somewhere. Qualitative results satisfy the per-entry
+  // rule, and a resume can end up with zero numbers on the whole page — which is
+  // the weakest possible showing on a 10-second scan and to an exec reader.
+  if (expandedBullets.length > 0 && !expandedBullets.some((b) => /\d/.test(b))) {
+    add(
+      expanded[0].company,
+      "high",
+      `not one bullet on the resume carries a number — give at least one a magnitude (a duration, a row/record count, a team size); qualitative results alone read soft on a 10-second scan`
+    );
+  }
+
+  // A product name in two or more experience bullets is the FastAPI-everywhere
+  // tell. Skills and projects may repeat it; experience may not.
+  const brandHits = new Map<string, number>();
+  for (const b of entries.flatMap((e) => e.bullets)) {
+    for (const brand of brandsIn(b)) brandHits.set(brand, (brandHits.get(brand) ?? 0) + 1);
+  }
+  for (const [brand, n] of brandHits) {
+    if (n >= 2) {
+      add(
+        expanded[0]?.company ?? entries[0].company,
+        "high",
+        `"${brand}" appears in ${n} experience bullets — name a product at most once in experience and use a portable term (REST API, pipeline, SQL) elsewhere`
+      );
+    }
+  }
+
+  // Verbatim reuse of an unusual phrase across bullets is a template tell, and
+  // the per-bullet checks cannot see it.
+  const allBullets = entries.flatMap((e) => e.bullets);
+  const seen = new Map<string, number>();
+  for (const b of allBullets) {
+    const words = b.toLowerCase().replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
+    const local = new Set<string>();
+    for (let i = 0; i + 3 <= words.length; i++) local.add(words.slice(i, i + 3).join(" "));
+    for (const ph of local) seen.set(ph, (seen.get(ph) ?? 0) + 1);
+  }
+  const repeated = [...seen]
+    .filter(([ph, n]) => n > 1 && !/^(?:the|a|an|and|of|to|in|for|with|then|after|into|that|from) /.test(ph))
+    .map(([ph]) => ph);
+  if (repeated.length > 0) {
+    add(entries[0].company, "low", `phrase reused verbatim across bullets: "${repeated[0]}" — vary the wording`);
+  }
+
+  return issues;
+}
+
+/**
+ * A first project bullet that explains the PRODUCT, not the stack.
+ * Implementation verbs + pipeline/schema/endpoint in the opening is the failure
+ * mode this exists to catch — a 10-second scanner never learns what was built.
+ */
+const PRODUCT_PURPOSE =
+  /\b(?:platform|product|app|application|workspace|tool that|turns |lets |helps |journal|exam[- ]prep|learning|wellness|budget|collaborat\w*|cleanup|aggregat\w*|job[- ]search|3d|spatial|postings?|students?|teams?|files?|users?|companion|practice|flashcards?|mood|expenses?|assets?|viewer|tracker)\b/i;
+const IMPLEMENTATION_LEAD =
+  /^(?:built|engineered|implemented|designed|added|wired|modeled|defined|shipped)\b[\s\S]{0,80}\b(?:pipeline|schema|endpoint|api|service|queue|worker|constraint)\b/i;
+
+export function auditProjectBullets(projects: { id?: string; bullets: string[] }[]): BulletIssue[] {
+  const issues: BulletIssue[] = [];
+  const add = (name: string, severity: BulletIssue["severity"], message: string) =>
+    issues.push({ company: name, severity, message });
+
+  for (const p of projects) {
+    const name = p.id || "project";
+    const bullets = (p.bullets ?? []).filter(Boolean);
+    if (bullets.length < 2) {
+      add(name, "high", `only ${bullets.length} bullet(s) — projects need exactly 2: what it is, then how it was built`);
+      continue;
+    }
+    const [purpose, how] = bullets;
+    const purposeShort = purpose.length > 60 ? `${purpose.slice(0, 60)}...` : purpose;
+    const howShort = how.length > 60 ? `${how.slice(0, 60)}...` : how;
+
+    if (IMPLEMENTATION_LEAD.test(purpose)) {
+      add(
+        name,
+        "high",
+        `bullet 1 ("${purposeShort}") opens on implementation — rewrite as what the product is, who it is for, and why it is valuable`
+      );
+    } else if (!PRODUCT_PURPOSE.test(purpose)) {
+      add(
+        name,
+        "high",
+        `bullet 1 ("${purposeShort}") never says what the product is — a 10-second scanner will skip it`
+      );
+    }
+    const purposeTech = [...new Set((purpose.match(NAMED_TECH) ?? []).map((t) => t.toLowerCase()))];
+    if (purposeTech.length > 1) {
+      add(name, "high", `bullet 1 names ${purposeTech.length} technologies (${purposeTech.join(", ")}) — purpose bullets carry at most one`);
+    }
+
+    const howTech = [...new Set((how.match(NAMED_TECH) ?? []).map((t) => t.toLowerCase()))];
+    if (howTech.length === 0) {
+      add(name, "high", `bullet 2 ("${howShort}") names no technology — this is the implementation line`);
+    } else if (howTech.length > 2) {
+      add(name, "high", `bullet 2 names ${howTech.length} technologies (${howTech.join(", ")}) — max 2, or it reads as a keyword list`);
+    }
+    if (!TECHNIQUE_SIGNAL.test(how)) {
+      add(
+        name,
+        "high",
+        `bullet 2 ("${howShort}") lists tech with no technique — name the index, worker, scheduler, or constraint that made the feature work`
+      );
+    }
+  }
   return issues;
 }
 
@@ -172,9 +335,9 @@ export function qualityFeedback(issues: BulletIssue[]): string {
   const low = issues.filter((i) => i.severity === "low");
   const lines = [...high, ...low].map((i) => `- [${i.company}] ${i.message}`);
   return [
-    "QUALITY REPAIR PASS. Your previous draft failed these specific checks. Rewrite the experience bullets from scratch to fix every one of them while following all original rules (bullet_count_rule still governs count and length):",
+    "QUALITY REPAIR PASS. Your previous draft failed these specific checks. Rewrite the flagged experience and project bullets from scratch to fix every one of them while following all original rules (bullet_count_rule still governs experience count and length; projects stay at exactly 2 bullets — purpose, then implementation):",
     ...lines,
-    "Do not simply reword the flagged bullets — recompose the affected entries so each one reads like a real few months on a real team: one build, one fix, one piece of work involving other people, each with a concrete artifact and at most two named technologies.",
+    "Do not simply reword the flagged bullets. Recompose affected experience entries so each one reads like a real few months on a real team: one build, one fix, one piece of work involving other people, each with a concrete artifact and at most two named technologies. For projects: bullet 1 is what the product is (plain English, at most one technology); bullet 2 is distinctive features + tech + technique, framed to this posting.",
   ].join("\n");
 }
 

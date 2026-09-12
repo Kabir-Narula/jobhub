@@ -1,8 +1,8 @@
 /**
  * The candidate's project library — grounded in the actual GitHub repos
  * (read and distilled, no invented scope). The tailoring engine picks the
- * best 2 per job and may reword bullets for emphasis, but every fact here
- * is source material from the repos themselves.
+ * best 2 or 3 per job (see projectSlots) and may reword bullets for emphasis,
+ * but every fact here is source material from the repos themselves.
  */
 
 export interface ProjectProfile {
@@ -126,13 +126,79 @@ export const PROJECTS: ProjectProfile[] = [
   },
 ];
 
-/** Short brief for the LLM: which 2 projects fit this job best, and why. */
+/** Short brief for the LLM: which projects fit this job best, and why. */
 export function projectBriefs(): string {
   return PROJECTS.map(
-    (p) => `- id "${p.id}" — ${p.name} (${p.techLine}), repo ${p.githubUrl}: ${p.summary}\n  keywords: ${p.keywords.join(", ")}\n  real bullets you may reword:\n${p.bullets.map((b) => `    * ${b}`).join("\n")}`
+    (p) =>
+      `- id "${p.id}" — ${p.name} (${p.techLine}), repo ${p.githubUrl}\n` +
+      `  what it is (source for bullet 1 — rewrite, do not paste): ${p.summary}\n` +
+      `  keywords: ${p.keywords.join(", ")}\n` +
+      `  implementation facts (source for bullet 2 — pick the ones that match THIS posting):\n` +
+      p.bullets.map((b) => `    * ${b}`).join("\n")
   ).join("\n");
 }
 
 export function projectById(id: string): ProjectProfile | undefined {
   return PROJECTS.find((p) => p.id === id);
+}
+
+/**
+ * How many projects belong on this resume.
+ *
+ * Four experience entries already fill one page (the master is ~97% full), so
+ * a third project overflows and the ladder then deletes it after paying for it.
+ * Three entries (the common case: ITS dropped) leave a gap a third project
+ * fills better than a fourth experience bullet. Shorten always drops back to 2
+ * — the third project is fill, not load-bearing.
+ */
+export function projectSlots(
+  entryCount: number,
+  opts: { shorten?: boolean } = {}
+): number {
+  if (opts.shorten) return 2;
+  return entryCount >= 4 ? 2 : 3;
+}
+
+const CLUSTER: Record<string, string> = {
+  vertexflow: "infra",
+  bettermind: "ml",
+  axom: "ml",
+  treminy: "product",
+  expense_manager: "frontend",
+  jobhub: "platform",
+  windows_booster: "systems",
+};
+
+function projectScore(jobText: string, p: ProjectProfile): number {
+  const hay = jobText.toLowerCase();
+  return p.keywords.reduce((n, k) => n + (hay.includes(k.toLowerCase()) ? 1 : 0), 0);
+}
+
+/**
+ * Rank library projects for a posting, then pick `take` that cover DIFFERENT
+ * stacks. Two LLM apps (BetterMind + Axom) both score high on an AI posting;
+ * the second slot should be the strongest project from another cluster so the
+ * resume answers more of the JD instead of repeating inference twice.
+ */
+export function rankProjects(jobText: string, take: number, exclude: string[] = []): ProjectProfile[] {
+  const blocked = new Set(exclude);
+  const scored = PROJECTS
+    .filter((p) => !blocked.has(p.id))
+    .map((p) => ({ p, score: projectScore(jobText, p) }))
+    .sort((a, b) => b.score - a.score || a.p.name.localeCompare(b.p.name));
+
+  const picked: ProjectProfile[] = [];
+  const usedCluster = () => new Set(picked.map((q) => CLUSTER[q.id]));
+  const tooSimilar = (candidate: ProjectProfile) => usedCluster().has(CLUSTER[candidate.id]);
+
+  for (const { p } of scored) {
+    if (picked.length >= take) break;
+    if (tooSimilar(p)) continue;
+    picked.push(p);
+  }
+  for (const { p } of scored) {
+    if (picked.length >= take) break;
+    if (!picked.some((q) => q.id === p.id)) picked.push(p);
+  }
+  return picked;
 }

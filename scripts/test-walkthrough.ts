@@ -14,7 +14,7 @@ import { parseResume, parseSkillsSection } from "../lib/tailor/latex";
 import { detectLens } from "../lib/tailor/lens";
 import { softSkillsFor } from "../lib/tailor/soft-skills";
 import { claimableJdTerms, missingTerms } from "../lib/tailor/match";
-import { auditExperienceBullets, bannedNumberShapes, highSeverityCount } from "../lib/tailor/bullet-quality";
+import { auditExperienceBullets, auditProjectBullets, bannedNumberShapes, highSeverityCount } from "../lib/tailor/bullet-quality";
 
 const p = new PrismaClient();
 const hr = (t: string) => console.log(`\n${"=".repeat(78)}\n${t}\n${"=".repeat(78)}`);
@@ -107,10 +107,19 @@ async function main() {
   for (const d of dropped) console.log(`\n### ${d.company} — REMOVED for this posting`);
 
   hr("BULLET DOCTRINE AUDIT (deterministic, same check the route runs)");
-  const audit = auditExperienceBullets(
-    after.entries.map((e) => ({ company: e.company, bullets: e.bullets })),
-    { expandedCount: Math.min(2, after.entries.length - 1) }
-  );
+  const projectAuditInput: { id: string; bullets: string[] }[] = [];
+  const projBlockForAudit = saved.texContent.slice(saved.texContent.indexOf("\\section{Projects}"));
+  for (const m of projBlockForAudit.matchAll(/\\resumeProjectHeading\s*\{\\textbf\{([^}]*)\}[\s\S]*?\\emph\{([^}]*)\}\}\{([^}]*)\}([\s\S]*?)\\resumeItemListEnd/g)) {
+    const bullets = [...m[4].matchAll(/\\resumeItem\{([\s\S]*?)\}\s*(?:\r?\n|$)/g)].map((b) => b[1].trim());
+    projectAuditInput.push({ id: m[1], bullets });
+  }
+  const audit = [
+    ...auditExperienceBullets(
+      after.entries.map((e) => ({ company: e.company, bullets: e.bullets })),
+      { expandedCount: Math.min(2, after.entries.length - 1) }
+    ),
+    ...auditProjectBullets(projectAuditInput),
+  ];
   const banned = bannedNumberShapes(after.entries.flatMap((e) => e.bullets));
   console.log(`high-severity issues: ${highSeverityCount(audit)}`);
   console.log(`indefensible number shapes: ${banned.join(", ") || "(none)"}`);

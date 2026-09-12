@@ -20,6 +20,7 @@ import { ACHIEVEMENTS } from "@/lib/tailor/achievements";
 import { generateContent, findNewNumbers, type GeneratedContent } from "@/lib/tailor/generate";
 import {
   auditExperienceBullets,
+  auditProjectBullets,
   bannedNumberShapes,
   highSeverityCount,
   qualityFeedback,
@@ -28,7 +29,7 @@ import { researchCompany, type CompanyResearch } from "@/lib/tailor/research";
 import { compileLatex } from "@/lib/tailor/compile";
 import { matchScore, missingTerms, claimableJdTerms, isTechTerm, placementGaps } from "@/lib/tailor/match";
 import { pageFill } from "@/lib/tailor/fill";
-import { PROJECTS, projectById } from "@/lib/tailor/projects";
+import { PROJECTS, projectById, projectSlots, rankProjects } from "@/lib/tailor/projects";
 import { ensureBucket, uploadPdf } from "@/lib/supabase";
 
 export const maxDuration = 300;
@@ -62,43 +63,56 @@ async function nextVersion(jobId: string, kind: "RESUME" | "COVER"): Promise<num
   return (agg._max.version ?? 0) + 1;
 }
 
-/** Pick + validate the 2 projects from LLM output; fall back to the master's two. */
-function resolveProjects(gen: GeneratedContent["projects"]): { entries: ProjectEntry[]; chosen: string[] } {
+function ensurePeriod(s: string): string {
+  const t = s.trim();
+  if (!t) return t;
+  return /[.!?]$/.test(t) ? t : `${t}.`;
+}
+
+function projectPair(profile: { summary: string; bullets: string[] }, generated?: string[]): string[] {
+  const fromModel = (generated ?? []).map((b) => b.trim()).filter(Boolean).slice(0, 2);
+  if (fromModel.length >= 2) return fromModel;
+  return [ensurePeriod(profile.summary), profile.bullets[0]].filter(Boolean).slice(0, 2);
+}
+
+function toEntry(profile: { name: string; githubUrl: string; techLine: string; year: string; summary: string; bullets: string[] }, generated?: string[]): ProjectEntry {
+  return {
+    name: profile.name,
+    githubUrl: profile.githubUrl,
+    techLine: profile.techLine,
+    year: profile.year,
+    bullets: projectPair(profile, generated),
+  };
+}
+
+/** Pick + validate N projects from LLM output; fill gaps from ranked library. */
+function resolveProjects(
+  gen: GeneratedContent["projects"],
+  count: number,
+  jobText: string
+): { entries: ProjectEntry[]; chosen: string[] } {
   const valid = (gen ?? [])
     .map((g) => {
       const profile = projectById(String(g?.id ?? ""));
       if (!profile) return null;
-      const bullets = (Array.isArray(g.bullets) ? g.bullets : [])
-        .map((b) => String(b).trim())
-        .filter(Boolean)
-        .slice(0, profile.bullets.length);
-      return {
-        entry: {
-          name: profile.name,
-          githubUrl: profile.githubUrl,
-          techLine: profile.techLine,
-          year: profile.year,
-          bullets: bullets.length >= 2 ? bullets : profile.bullets.slice(0, 2),
-        },
-        id: profile.id,
-      };
+      return { entry: toEntry(profile, Array.isArray(g.bullets) ? g.bullets.map(String) : []), id: profile.id };
     })
     .filter((x): x is { entry: ProjectEntry; id: string } => x !== null);
 
-  const unique = [...new Map(valid.map((v) => [v.id, v])).values()].slice(0, 2);
-  if (unique.length === 2) {
-    return { entries: unique.map((u) => u.entry), chosen: unique.map((u) => u.id) };
+  const unique = [...new Map(valid.map((v) => [v.id, v])).values()];
+  if (unique.length < count) {
+    for (const p of rankProjects(jobText, count, unique.map((u) => u.id))) {
+      if (unique.length >= count) break;
+      unique.push({ entry: toEntry(p), id: p.id });
+    }
   }
-  // fallback: the master's original two
-  const fallback = [PROJECTS.find((p) => p.id === "vertexflow")!, PROJECTS.find((p) => p.id === "bettermind")!];
+  const picked = unique.slice(0, count);
+  if (picked.length > 0) {
+    return { entries: picked.map((u) => u.entry), chosen: picked.map((u) => u.id) };
+  }
+  const fallback = rankProjects(jobText, Math.max(count, 2)).slice(0, Math.max(count, 2));
   return {
-    entries: fallback.map((p) => ({
-      name: p.name,
-      githubUrl: p.githubUrl,
-      techLine: p.techLine,
-      year: p.year,
-      bullets: p.bullets.slice(0, 2),
-    })),
+    entries: fallback.map((p) => toEntry(p)),
     chosen: fallback.map((p) => p.id),
   };
 }
@@ -196,6 +210,7 @@ export async function POST(request: Request) {
     .filter((e) => /ITS/i.test(e.company) && !supportRelevant)
     .map((e) => `${e.title} at ${e.company}`);
   const parsedForJob = { ...parsedResume, entries: entriesToUse };
+  const projectCount = projectSlots(parsedForJob.entries.length);
 
   const companyTokens = job.company.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   const targetKeywords = claimableJdTerms(job.description, 25, companyTokens);
@@ -212,6 +227,7 @@ export async function POST(request: Request) {
     lensNote,
     softSkills,
     targetKeywords,
+    projectCount,
   };
 
   let generated: GeneratedContent = await generateContent(baseInput);
@@ -282,6 +298,7 @@ export async function POST(request: Request) {
     compactSkills?: number; // max items per skills line (0 = no clamp)
     maxExpBullets?: number; // max bullets per experience entry (default 4)
     maxProjBullets?: number; // max bullets per project (0 = no clamp)
+    maxProjects?: number; // drop the last project(s) before touching experience
     achievements?: number; // max achievement items (0 = drop the section)
   }
   function buildTex(gen: GeneratedContent, clamps: Clamps = {}): string {
@@ -290,7 +307,11 @@ export async function POST(request: Request) {
       bullets: g.bullets.length ? g.bullets : parsedForJob.entries[i].bullets,
     }));
     let tex = assembleResume(parsedForJob, updates, clamps.maxExpBullets ?? 4);
-    const { entries: projectEntries } = resolveProjects(gen.projects);
+    const { entries: projectEntries } = resolveProjects(
+      gen.projects,
+      clamps.maxProjects ?? projectCount,
+      job!.description
+    );
     tex = assembleProjectsSection(parseProjectsSection(tex), projectEntries, clamps.maxProjBullets ?? 0);
     // Skills may include: master pool + verified extras + JD soft skills +
     // JD hard keywords that this generation actually used in bullets (consistency rule).
@@ -323,12 +344,21 @@ export async function POST(request: Request) {
   // Escalating compression ladder over ONE shortened generation: skills clamp
   // → bullet clamps → drop achievements (user: removable when space is tight)
   // → hardest clamps.
-  const LADDER: { compactSkills?: number; maxExpBullets?: number; maxProjBullets?: number; achievements?: number }[] = [
+  const LADDER: {
+    compactSkills?: number;
+    maxExpBullets?: number;
+    maxProjBullets?: number;
+    maxProjects?: number;
+    achievements?: number;
+  }[] = [
     {},
     { compactSkills: 5 },
-    { compactSkills: 4, maxExpBullets: 3, maxProjBullets: 2 },
-    { compactSkills: 4, maxExpBullets: 3, maxProjBullets: 2, achievements: 0 },
-    { compactSkills: 4, maxExpBullets: 2, maxProjBullets: 2, achievements: 0 },
+    // Drop the fill project before touching experience — it was added because
+    // there was room, and it is the first thing that should go when there isn't.
+    { compactSkills: 4, maxProjects: 2 },
+    { compactSkills: 4, maxExpBullets: 3, maxProjects: 2, maxProjBullets: 2 },
+    { compactSkills: 4, maxExpBullets: 3, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
+    { compactSkills: 4, maxExpBullets: 2, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
   ];
   // The clamp step that made the page fit. Later passes must rebuild with it:
   // rebuilding unclamped guarantees an overflow and the pass gets discarded.
@@ -338,7 +368,7 @@ export async function POST(request: Request) {
     // One shorten call, reused across clamp steps — the task text is identical
     // for every step, so regenerating per clamp just burns tokens.
     if (!shortenedGen) {
-      shortenedGen = await generateContent({ ...baseInput, shorten: true });
+      shortenedGen = await generateContent({ ...baseInput, shorten: true, projectCount: 2 });
     }
     resumeTex = buildTex(shortenedGen, clamps);
     resumeResult = await compileLatex(resumeTex);
@@ -364,7 +394,7 @@ export async function POST(request: Request) {
       const boosted = await generateContent({
         ...baseInput,
         boost: { missingTerms: missing },
-        ...(wasCompressed ? { shorten: true } : {}),
+        ...(wasCompressed ? { shorten: true, projectCount: 2 } : {}),
       });
       const boostedTex = buildTex(boosted, activeClamps);
       const boostedResult = await compileLatex(boostedTex);
@@ -408,7 +438,11 @@ export async function POST(request: Request) {
   // note. One repair, only for high-severity issues, and only if it survives the
   // same page and ATS bars as every other pass.
   const auditOpts = { expandedCount: Math.min(2, parsedForJob.entries.length - 1) };
-  let bulletIssues = auditExperienceBullets(generated.experience, auditOpts);
+  const auditAll = (gen: typeof generated) => [
+    ...auditExperienceBullets(gen.experience, auditOpts),
+    ...auditProjectBullets(gen.projects ?? []),
+  ];
+  let bulletIssues = auditAll(generated);
   // A repair costs one quality-tier call plus a compile. Skipping it when the
   // request is already close to maxDuration is better than being killed after
   // the work is done but before anything is saved.
@@ -419,12 +453,15 @@ export async function POST(request: Request) {
       qualityIssues: qualityFeedback(bulletIssues),
       // Keep whichever length mode made the page fit, or the repair overflows and
       // gets discarded for a reason that has nothing to do with bullet quality.
-      ...(wasCompressed ? { shorten: true } : {}),
+      ...(wasCompressed ? { shorten: true, projectCount: 2 } : {}),
     });
-    const repairedIssues = auditExperienceBullets(repaired.experience, auditOpts);
+    const repairedIssues = auditAll(repaired);
     if (
       highSeverityCount(repairedIssues) < highSeverityCount(bulletIssues) &&
-      bannedNumberShapes(repaired.experience.flatMap((e) => e.bullets)).length === 0
+      bannedNumberShapes([
+        ...repaired.experience.flatMap((e) => e.bullets),
+        ...(repaired.projects ?? []).flatMap((p) => p.bullets ?? []),
+      ]).length === 0
     ) {
       const repairedTex = buildTex(repaired, activeClamps);
       const repairedResult = await compileLatex(repairedTex);
@@ -456,7 +493,8 @@ export async function POST(request: Request) {
 
   // Every pass that could replace `generated` has now run.
   const finalTitleChanges = titleChangesFor(generated);
-  const { chosen: chosenProjects } = resolveProjects(generated.projects);
+  const shippedProjectCount = activeClamps.maxProjects ?? projectCount;
+  const { chosen: chosenProjects } = resolveProjects(generated.projects, shippedProjectCount, job.description);
 
   // --- cover letter ---
   const parsedCover = parseCover(coverMaster.texContent);

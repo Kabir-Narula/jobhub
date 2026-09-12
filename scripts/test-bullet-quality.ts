@@ -8,6 +8,7 @@
  */
 import {
   auditExperienceBullets,
+  auditProjectBullets,
   highSeverityCount,
   bannedNumberShapes,
 } from "../lib/tailor/bullet-quality";
@@ -149,6 +150,110 @@ check("unfalsifiable tail is still stripped", !/responsive/.test(stripped), stri
 const strippedPraise = polishBullet("Split the service into smaller, maintainable modules with tests in CI.");
 check("self-praise adjective still removed", !/maintainable/.test(strippedPraise), strippedPraise);
 
+// --------------------------------------- depth / magnitude / repetition checks
+// Fixtures are the real weak spots from the shipped TD resume.
+const TD = [
+  {
+    company: "Seneca Polytechnic — INNWIL Lab | VYBE Platform",
+    bullets: [
+      "Moved extraction and cleaning into a Python FastAPI pipeline after concurrent large data requests timed out; clients stopped seeing timeout errors.",
+      "Cut a slow SQL report by filtering before joins and adding a composite index after analysts waited on repeated exports.",
+      "Paired with a senior engineer to test a Spark transformation in GitHub Actions, then documented failed-record handling for business partners.",
+    ],
+  },
+  {
+    company: "Three of Cups",
+    bullets: [
+      "Modeled normalized PostgreSQL schemas for shared request workloads.",
+      "Inspected SQL execution plans and removed slow query paths that had delayed responses across the client's shared request workloads.",
+      "Moved synchronous backend work into asynchronous background jobs, preventing request timeouts and separating long-running processing from client-facing paths.",
+    ],
+  },
+];
+const tdIssues = auditExperienceBullets(TD, { expandedCount: 1 });
+check(
+  "Spark named with no technique and no outcome is flagged",
+  tdIssues.some((i) => /name-drops/.test(i.message) && /spark/i.test(i.message)),
+  messages(tdIssues)
+);
+check(
+  "a resume with no number anywhere is flagged",
+  tdIssues.some((i) => /not one bullet on the resume carries a number/.test(i.message)),
+  messages(tdIssues)
+);
+check(
+  "the 8-word stub is high severity, not cosmetic",
+  tdIssues.some((i) => i.severity === "high" && /only 8 words/.test(i.message)),
+  messages(tdIssues)
+);
+check(
+  'the verbatim repeat "shared request workloads" is flagged',
+  tdIssues.some((i) => /reused verbatim/.test(i.message) && /shared request workloads/.test(i.message)),
+  messages(tdIssues)
+);
+check(
+  "a bullet with a real technique is NOT flagged as a name-drop",
+  !tdIssues.some((i) => /name-drops/.test(i.message) && /composite index/.test(i.message))
+);
+
+// A magnitude anywhere satisfies the resume-wide rule.
+const quantified = auditExperienceBullets(
+  [
+    {
+      company: "A",
+      bullets: [
+        "Cut the nightly PostgreSQL export from about 40 minutes to under 5 by batching the writes into one transaction.",
+        "Traced duplicate totals to a fan-out join, corrected the grouping key, and stopped inflated figures reaching the report.",
+        "Paired with a senior engineer on the migration, then documented the backfill steps in the runbook the team used.",
+      ],
+    },
+  ],
+  { expandedCount: 1 }
+);
+check(
+  "a quantified resume passes the magnitude rule",
+  !quantified.some((i) => /carries a number/.test(i.message)),
+  messages(quantified)
+);
+check("the quantified sample has no high-severity issues", highSeverityCount(quantified) === 0, messages(quantified.filter((i) => i.severity === "high")));
+
+const stuffed = auditExperienceBullets(
+  [
+    {
+      company: "Lab",
+      bullets: [
+        "Moved extraction off the FastAPI request path into a worker after large uploads timed out, cutting waits from 40 seconds to under 5.",
+        "Added FastAPI fixtures around the extraction endpoint after code review caught inconsistent payloads.",
+        "Walked the research lead through the FastAPI fallback at sprint review, then wrote the runbook.",
+      ],
+    },
+  ],
+  { expandedCount: 1 }
+);
+check(
+  "FastAPI in three bullets is flagged as brand stuffing",
+  stuffed.some((i) => /fastapi/i.test(i.message) && /experience bullets/.test(i.message)),
+  messages(stuffed)
+);
+const once = auditExperienceBullets(
+  [
+    {
+      company: "Lab",
+      bullets: [
+        "Moved extraction off the FastAPI request path into a worker after large uploads timed out, cutting waits from 40 seconds to under 5.",
+        "Traced empty results to a parser dropping scanned pages, then added a fixture-based test for the case.",
+        "Walked the research lead through the new export format at sprint review, then wrote the runbook.",
+      ],
+    },
+  ],
+  { expandedCount: 1 }
+);
+check(
+  "a single FastAPI mention is allowed",
+  !once.some((i) => /fastapi/i.test(i.message) && /experience bullets/.test(i.message)),
+  messages(once)
+);
+
 // ------------------------------------------------- entry alignment (real bug)
 // A live TD run returned the entries in a different order, so Project Human
 // City's REST/mobile work was assembled under Three of Cups and vice versa.
@@ -203,6 +308,45 @@ check(
 check(
   "money figure is still banned inside a resume bullet",
   bannedNumberShapes(["Shipped a billing screen that recovered $2M in revenue."]).length > 0
+);
+
+// ------------------------------------------------- project two-bullet doctrine
+const BAD_PROJECTS = [
+  {
+    id: "bettermind",
+    bullets: [
+      "Added OpenAI API inference pipelines to a Next.js product, recording sentiment, confidence, and evidence for downstream analysis.",
+      "Modeled a 13-table Prisma/PostgreSQL schema with composite unique constraints, turning inference outputs into durable records for weekly insight synthesis.",
+    ],
+  },
+];
+const badProj = auditProjectBullets(BAD_PROJECTS);
+check(
+  "implementation-as-summary is flagged on bullet 1",
+  badProj.some((i) => /opens on implementation|never says what the product is/.test(i.message)),
+  messages(badProj)
+);
+
+const GOOD_PROJECTS = [
+  {
+    id: "bettermind",
+    bullets: [
+      "Mental wellness app that scores daily journal entries and surfaces mood patterns so a companion chat can answer from the user's own history.",
+      "Ran OpenAI sentiment scoring through a Prisma schema with composite unique constraints, storing confidence and evidence as durable inference records.",
+    ],
+  },
+];
+const goodProj = auditProjectBullets(GOOD_PROJECTS);
+check(
+  "purpose-then-implementation pair passes",
+  highSeverityCount(goodProj) === 0,
+  messages(goodProj)
+);
+check(
+  "a one-bullet project is flagged",
+  auditProjectBullets([{ id: "axom", bullets: ["Exam-prep app that turns slides into practice tests."] }]).some((i) =>
+    /exactly 2/.test(i.message)
+  )
 );
 
 console.log(failures === 0 ? "all bullet-quality checks passed" : `${failures} check(s) failed`);

@@ -17,7 +17,7 @@ interface LensDef extends Lens {
 const LENSES: LensDef[] = [
   {
     id: "ai-ml",
-    foreground: ["OpenAI API / LLM inference", "Python + FastAPI", "ML pipelines", "prompt/RAG framing", "PostgreSQL"],
+    foreground: ["OpenAI API / LLM inference", "Python services", "ML pipelines", "prompt/RAG framing", "PostgreSQL"],
     suppress: ["Kotlin UI", "mobile screens", "Blender"],
     patterns: [/\b(machine learning|ml engineer|ai engineer|llm|rag\b|agentic|fine-?tun|prompt engineering|data scien|nlp|computer vision|openai)\b/gi],
   },
@@ -53,7 +53,7 @@ const LENSES: LensDef[] = [
   },
   {
     id: "python-backend",
-    foreground: ["Python", "FastAPI", "REST services", "PostgreSQL", "background jobs"],
+    foreground: ["Python", "REST APIs", "PostgreSQL", "background jobs"],
     suppress: ["mobile UI"],
     patterns: [/\b(python|fastapi|django|flask|backend|api developer)\b/gi],
   },
@@ -87,5 +87,5 @@ export function detectLens(title: string, description: string): Lens | null {
 
 export function lensInstruction(lens: Lens | null): string {
   if (!lens) return "";
-  return `DOMINANT LENS for this posting (${lens.id}): foreground ONLY these real aspects of the candidate: ${lens.foreground.join(", ")}. Do NOT mention these at all (they are real but irrelevant here): ${lens.suppress.join(", ")}. Every bullet and every skills line must pass through this lens.`;
+  return `DOMINANT LENS for this posting (${lens.id}): foreground ONLY these real aspects of the candidate: ${lens.foreground.join(", ")}. Do NOT mention these at all (they are real but irrelevant here): ${lens.suppress.join(", ")}. Product names (FastAPI, Django, Flask, Next.js) only if the posting names them; otherwise use portable terms (REST API, Python service, pipeline). The lens is a work theme, not a brand to repeat in every bullet.`;
 }

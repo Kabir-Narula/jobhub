@@ -169,7 +169,16 @@ export function TailorClient({
       const res = await fetch("/api/tailor/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId: job.id, allowTitleChanges: opts.allowTitleChanges ?? true, deepResearch: opts.deepResearch ?? false }),
+        body: JSON.stringify({
+          jobId: job.id,
+          allowTitleChanges: opts.allowTitleChanges ?? true,
+          deepResearch: opts.deepResearch ?? false,
+          // An explicit click is a request to generate. Without force, a draft
+          // from the last 24h is reused and then prepended onto the list that
+          // already contains it — duplicate React keys, and the new project
+          // rules never run.
+          force: true,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -179,29 +188,36 @@ export function TailorClient({
         setResult(data);
         setFinalized(false);
         const now = new Date().toISOString();
-        setDocuments((ds) => [
-          {
-            id: data.resume.id,
-            kind: "RESUME",
-            version: data.resume.version,
-            status: "DRAFT",
-            pageCount: data.resume.pageCount,
-            matchScore: data.resume.matchScore,
-            createdAt: now,
-            titleChangeNote: "",
-          },
-          {
-            id: data.cover.id,
-            kind: "COVER",
-            version: data.cover.version,
-            status: "DRAFT",
-            pageCount: data.cover.pageCount,
-            matchScore: null,
-            createdAt: now,
-            titleChangeNote: "",
-          },
-          ...ds,
-        ]);
+        setDocuments((ds) => {
+          const incoming = [
+            {
+              id: data.resume.id,
+              kind: "RESUME" as const,
+              version: data.resume.version,
+              status: "DRAFT" as const,
+              pageCount: data.resume.pageCount,
+              matchScore: data.resume.matchScore,
+              createdAt: now,
+              titleChangeNote: "",
+            },
+            ...(data.cover
+              ? [
+                  {
+                    id: data.cover.id,
+                    kind: "COVER" as const,
+                    version: data.cover.version,
+                    status: "DRAFT" as const,
+                    pageCount: data.cover.pageCount,
+                    matchScore: null,
+                    createdAt: now,
+                    titleChangeNote: "",
+                  },
+                ]
+              : []),
+          ];
+          const incomingIds = new Set(incoming.map((d) => d.id));
+          return [...incoming, ...ds.filter((d) => !incomingIds.has(d.id))];
+        });
         if (data.research) setResearch(data.research);
       }
     } catch {
