@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { postOk } from "@/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -115,9 +116,13 @@ export function ReturnPrompt() {
 
   async function onNo() {
     const id = pending!.id;
+    // Close immediately — re-opening a dialog the user just dismissed is worse
+    // than a warning. But say so if the dismissal did not persist, otherwise the
+    // prompt silently comes back on the next visit.
     setPending(null);
     setNotes("");
-    await fetch(`/api/jobs/${id}/apply-prompt-dismiss`, { method: "POST" });
+    const r = await postOk(`/api/jobs/${id}/apply-prompt-dismiss`);
+    if (!r.ok) toast.error(r.error ?? "Could not save that — this prompt may appear again");
   }
 
   async function onSave() {

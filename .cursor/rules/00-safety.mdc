@@ -1,0 +1,13 @@
+---
+description: Safety, secrets, and verification for jobhub
+alwaysApply: true
+---
+
+# Safety
+
+- Never read, print, or commit `.env` / `.env.local`. Variable names live in `.env.example` only.
+- Never run `prisma migrate reset`, `db push --force-reset`, `DROP`, or `git push --force` unless the user explicitly asks.
+- Do not invent LinkedIn/Indeed login scrapers or JSearch/RapidAPI. Those are deliberate omissions.
+- The LLM in this app returns JSON only. Never change the tailoring pipeline so the model emits LaTeX.
+- After non-trivial edits, follow `.cursor/skills/verify-jobhub` (tsc, eslint, tailor/compile scripts). Do not invent a new test runner.
+- Keep this rule short. File-scoped details are in the other `.cursor/rules/*.mdc` files. Skills cover workflows.

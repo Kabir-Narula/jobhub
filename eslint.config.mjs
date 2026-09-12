@@ -22,6 +22,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Cursor agent tooling: CommonJS hook scripts, not app code.
+    ".cursor/**",
   ]),
 ]);
 

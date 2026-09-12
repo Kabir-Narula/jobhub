@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import type { CompanySource } from "@prisma/client";
+import { requestOk } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,16 +57,17 @@ export function SettingsClient({
   const [uploadKind, setUploadKind] = useState("RESUME");
 
   async function toggleSource(s: CompanySource) {
-    await fetch(`/api/sources/${s.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled: !s.enabled }),
-    });
+    // Without the check a failed write just snaps back on refresh, which reads
+    // as the toggle being broken rather than as an error.
+    const r = await requestOk(`/api/sources/${s.id}`, "PATCH", { enabled: !s.enabled });
+    if (!r.ok) return toast.error(r.error ?? `Could not ${s.enabled ? "disable" : "enable"} ${s.name}`);
     router.refresh();
   }
 
   async function removeSource(id: string) {
-    await fetch(`/api/sources/${id}`, { method: "DELETE" });
+    const r = await requestOk(`/api/sources/${id}`, "DELETE");
+    if (!r.ok) return toast.error(r.error ?? "Could not remove the source");
+    toast.success("Source removed");
     router.refresh();
   }
 

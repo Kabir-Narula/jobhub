@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
+import { postOk } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
   Bookmark,
@@ -32,7 +34,13 @@ export function AppSidebar() {
   const router = useRouter();
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+    // Only leave the app once the cookie is actually cleared. Redirecting on a
+    // failed logout shows the login screen while the session is still valid.
+    const r = await postOk("/api/auth/logout");
+    if (!r.ok) {
+      toast.error(r.error ?? "Could not sign out — still signed in");
+      return;
+    }
     router.push("/login");
     router.refresh();
   }

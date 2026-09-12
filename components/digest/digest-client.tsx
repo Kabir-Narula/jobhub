@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import type { Job } from "@prisma/client";
+import { postOk } from "@/lib/api";
 import { JobCard } from "@/components/jobs/job-card";
 import { BUCKET_LABEL } from "@/components/jobs/labels";
 import type { LocationBucket } from "@prisma/client";
@@ -31,12 +33,11 @@ export function DigestClient({
   const [local, setLocal] = useState(jobs);
 
   // Mark the digest as seen — next visit shows only what arrived after now.
+  // A failure here silently re-shows the same postings, so surface it.
   useEffect(() => {
-    fetch("/api/settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key: "lastDigestView", value: new Date().toISOString() }),
-    }).catch(() => {});
+    void postOk("/api/settings", { key: "lastDigestView", value: new Date().toISOString() }).then((r) => {
+      if (!r.ok) toast.error(r.error ?? "Could not mark the digest as seen");
+    });
   }, []);
 
   const grouped = ORDER.map((bucket) => ({
@@ -78,22 +79,23 @@ export function DigestClient({
                   job={job}
                   selected={false}
                   onApply={(j) => {
-                    fetch(`/api/jobs/${j.id}/view`, { method: "POST" }).catch(() => {});
                     window.open(j.applyUrl, "_blank", "noopener");
+                    void postOk(`/api/jobs/${j.id}/view`).then((r) => {
+                      if (!r.ok) toast.error(r.error ?? "Could not mark the job as viewed");
+                    });
                   }}
                   onToggleSave={(j) => {
-                    fetch(`/api/jobs/${j.id}/save`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ saved: !j.savedAt }),
-                    }).then(() => router.refresh());
+                    void postOk(`/api/jobs/${j.id}/save`, { saved: !j.savedAt }).then((r) => {
+                      if (r.ok) router.refresh();
+                      else toast.error(r.error ?? "Could not save the job");
+                    });
                   }}
                   onToggleDismiss={(j) => {
-                    fetch(`/api/jobs/${j.id}/dismiss`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ dismissed: true }),
-                    }).then(() => setLocal((ls) => ls.filter((x) => x.id !== j.id)));
+                    // Only drop the card once the server confirms it.
+                    void postOk(`/api/jobs/${j.id}/dismiss`, { dismissed: true }).then((r) => {
+                      if (r.ok) setLocal((ls) => ls.filter((x) => x.id !== j.id));
+                      else toast.error(r.error ?? "Could not dismiss the job");
+                    });
                   }}
                 />
               ))}

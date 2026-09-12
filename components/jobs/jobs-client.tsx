@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Job } from "@prisma/client";
 import { toast } from "sonner";
+import { postOk } from "@/lib/api";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { JobCard } from "./job-card";
@@ -19,6 +20,32 @@ interface RunInfo {
   newJobs: number;
   ok: boolean;
   results: { source: string; ok: boolean; error?: string }[];
+}
+
+/** Shape of GET /api/jobs/poll-status. */
+interface PollStatus {
+  polling: boolean;
+  /** Run never stamped finishedAt and is too old to still be live. */
+  abandoned: boolean;
+  lastRun:
+    | (RunInfo & {
+        totalSeen: number;
+        totalSources: number;
+      })
+    | null;
+}
+
+/** Shape of GET /api/tailor/batch. `batch` is null only when none ever ran. */
+interface BatchStatus {
+  batch: {
+    id: string;
+    total: number;
+    done: number;
+    current: string;
+    finishedAt: string | null;
+    stalled: boolean;
+    results?: { jobId: string; ok: boolean; error?: string }[];
+  } | null;
 }
 
 interface Props {
@@ -55,134 +82,75 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
   }
 
   const apply = useCallback((job: Job) => {
-    fetch(`/api/jobs/${job.id}/view`, { method: "POST" }).catch(() => {});
     window.dispatchEvent(new CustomEvent("jobhub:viewed", { detail: { jobId: job.id } }));
     window.open(job.applyUrl, "_blank", "noopener");
     setJobs((js) => js.map((j) => (j.id === job.id ? { ...j, viewedAt: new Date() } : j)));
+    void postOk(`/api/jobs/${job.id}/view`).then((r) => {
+      if (r.ok) return;
+      // Roll back: a stale viewedAt would suppress the return-prompt.
+      setJobs((js) => js.map((j) => (j.id === job.id ? { ...j, viewedAt: job.viewedAt } : j)));
+      toast.error(r.error ?? "Could not mark the job as viewed");
+    });
   }, []);
 
   const markApplied = useCallback(
     (job: Job) => {
-      if (appliedSet.has(job.id)) return;
-      fetch("/api/applications", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId: job.id, notes: "" }),
-      })
-        .then((r) => {
-          if (r.ok) {
-            setAppliedIds((ids) => [...ids, job.id]);
-            toast.success(`Tracked: ${job.title} at ${job.company}`);
-          } else {
-            toast.error("Could not track the application");
-          }
-        })
-        .catch(() => toast.error("Could not track the application"));
+      // Read the array, not the derived Set: keeps the dependency honest.
+      if (appliedIds.includes(job.id)) return;
+      void postOk("/api/applications", { jobId: job.id, notes: "" }).then((r) => {
+        if (r.ok) {
+          setAppliedIds((ids) => [...ids, job.id]);
+          toast.success(`Tracked: ${job.title} at ${job.company}`);
+        } else {
+          toast.error(r.error ?? "Could not track the application");
+        }
+      });
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [appliedIds]
   );
 
   const toggleSave = useCallback((job: Job) => {
     const saved = !job.savedAt;
-    fetch(`/api/jobs/${job.id}/save`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ saved }),
-    }).catch(() => {});
+    const previous = job.savedAt;
     setJobs((js) => js.map((j) => (j.id === job.id ? { ...j, savedAt: saved ? new Date() : null } : j)));
+    void postOk(`/api/jobs/${job.id}/save`, { saved }).then((r) => {
+      if (r.ok) return;
+      setJobs((js) => js.map((j) => (j.id === job.id ? { ...j, savedAt: previous } : j)));
+      toast.error(r.error ?? (saved ? "Could not save the job" : "Could not unsave the job"));
+    });
   }, []);
 
   const toggleDismiss = useCallback((job: Job) => {
     const dismissed = !job.dismissedAt;
-    fetch(`/api/jobs/${job.id}/dismiss`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dismissed }),
-    }).catch(() => {});
+    const previous = job.dismissedAt;
     setJobs((js) => js.map((j) => (j.id === job.id ? { ...j, dismissedAt: dismissed ? new Date() : null } : j)));
+    void postOk(`/api/jobs/${job.id}/dismiss`, { dismissed }).then((r) => {
+      if (r.ok) return;
+      setJobs((js) => js.map((j) => (j.id === job.id ? { ...j, dismissedAt: previous } : j)));
+      toast.error(r.error ?? (dismissed ? "Could not dismiss the job" : "Could not restore the job"));
+    });
   }, []);
 
+  // Kicks off the poll only. Progress is watched by the effect below so the
+  // interval is tied to component lifetime and cannot outlive this page.
   const refresh = useCallback(async () => {
     setRefreshing(true);
     toast.loading("Starting poll…", { id: "poll" });
-    try {
-      await fetch("/api/jobs/refresh", { method: "POST" });
-    } catch {
-      toast.error("Could not start the poll", { id: "poll" });
+    const r = await postOk("/api/jobs/refresh");
+    if (!r.ok) {
+      toast.error(r.error ?? "Could not start the poll", { id: "poll" });
       setRefreshing(false);
-      return;
     }
-
-    // Watch live progress until the run finishes.
-    const startedAt = Date.now();
-    const timer = setInterval(async () => {
-      try {
-        const res = await fetch("/api/jobs/poll-status");
-        const { polling, lastRun } = await res.json();
-        const done = lastRun?.results?.length ?? 0;
-        const total = lastRun?.totalSources || done;
-        if (polling || (lastRun && !lastRun.finishedAt)) {
-          toast.loading(
-            `Polling… ${done}/${total} sources, +${lastRun?.newJobs ?? 0} new`,
-            { id: "poll" }
-          );
-        } else {
-          clearInterval(timer);
-          toast.success(
-            `Done: ${lastRun?.totalSeen ?? 0} seen, +${lastRun?.newJobs ?? 0} new, ${lastRun?.results?.filter((r: { ok: boolean }) => !r.ok).length ?? 0} failed`,
-            { id: "poll" }
-          );
-          setRefreshing(false);
-          router.refresh();
-        }
-        if (Date.now() - startedAt > 10 * 60 * 1000) {
-          clearInterval(timer);
-          toast.error("Poll is taking unusually long — check the server logs", { id: "poll" });
-          setRefreshing(false);
-        }
-      } catch {
-        // transient read errors are ignored; next tick retries
-      }
-    }, 2500);
-  }, [router]);
+  }, []);
 
   async function tailorSaved() {
     const ids = visibleJobs.map((j) => j.id);
     if (!ids.length) return;
     setBatching(true);
     toast.loading(`Tailoring ${ids.length} saved jobs…`, { id: "batch" });
-    try {
-      const res = await fetch("/api/tailor/batch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobIds: ids }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? "Batch failed to start", { id: "batch" });
-        setBatching(false);
-        return;
-      }
-      const timer = setInterval(async () => {
-        try {
-          const s = await (await fetch("/api/tailor/batch")).json();
-          const b = s.batch;
-          if (b && !b.finishedAt) {
-            toast.loading(`Tailoring… ${b.done}/${b.total} done`, { id: "batch" });
-          } else {
-            clearInterval(timer);
-            const ok = b?.results?.filter((r: { ok: boolean }) => r.ok).length ?? 0;
-            toast.success(`Batch done: ${ok}/${b?.total ?? ids.length} tailored`, { id: "batch" });
-            setBatching(false);
-            router.refresh();
-          }
-        } catch {
-          // next tick retries
-        }
-      }, 3000);
-    } catch {
-      toast.error("Batch failed to start", { id: "batch" });
+    const r = await postOk("/api/tailor/batch", { jobIds: ids });
+    if (!r.ok) {
+      toast.error(r.error ?? "Batch failed to start", { id: "batch" });
       setBatching(false);
     }
   }
@@ -191,6 +159,124 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
   // so jobs[selected] would target the wrong card after any "mark applied".
   const visibleJobs = jobs.filter((j) => !appliedSet.has(j.id));
   const appliedJobs = jobs.filter((j) => appliedSet.has(j.id));
+
+  // Live poll progress. Cleans up on unmount, so navigating away mid-poll
+  // cannot leave an interval calling router.refresh() on a dead tree.
+  useEffect(() => {
+    if (!refreshing) return;
+    const startedAt = Date.now();
+    let cancelled = false;
+
+    const timer = setInterval(async () => {
+      let data: PollStatus | undefined;
+      try {
+        const res = await fetch("/api/jobs/poll-status");
+        if (res.ok) data = (await res.json()) as PollStatus;
+      } catch {
+        // Transient read error — fall through to the timeout guard below.
+      }
+      if (cancelled) return;
+
+      if (data) {
+        const { polling, abandoned, lastRun } = data;
+        const done = lastRun?.results?.length ?? 0;
+        const total = lastRun?.totalSources || done;
+        if (abandoned) {
+          // The run died without stamping finishedAt; without this the toast
+          // would sit on "Polling…" until the timeout below.
+          clearInterval(timer);
+          toast.error(`Poll stopped after ${done}/${total} sources — check the server logs`, { id: "poll" });
+          setRefreshing(false);
+          router.refresh();
+          return;
+        }
+        if (polling || (lastRun && !lastRun.finishedAt)) {
+          toast.loading(`Polling… ${done}/${total} sources, +${lastRun?.newJobs ?? 0} new`, { id: "poll" });
+        } else {
+          clearInterval(timer);
+          const failed = lastRun?.results?.filter((r) => !r.ok).length ?? 0;
+          toast.success(
+            `Done: ${lastRun?.totalSeen ?? 0} seen, +${lastRun?.newJobs ?? 0} new, ${failed} failed`,
+            { id: "poll" }
+          );
+          setRefreshing(false);
+          router.refresh();
+          return;
+        }
+      }
+
+      // Outside the try: a persistently failing status read must still bail out.
+      if (Date.now() - startedAt > 10 * 60 * 1000) {
+        clearInterval(timer);
+        toast.error("Poll is taking unusually long — check the server logs", { id: "poll" });
+        setRefreshing(false);
+      }
+    }, 2500);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [refreshing, router]);
+
+  // Live batch-tailoring progress, same lifetime guarantees as the poll watcher.
+  useEffect(() => {
+    if (!batching) return;
+    const startedAt = Date.now();
+    let cancelled = false;
+
+    const timer = setInterval(async () => {
+      let data: BatchStatus | undefined;
+      try {
+        const res = await fetch("/api/tailor/batch");
+        if (res.ok) data = (await res.json()) as BatchStatus;
+      } catch {
+        // Transient read error — fall through to the timeout guard below.
+      }
+      if (cancelled) return;
+
+      if (data) {
+        const b = data.batch;
+        if (b === null) {
+          clearInterval(timer);
+          toast.error("No batch found on the server", { id: "batch" });
+          setBatching(false);
+          return;
+        }
+        if (b.stalled) {
+          // Progress row stopped updating: the runner was killed (most likely a
+          // serverless timeout). Report the partial result rather than success.
+          clearInterval(timer);
+          const ok = b.results?.filter((r) => r.ok).length ?? 0;
+          toast.error(`Batch stopped after ${ok}/${b.total} — check the server logs`, { id: "batch" });
+          setBatching(false);
+          router.refresh();
+          return;
+        }
+        if (!b.finishedAt) {
+          toast.loading(`Tailoring… ${b.done}/${b.total} done`, { id: "batch" });
+        } else {
+          clearInterval(timer);
+          const ok = b.results?.filter((r) => r.ok).length ?? 0;
+          toast.success(`Batch done: ${ok}/${b.total} tailored`, { id: "batch" });
+          setBatching(false);
+          router.refresh();
+          return;
+        }
+      }
+
+      if (Date.now() - startedAt > 30 * 60 * 1000) {
+        clearInterval(timer);
+        toast.error("Batch is taking unusually long — check the server logs", { id: "batch" });
+        setBatching(false);
+      }
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [batching, router]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -238,14 +324,16 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
     return () => window.removeEventListener("keydown", onKey);
   }, [visibleJobs, selected, apply, toggleSave, toggleDismiss, refreshing, refresh, router, markApplied]);
 
+  // Depend on the selected job's id, not the derived array: keying this on
+  // visibleJobs re-ran the scroll on every unrelated state change (opening a
+  // dialog, a toast, refreshing) and yanked the page back to the selected card.
+  const selectedJobId = selected >= 0 ? visibleJobs[selected]?.id : undefined;
   useEffect(() => {
-    if (selected < 0) return;
-    const job = visibleJobs[selected];
-    if (!job) return;
+    if (!selectedJobId) return;
     document
-      .querySelector(`[data-job-id="${job.id}"]`)
+      .querySelector(`[data-job-id="${selectedJobId}"]`)
       ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [selected, visibleJobs]);
+  }, [selectedJobId]);
 
   const failedSources = lastRun?.results.filter((r) => !r.ok).length ?? 0;
   const [showApplied, setShowApplied] = useState(false);

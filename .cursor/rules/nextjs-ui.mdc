@@ -1,0 +1,17 @@
+---
+description: Next.js 16 App Router, auth proxy, and anti-design UI
+globs: app/**,components/**,proxy.ts,lib/auth.ts
+alwaysApply: false
+---
+
+# Next.js 16 and UI
+
+This is Next.js 16. Read `node_modules/next/dist/docs/` before using APIs from older training data.
+
+- Request boundary is `proxy.ts`, not `middleware.ts`.
+- `params`, `searchParams`, `cookies()`, and `headers()` are async — always `await`.
+- Auth is a single-password HMAC cookie (`lib/auth.ts`). Do not add multi-user auth.
+- Keep `/login`, `/api/auth/login`, `/api/cron/poll`, and `/api/inngest` public. Cron/Inngest must keep their own secrets.
+- shadcn here uses **Base UI**, not Radix: `<Button render={<Link />} nativeButton={false}>`. Select `onValueChange` is `string | null`.
+- Theme: neo-brutalism — ink 2px borders, zero radius, `shadow-hard*`, ink `#0f0f12`, IKB `#2137ff`, lavender `#e9e6ff`, teal `#0f766e`. Display font is Space Grotesk (`font-display`).
+- Do not introduce a new component library or rounded "soft UI" tokens.

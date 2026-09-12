@@ -1,0 +1,21 @@
+---
+description: Design-locked LaTeX tailoring pipeline — JSON in, assembler out
+globs: lib/tailor/**,app/api/tailor/**,scripts/test-tailor*.ts,scripts/test-compile.ts,scripts/test-generate-route.ts
+alwaysApply: false
+---
+
+# Tailoring engine
+
+Canonical lock: `lib/tailor/latex.ts`. Masters parse into frozen segments. The model produces JSON. The assembler re-injects. Fonts, margins, section order, education, and company names cannot change.
+
+- Do not let the LLM emit LaTeX. Escape LLM text with `escapeLatex`.
+- `parseResume` must stop scanning at the next `\section{`. Education also uses `\resumeSubheading` but has no `\resumeItemListStart`; an unbounded scan throws or swallows Skills/Projects. `scripts/test-compile.ts` guards this.
+- Masters come from `MasterTemplate` in Postgres (`scripts/masters.ts`). The `.tex` files above the repo are seed fixtures only and are not in git.
+- Run `normalizeForTectonic()` on every master `.tex` at import (seed + `/api/masters`).
+- `fixEmptyLineBreaks()` stays inside `compileLatex`.
+- Fabrication tripwire: `findNewNumbers` (punctuation-normalized). AI-register backstop: `polishBullet`.
+- ATS scoring uses `claimableJdTerms` only. JD attitude words must never reach the score or the prompt.
+- Skills stay inside the master vocabulary + `skills-extra.ts` canonical labels.
+- Projects: best-2 from `lib/tailor/projects.ts`, grounded in real repos.
+- Email voice lives in `lib/tailor/email.ts`. Do not add metric-hooks, resume bullets, or a P.S.
+- Verify with `npx tsx scripts/test-compile.ts` and `npx tsx scripts/test-tailor.ts`.

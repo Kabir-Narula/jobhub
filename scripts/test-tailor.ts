@@ -1,10 +1,9 @@
 import { config } from "dotenv";
 config({ path: [".env.local", ".env"] });
 
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import {
-  normalizeForTectonic,
   parseResume,
   parseCover,
   assembleResume,
@@ -20,6 +19,7 @@ import { compileLatex } from "../lib/tailor/compile";
 import { matchScore } from "../lib/tailor/match";
 import { pageFill } from "../lib/tailor/fill";
 import { PROJECTS, projectById } from "../lib/tailor/projects";
+import { loadMasters } from "./masters";
 
 const JOB = {
   title: "Software Developer - Infrastructure",
@@ -44,8 +44,8 @@ async function main() {
   const outDir = path.join(process.cwd(), "scripts", "output");
   mkdirSync(outDir, { recursive: true });
 
-  const masterTex = normalizeForTectonic(readFileSync(path.join(process.cwd(), "..", "Resume.tex"), "utf8"));
-  const coverMaster = normalizeForTectonic(readFileSync(path.join(process.cwd(), "..", "cover.tex"), "utf8"));
+  const { resumeTex: masterTex, coverTex: coverMaster, source } = await loadMasters();
+  console.log(`masters loaded from ${source}`);
 
   const parsedResume = parseResume(masterTex);
   const skillsSection = parseSkillsSection(masterTex);

@@ -1,0 +1,15 @@
+---
+description: Prisma 6 and Supabase Postgres conventions
+globs: prisma/**,lib/db.ts,lib/supabase.ts
+alwaysApply: false
+---
+
+# Prisma 6
+
+Stay on Prisma 6. Do not upgrade to Prisma 7.
+
+- Schema: `prisma/schema.prisma`. Client singleton: `lib/db.ts`.
+- Prisma CLI reads `.env`. Next.js reads `.env.local`. Keep DB URLs in both when changing connection strings — do not print them.
+- Default workflow is `npm run db:push` and `npm run db:seed`. Do not add a migration folder unless the user asks.
+- Never `migrate reset` or drop the Supabase database.
+- Storage PDFs go through `lib/supabase.ts` and `SUPABASE_STORAGE_BUCKET`. Do not write local PDFs into git.

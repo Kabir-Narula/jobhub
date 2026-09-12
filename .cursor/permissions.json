@@ -1,0 +1,15 @@
+{
+  "autoRun": {
+    "allow_instructions": [
+      "Allow read-only verification: tsc --noEmit, eslint, and the existing scripts/test-*.ts smoke tests.",
+      "Allow npm install and npm run lint when the user asked to install or lint."
+    ],
+    "block_instructions": [
+      "Ask before any command that prints, dumps, or copies .env, .env.local, API keys, tokens, or passwords.",
+      "Ask before prisma migrate reset, prisma db push --force-reset, DROP DATABASE, or any command that wipes the database.",
+      "Ask before git push --force, git reset --hard, or deleting files outside the workspace.",
+      "Ask before any LinkedIn login scraping, Indeed login scraping, or RapidAPI/JSearch integration.",
+      "Ask before deploying, mutating Vercel/Supabase production settings, or writing to production storage."
+    ]
+  }
+}

@@ -48,8 +48,3 @@ export const EXTRA_SKILLS: { item: string; provenance: string; label: SkillsLabe
 export function extraSkillsPool(): string[] {
   return EXTRA_SKILLS.map((s) => s.item);
 }
-
-/** lowercased item -> canonical skills line label. */
-export function extraSkillLabels(): Map<string, SkillsLabel> {
-  return new Map(EXTRA_SKILLS.map((s) => [s.item.toLowerCase(), s.label]));
-}

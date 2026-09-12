@@ -97,6 +97,13 @@ export function parseResume(tex: string): ParsedResume {
   if (expIdx < 0) throw new Error("No \\section{Experience} found in master resume");
   const nl = tex.includes("\r\n") ? "\r\n" : "\n";
 
+  // Stop at the next \section. \resumeSubheading is also used by Education,
+  // where degree entries carry no \resumeItemListStart — without this bound the
+  // loop walked into them and either threw or swallowed Skills/Projects into an
+  // entry's trailing text.
+  const nextSection = tex.indexOf("\\section{", expIdx + "\\section{Experience}".length);
+  const sectionEnd = nextSection < 0 ? tex.length : nextSection;
+
   const entries: ExperienceEntry[] = [];
   let before = "";
   let after = "";
@@ -105,11 +112,15 @@ export function parseResume(tex: string): ParsedResume {
 
   while (true) {
     const subIdx = tex.indexOf("\\resumeSubheading", cursor);
-    if (subIdx < 0) break;
+    if (subIdx < 0 || subIdx >= sectionEnd) break;
     const [groups, afterHead] = readGroups(tex, subIdx + "\\resumeSubheading".length, 4);
     const listStart = tex.indexOf("\\resumeItemListStart", afterHead);
-    const listEnd = tex.indexOf("\\resumeItemListEnd", listStart);
-    if (listStart < 0 || listEnd < 0) throw new Error("Malformed experience entry in master resume");
+    const listEnd = listStart < 0 ? -1 : tex.indexOf("\\resumeItemListEnd", listStart);
+    if (listStart < 0 || listStart >= sectionEnd || listEnd < 0 || listEnd >= sectionEnd) {
+      throw new Error(
+        `Malformed experience entry in master resume: "${groups[0]}" has no \\resumeItemListStart/End inside \\section{Experience}`
+      );
+    }
 
     const bullets: string[] = [];
     let bCursor = listStart + "\\resumeItemListStart".length;

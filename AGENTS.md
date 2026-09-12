@@ -22,3 +22,9 @@ Single-user job aggregation + application tracking + LaTeX resume tailoring. See
 - Manual job intake: `POST /api/jobs/add` + `lib/jobs/from-url.ts` — paste a posting URL and it resolves fields with NO LLM: board JSON APIs (Greenhouse/Lever/Ashby/SmartRecruiters/Workday cxs/LinkedIn guest) → JSON-LD JobPosting → og/meta heuristics. LLM is never used; failures return a clean 422 pointing at the paste-details mode. Manual adds never get geo-dropped (bucket falls back to REMOTE/TORONTO). Test: `npx tsx scripts/test-add-url.ts`.
 - Verify changes with `npx tsc --noEmit`, `npx eslint .`, `npx tsx scripts/test-compile.ts`, `npx tsx scripts/test-tailor.ts` (fill % + frozen sections), and `node scripts/e2e-ui.mjs` (dev server running).
 
+## Cursor
+
+File-scoped agent rules live in `.cursor/rules/`. Named workflows live in `.cursor/skills/` (`verify-jobhub`, `add-source-adapter`, `debug-tailoring`). Hooks in `.cursor/hooks.json` block secret-file reads and destructive shell commands. Do not duplicate any of that here.
+Never paste `.env` / `.env.local` into chat; use `.env.example` for variable names only.
+Prefer Plan mode for multi-file or architectural work; Agent mode for implementation.
+

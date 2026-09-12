@@ -1,0 +1,15 @@
+﻿# Secrets — never index, @-mention, or send to the model
+.env
+.env.*
+!.env.example
+
+# Local binaries and generated artifacts
+/bin/
+/.next/
+/node_modules/
+/coverage/
+/tmp-isolate/
+/scripts/output/
+*.tsbuildinfo
+test-master-roundtrip.pdf
+*.local.pdf

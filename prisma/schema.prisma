@@ -178,6 +178,23 @@ model PollRun {
   ok           Boolean   @default(false)
 }
 
+/// Batch tailoring progress. Persisted (not in-process memory) so the UI reads
+/// real progress even when a different serverless instance answers, and so a
+/// worker killed mid-run shows up as stalled instead of hanging or reporting success.
+model TailorBatch {
+  id         String    @id @default(cuid())
+  startedAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  finishedAt DateTime?
+  jobIds     Json      @default("[]")
+  total      Int       @default(0)
+  done       Int       @default(0)
+  current    String    @default("")
+  results    Json      @default("[]")
+
+  @@index([startedAt])
+}
+
 model Setting {
   key   String @id
   value String @default("")

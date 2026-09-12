@@ -1,0 +1,17 @@
+---
+description: Job source adapters, polling, geo, and dedupe
+globs: lib/sources/**,lib/poll.ts,lib/dedupe.ts,lib/dedupe-sweep.ts,lib/geo.ts,lib/classify.ts,lib/jobs/**,app/api/jobs/**,app/api/cron/**,app/api/sources/**
+alwaysApply: false
+---
+
+# Sources and polling
+
+- One adapter per file under `lib/sources/`. Implement `SourceAdapter` and return `NormalizedJob[]`.
+- Failures must throw. `lib/poll.ts` isolates per source. Never let one adapter take down the poll.
+- Register new ATS adapters in `lib/sources/index.ts` and the `AtsType` enum. Remote boards are static.
+- Workday: `limit` hard-capped at 20. `boardToken` format is `host/tenant/site`.
+- LinkedIn is best-effort guest search. Disable with `LINKEDIN_ADAPTER=off`. No login scraping.
+- Manual intake (`lib/jobs/from-url.ts`) uses board JSON → JSON-LD → og/meta. No LLM. Failures return 422.
+- Manual adds are never geo-dropped (bucket falls back to REMOTE/TORONTO).
+- Location policy: Toronto always in; GTA-commutable in; else only if remote.
+- Dedupe: fingerprint → source-ID → normalized title+company, plus end-of-poll sweep.

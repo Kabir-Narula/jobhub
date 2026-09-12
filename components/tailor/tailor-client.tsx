@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { postOk } from "@/lib/api";
 import { BUCKET_LABEL, WORKMODE_LABEL } from "@/components/jobs/labels";
 import {
   ArrowLeft,
@@ -270,7 +271,9 @@ export function TailorClient({
             rel="noreferrer"
             onClick={() => {
               // mark viewed so the did-you-apply prompt fires on return
-              fetch(`/api/jobs/${job.id}/view`, { method: "POST" }).catch(() => {});
+              void postOk(`/api/jobs/${job.id}/view`).then((r) => {
+                if (!r.ok) toast.error(r.error ?? "Could not mark the job as viewed");
+              });
               window.dispatchEvent(new CustomEvent("jobhub:viewed", { detail: { jobId: job.id } }));
             }}
             className="flex items-center gap-1 font-mono text-[11px] uppercase tracking-wider text-[#2137ff] underline decoration-2 underline-offset-2 hover:no-underline"
@@ -453,11 +456,13 @@ export function TailorClient({
                     </button>
                     <button
                       onClick={async () => {
-                        await fetch("/api/contacts/bounce", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ jobId: job.id, email: c.email }),
-                        }).catch(() => {});
+                        // Only hide the address once the blocklist write lands,
+                        // otherwise it silently returns on the next re-search.
+                        const r = await postOk("/api/contacts/bounce", { jobId: job.id, email: c.email });
+                        if (!r.ok) {
+                          toast.error(r.error ?? `Could not block ${c.email}`);
+                          return;
+                        }
                         setContacts((prev) =>
                           prev ? { ...prev, contacts: prev.contacts.filter((x) => x.email !== c.email) } : prev
                         );
