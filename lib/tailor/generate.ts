@@ -250,14 +250,19 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
 
   // ---- deterministic validation ----
   if (!Array.isArray(parsed.experience)) throw new Error("LLM returned no experience array");
+  const aligned = alignByCompany(
+    input.entries.map((e) => e.company),
+    parsed.experience
+  );
   parsed.experience = input.entries.map((e, i) => {
-    const gen = parsed.experience[i];
+    const gen = aligned[i];
     if (!gen || !Array.isArray(gen.bullets)) {
       return { company: e.company, title: e.title, titleChanged: false, bullets: e.bullets };
     }
+    const proposed = typeof gen.title === "string" && gen.title.trim() ? gen.title.trim() : e.title;
     return {
       company: e.company, // frozen — ignore whatever the model returned
-      title: typeof gen.title === "string" && gen.title.trim() ? gen.title.trim() : e.title,
+      title: keepTitleQualifier(e.title, proposed),
       titleChanged: Boolean(gen.titleChanged),
       bullets: gen.bullets.map((b) => polishBullet(String(b).trim())).filter(Boolean),
     };
@@ -276,6 +281,72 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
     }));
   }
   return parsed;
+}
+
+const companyKey = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+/**
+ * Re-attach generated entries to the input companies BY NAME.
+ *
+ * Downstream, company is frozen per index and only the bullets come from the
+ * model, so an output that reorders its entries silently files one employer's
+ * work under another. Observed live: a co-op employer's REST/mobile bullets were
+ * assembled under the freelance client, and the freelance client's PostgreSQL
+ * work under the co-op. Index position is not trustworthy; the company name the
+ * model echoes back is (it is instructed to copy it byte-for-byte).
+ *
+ * Falls back to original position for any entry whose name cannot be matched, so
+ * a model that omits the field behaves exactly as before.
+ */
+export function alignByCompany<T extends { company?: unknown }>(
+  companies: string[],
+  generated: T[]
+): (T | undefined)[] {
+  const pool = generated.map((g, i) => ({ g, i, used: false }));
+  const take = (pred: (key: string) => boolean) => {
+    const hit = pool.find((p) => !p.used && pred(companyKey(String(p.g?.company ?? ""))));
+    if (hit) hit.used = true;
+    return hit;
+  };
+  const out: (T | undefined)[] = companies.map((company) => {
+    const key = companyKey(company);
+    // Exact, then containment either way: models sometimes shorten a long
+    // "Employer — Lab | Product" name to just the employer.
+    const hit =
+      take((k) => k === key) ??
+      take((k) => k.length > 8 && (k.includes(key) || key.includes(k)));
+    return hit?.g;
+  });
+  // Anything unmatched keeps its original slot rather than being dropped.
+  companies.forEach((_, i) => {
+    if (out[i]) return;
+    const slot = pool[i] && !pool[i].used ? pool[i] : pool.find((p) => !p.used);
+    if (slot) {
+      slot.used = true;
+      out[i] = slot.g;
+    }
+  });
+  return out;
+}
+
+const TITLE_QUALIFIER = /\(([^)]*)\)\s*$/;
+
+/**
+ * Preserve the trailing parenthetical that states the employment relationship.
+ *
+ * The title rules allow rewording toward the posting's vocabulary, but the model
+ * rewrote "Software Engineer (Co-op)" to "Data Engineering Developer
+ * (Freelance)" — which misstates the relationship with a real employer. The
+ * job family may be re-framed; whether it was a co-op, an internship, a WIL
+ * placement, or freelance may not.
+ */
+export function keepTitleQualifier(original: string, proposed: string): string {
+  const orig = TITLE_QUALIFIER.exec(original);
+  if (!orig) return proposed;
+  const prop = TITLE_QUALIFIER.exec(proposed);
+  if (prop && prop[1].trim().toLowerCase() === orig[1].trim().toLowerCase()) return proposed;
+  const stripped = proposed.replace(TITLE_QUALIFIER, "").replace(/[,\s]+$/, "").trim();
+  return stripped ? `${stripped} ${orig[0].trim()}` : original;
 }
 
 /**

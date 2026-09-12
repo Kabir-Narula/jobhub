@@ -11,7 +11,7 @@ import {
   highSeverityCount,
   bannedNumberShapes,
 } from "../lib/tailor/bullet-quality";
-import { polishBullet } from "../lib/tailor/generate";
+import { polishBullet, alignByCompany, keepTitleQualifier } from "../lib/tailor/generate";
 
 let failures = 0;
 function check(name: string, cond: boolean, detail = "") {
@@ -148,6 +148,62 @@ check("unfalsifiable tail is still stripped", !/responsive/.test(stripped), stri
 
 const strippedPraise = polishBullet("Split the service into smaller, maintainable modules with tests in CI.");
 check("self-praise adjective still removed", !/maintainable/.test(strippedPraise), strippedPraise);
+
+// ------------------------------------------------- entry alignment (real bug)
+// A live TD run returned the entries in a different order, so Project Human
+// City's REST/mobile work was assembled under Three of Cups and vice versa.
+const COMPANIES = ["Seneca Polytechnic — INNWIL Lab | VYBE Platform", "Project Human City", "Three of Cups"];
+const reordered = [
+  { company: "Three of Cups", bullets: ["freelance work"] },
+  { company: "Seneca Polytechnic — INNWIL Lab | VYBE Platform", bullets: ["lab work"] },
+  { company: "Project Human City", bullets: ["co-op work"] },
+];
+const realigned = alignByCompany(COMPANIES, reordered);
+check("reordered entries are realigned to the right company", realigned[0]?.bullets[0] === "lab work", String(realigned[0]?.bullets[0]));
+check("co-op work lands on the co-op employer", realigned[1]?.bullets[0] === "co-op work", String(realigned[1]?.bullets[0]));
+check("freelance work lands on the freelance client", realigned[2]?.bullets[0] === "freelance work", String(realigned[2]?.bullets[0]));
+
+// A shortened employer name must still match.
+const shortened = alignByCompany(COMPANIES, [
+  { company: "Project Human City", bullets: ["co-op"] },
+  { company: "Seneca Polytechnic", bullets: ["lab"] },
+  { company: "Three of Cups", bullets: ["freelance"] },
+]);
+check("shortened employer name still matches", shortened[0]?.bullets[0] === "lab", String(shortened[0]?.bullets[0]));
+
+// No company field at all -> original positions, i.e. previous behaviour.
+const noNames = alignByCompany(COMPANIES, [{ bullets: ["a"] }, { bullets: ["b"] }, { bullets: ["c"] }] as never);
+check("missing company falls back to index order", noNames.map((g) => (g as { bullets: string[] })?.bullets[0]).join("") === "abc");
+
+// ------------------------------------------------- title qualifier (real bug)
+check(
+  "a co-op cannot be relabelled freelance",
+  keepTitleQualifier("Software Engineer (Co-op)", "Data Engineering Developer (Freelance)") ===
+    "Data Engineering Developer (Co-op)",
+  keepTitleQualifier("Software Engineer (Co-op)", "Data Engineering Developer (Freelance)")
+);
+check(
+  "matching qualifier is left alone",
+  keepTitleQualifier("Software Engineer Intern (Academic WIL)", "Data Engineering Intern (Academic WIL)") ===
+    "Data Engineering Intern (Academic WIL)"
+);
+check(
+  "a dropped qualifier is restored",
+  keepTitleQualifier("Software Engineer (Freelance)", "Backend Data Developer") === "Backend Data Developer (Freelance)",
+  keepTitleQualifier("Software Engineer (Freelance)", "Backend Data Developer")
+);
+check(
+  "titles with no qualifier are untouched",
+  keepTitleQualifier("Software Engineer", "Data Engineer") === "Data Engineer"
+);
+
+// --------------------------------------- cover-letter company facts are exempt
+// TD's research mentions a "$1,790 in value" package; quoting it in the cover
+// letter is correct, and the money-figure ban must not apply outside the resume.
+check(
+  "money figure is still banned inside a resume bullet",
+  bannedNumberShapes(["Shipped a billing screen that recovered $2M in revenue."]).length > 0
+);
 
 console.log(failures === 0 ? "all bullet-quality checks passed" : `${failures} check(s) failed`);
 process.exitCode = failures === 0 ? 0 : 1;

@@ -242,10 +242,18 @@ export async function POST(request: Request) {
   // indefensible shapes (percentages, multipliers, scale, money, SLA) force a
   // retry; other new numbers are reported so they can be reviewed, since they
   // are what has to be defended in an interview.
-  let banned = bannedNumberShapes(generatedText());
+  // Resume bullets only. The cover letter legitimately quotes company facts from
+  // the research (TD's "$1,790 in value" package), and scoring those as
+  // indefensible triggered a pointless regeneration and then warned about a
+  // sentence that was correct.
+  const resumeClaims = () => [
+    ...generated.experience.flatMap((e) => e.bullets),
+    ...(generated.projects ?? []).flatMap((p) => p.bullets ?? []),
+  ];
+  let banned = bannedNumberShapes(resumeClaims());
   if (banned.length > 0) {
     generated = await generateContent({ ...baseInput, cheap: true });
-    banned = bannedNumberShapes(generatedText());
+    banned = bannedNumberShapes(resumeClaims());
     if (banned.length > 0) {
       warnings.push(`Remove before sending — these cannot be defended in a screen: ${banned.join(", ")}`);
     }
