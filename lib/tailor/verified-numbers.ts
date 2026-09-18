@@ -11,6 +11,7 @@ export const VERIFIED_NUMBERS: { fact: string; usage: string }[] = [
   { fact: "2 freelance client engagements (Project Human City, Three of Cups)", usage: "across 2 freelance client engagements" },
   { fact: "$2,000 academic excellence scholarship, twice", usage: "a $2,000 scholarship awarded twice" },
   { fact: "10+ freelance and personal software projects", usage: "10+ delivered software projects" },
+  { fact: "30+ HyFlex hybrid classrooms (Seneca ITS)", usage: "across 30+ HyFlex classrooms" },
 ];
 
 export function verifiedNumbersBrief(): string {

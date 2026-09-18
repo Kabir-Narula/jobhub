@@ -52,17 +52,21 @@ const NAMED_TECH =
 const ARTIFACT =
   /\b(?:endpoint|endpoints|service|services|api|apis|queue|job|jobs|worker|workers|schema|schemas|table|tables|index|indexes|indices|query|queries|migration|migrations|pipeline|pipelines|script|scripts|report|reports|dashboard|screen|page|form|export|import|upload|webhook|cron|test|tests|fixture|fixtures|suite|build|deploy|deployment|release|runbook|design doc|ticket|flag|cache|parser|adapter|module|component|integration|checklist|log|logs|alert|config|handler|route|middleware|repository|branch|pull request|readme|documentation|layer|flow|contract|contracts|classifier|reranker|scheduler|validator|citation|citations|payload|payloads|column|columns|constraint|constraints)\b/i;
 
-/** Consulting CAR artifacts — a model/deck/recommendation is the thing to ask about. */
+/** Consulting CAR artifacts — a model/deck/recommendation OR a real classroom/lab restore. */
 const CONSULTING_ARTIFACT =
-  /\b(?:model|models|spreadsheet|workbook|deck|slide|slides|briefing|memo|recommendation|recommendations|workstream|analysis|forecast|sizing|cohort|interview|interviews|kpi|kpis|hypothesis|variance|walkthrough|stakeholder|stakeholders|excel|sql pull)\b/i;
+  /\b(?:model|models|spreadsheet|workbook|deck|slide|slides|briefing|memo|recommendation|recommendations|workstream|analysis|analyzed|forecast|sizing|cohort|interview|interviews|kpi|kpis|hypothesis|variance|walkthrough|stakeholder|stakeholders|excel|sql|powerpoint|microsoft word|\bword\b|tracker|notices?|guides?|pivot|vlookup|xlookup|index\s*\/\s*match|power query|sumifs?|countifs?|classroom|classrooms|projector|audio|camera|lab|labs|hyflex|peripheral|display|login|advising|onboarding|orientation|secondary)\b/i;
+
+/** Software internals a BCG/McKinsey partner cannot use as a case story. */
+const SWE_INTERNALS =
+  /\b(?:payloads?|authentication|error-handling|execution plans?|deployment checklist|api fields?|processing logs?|backend workflows?|extraction workflows?|mobile and web|third-party (?:data|service)|shared backend|user-facing requests|feature behaviour|backend defects?|backend rules?)\b/i;
 
 /** A result is a state change: something stopped, dropped, or went away. */
 const RESULT_SIGNAL =
-  /\b(?:stopped|no longer|eliminat\w+|removed|cut|down to|dropped from|reduced|from \d+[^.]* to \d+|unblock\w+|without manual|by hand|automatic\w*|instead of manually|freed|caught|prevent\w+ the|surfac\w+|replac\w+)\b/i;
+  /\b(?:stopped|no longer|eliminat\w+|removed|cut|down to|dropped from|reduced|from \d+[^.]* to \d+|unblock\w+|without manual|by hand|automatic\w*|instead of manually|freed|caught|prevent\w+ the|surfac\w+|replac\w+|restor\w+|resolved)\b/i;
 
 /** Evidence other humans existed: the slot that makes an entry read like a job. */
 const TEAM_SIGNAL =
-  /\b(?:code review|reviewed?|review ?gate|pair\w*|sprint|standup|stand-up|demo|retro|design doc|runbook|documented|documentation|handed off|handoff|onboard\w*|stakeholder|ops lead|product manager|senior (?:engineer|developer)|teammate|another developer|on-?call|support ticket|walked .* through|confluence|jira)\b/i;
+  /\b(?:code review|reviewed?|review ?gate|pair\w*|sprint|standup|stand-up|demo|retro|design doc|runbook|documented|documentation|handed off|handoff|onboard\w*|stakeholder|ops lead|product manager|senior (?:engineer|developer)|teammate|another developer|on-?call|support ticket|walked .* through|confluence|jira|staff|faculty|professors?|instructors?|front desk|partners?|reviewers?|ITS)\b/i;
 
 /**
  * Work that is not greenfield building. Includes the language engineers use for
@@ -71,7 +75,7 @@ const TEAM_SIGNAL =
  * says "debugged".
  */
 const FIX_SIGNAL =
-  /\b(?:trac\w+|debug\w*|diagnos\w+|fixed|fix|root cause|investigat\w+|migrat\w+|backfill\w*|flaky|regression|slow|timeout|timed out|timing out|reproduc\w+|patch\w*|hardened|cleaned up|refactor\w*|optimiz\w+|index\w*|broke|breaking|fail\w+|bug|defect|malformed|inconsistent|mismatch\w*|duplicate|stale|edge case|dropp\w+|missing)\b/i;
+  /\b(?:trac\w+|debug\w*|diagnos\w+|fixed|fix|root cause|investigat\w+|migrat\w+|backfill\w*|flaky|regression|slow|timeout|timed out|timing out|reproduc\w+|patch\w*|hardened|cleaned up|refactor\w*|optimiz\w+|index\w*|broke|breaking|fail\w+|bug|defect|malformed|inconsistent|mismatch\w*|duplicate|stale|edge case|dropp\w+|missing|restor\w+|troubleshoot\w*)\b/i;
 
 /**
  * A specific engineering mechanism — the thing a technical screener probes.
@@ -153,6 +157,16 @@ export function auditExperienceBullets(
       if (techNames.length > 2) {
         add(company, "high", `"${short}" names ${techNames.length} technologies (${techNames.join(", ")}) — max 2 per bullet, or it reads as a keyword list`);
       }
+      if (consulting) {
+        const leak = SWE_INTERNALS.exec(b);
+        if (leak) {
+          add(
+            company,
+            "high",
+            `"${short}" is software-implementation language ("${leak[0]}") — a consulting screener cannot see the business problem; rewrite as diagnosis, analysis, recommendation`
+          );
+        }
+      }
 
       // A bullet naming a technology should carry a mechanism, an outcome, or be
       // about working with people (where the collaboration IS the substance and
@@ -194,6 +208,10 @@ export function auditExperienceBullets(
       }
     }
 
+    if (consulting && expanded && bullets.length > 0 && bullets.length < 3) {
+      add(company, "high", `this entry has ${bullets.length} bullets — consulting needs 3 CAR bullets, not a compressed stub`);
+    }
+
     // ---- entry-level composition: does this read like a job? ----
     if (expanded && bullets.length >= 2) {
       if (!bullets.some((b) => RESULT_SIGNAL.test(b) || /\d/.test(b))) {
@@ -224,6 +242,27 @@ export function auditExperienceBullets(
         const diagnose = /\b(?:found|mismatch|reconcil\w*|gap|variance|diagnos\w+|traced|investigat\w+|noticed|caught|corrected)\b/i;
         if (!bullets.some((b) => diagnose.test(b) || FIX_SIGNAL.test(b))) {
           add(company, "high", `no bullet in this entry diagnoses a problem — consulting screens for "did you diagnose something, not just execute"`);
+        }
+        const hyflex = /\bITS\b/i.test(company) || /hyflex/i.test(company);
+        if (hyflex) {
+          const TECH_FIX =
+            /\b(?:restor\w+|resolved|troubleshoot\w*|fixed|reconnected|reconfigured|reimaged|installed|configured|got (?:the )?(?:class|lecture|lab|room))\b/i;
+          const DOC_ONLY = /\b(?:documented|documentation|rewrote|procedures|notices|guide|guides|tracker)\b/i;
+          if (!bullets.some((b) => TECH_FIX.test(b))) {
+            add(
+              company,
+              "high",
+              `HyFlex reads as documentation — write that you restored classroom or lab tech for a professor (audio, display, camera, login); docs are at most one later bullet`
+            );
+          }
+          const docsOnly = bullets.filter((b) => DOC_ONLY.test(b) && !TECH_FIX.test(b)).length;
+          if (docsOnly >= 2) {
+            add(
+              company,
+              "high",
+              `HyFlex has ${docsOnly} documentation-only bullets — at most one; the job was front-line troubleshooting for professors and labs`
+            );
+          }
         }
       } else if (!bullets.some((b) => FIX_SIGNAL.test(b))) {
         add(company, "high", `every bullet in this entry is greenfield building — real jobs include tracing a bug, cutting a slow query, or a migration`);
@@ -287,6 +326,37 @@ export function auditExperienceBullets(
     .map(([ph]) => ph);
   if (repeated.length > 0) {
     add(entries[0].company, "low", `phrase reused verbatim across bullets: "${repeated[0]}" — vary the wording`);
+  }
+
+  if (consulting) {
+    const TEMPLATES: { re: RegExp; name: string }[] = [
+      { re: /faculty notices/i, name: "faculty notices" },
+      { re: /paper logs? dropped follow-ups/i, name: "paper logs dropped follow-ups" },
+      { re: /reusable (?:answers?|guide|one-page)/i, name: "reusable answers/guide" },
+      { re: /internal extraction workflows/i, name: "internal extraction workflows" },
+      { re: /mobile and web/i, name: "mobile and web" },
+      { re: /third-party (?:data|service)/i, name: "third-party data/service" },
+    ];
+    for (const t of TEMPLATES) {
+      const hits = allBullets.filter((b) => t.re.test(b)).length;
+      if (hits >= 2) {
+        add(
+          entries[0].company,
+          "high",
+          `the phrase "${t.name}" is reused on ${hits} bullets — HyFlex, Office Assistant, and internships must tell different stories`
+        );
+      }
+    }
+    const officeStamp = (b: string) =>
+      /\bexcel\b/i.test(b) || /\bpowerpoint\b/i.test(b) || /\bmicrosoft word\b/i.test(b) || /\bin word\b/i.test(b);
+    const stamped = allBullets.filter(officeStamp).length;
+    if (stamped >= 3) {
+      add(
+        entries[0].company,
+        "high",
+        `Excel/Word/PowerPoint is stamped on ${stamped} experience bullets — name a technique the posting implies (Pivot Table, INDEX/MATCH, Power Query, SQL join, SUMIFS) instead; product names belong in skills`
+      );
+    }
   }
 
   return issues;
@@ -371,7 +441,7 @@ export function qualityFeedback(issues: BulletIssue[], family?: "consulting"): s
   const lines = [...high, ...low].map((i) => `- [${i.company}] ${i.message}`);
   const compose =
     family === "consulting"
-      ? "Do not simply reword the flagged bullets. Recompose affected experience as consulting CAR bullets: one diagnosis, one Excel/SQL analysis, one stakeholder recommendation that changed a decision or removed a chase. Do NOT repair by adding FastAPI, indexes, or CI. For projects: bullet 1 is the business problem for a user; bullet 2 is how it produces an insight or decision."
+      ? "Do not simply reword the flagged bullets. Recompose affected experience as consulting CAR bullets: one diagnosis, one analysis TECHNIQUE from jd_matched_techniques (Pivot Table, INDEX/MATCH, Power Query, SQL join — never default to VLOOKUP), one stakeholder recommendation that changed a decision. THREE bullets per entry. HyFlex is classroom/lab troubleshooting for professors (restore audio/display/camera/login) — at most one later documentation bullet, never an Excel/Word job. Office Assistant is a request tracker from jd_matched_techniques + advising. Human City is a data-mismatch story, never authentication or mobile-and-web. INNWIL is a file/report mismatch, never extraction workflows. Stamp Excel/Word on at most two experience bullets total; put them in skills. If the JD names Tableau, Power BI, Alteryx, Qualtrics, or Nielsen, map to the intern-defensible equivalent — do not fake the product. Do NOT repair by adding FastAPI, indexes, Node, Stripe, or CI. For projects: bullet 1 is the business problem for a user; bullet 2 is how it produces an insight or decision."
       : "Do not simply reword the flagged bullets. Recompose affected experience entries so each one reads like a real few months on a real team: one build, one fix, one piece of work involving other people, each with a concrete artifact and at most two named technologies. For projects: bullet 1 is what the product is (plain English, at most one technology); bullet 2 is distinctive features + tech + technique, framed to this posting.";
   return [
     "QUALITY REPAIR PASS. Your previous draft failed these specific checks. Rewrite the flagged experience and project bullets from scratch to fix every one of them while following all original rules (bullet_count_rule still governs experience count and length; projects stay at exactly 2 bullets — purpose, then implementation):",

@@ -10,6 +10,7 @@
  */
 
 import { EXTRA_SKILLS, extraSkillsPool } from "./skills-extra";
+import { businessSkillPin } from "./analyst-techniques";
 
 // ---------- engine compatibility ----------
 
@@ -463,8 +464,24 @@ export function assembleSkillsSection(
       for (const s of suppressSet) if (plain.includes(s)) return false;
       return true;
     });
-    if (items.length === 0) items = orig.items.filter((i) => !suppressSet.has(i.toLowerCase()));
-    if (items.length === 0) items = orig.items;
+    const notSuppressed = (i: string) => {
+      const plain = unescapeItem(i).toLowerCase();
+      for (const s of suppressSet) if (plain.includes(s)) return false;
+      return true;
+    };
+    if (items.length === 0) items = orig.items.filter(notSuppressed);
+    // Never restore the unfiltered master line when a lens asked us to hide
+    // engineering tools — that is how Node.js / Fastify / OpenAI reappeared
+    // on consulting resumes after every item on the line was suppressed.
+    if (items.length === 0 && suppressSet.size === 0) items = orig.items;
+    if (items.length === 0) {
+      const consultingLens =
+        suppressSet.has("fastapi") || suppressSet.has("openai") || suppressSet.has("react") || suppressSet.has("node.js");
+      if (consultingLens) {
+        const pin = businessSkillPin(orig.label) ?? [];
+        items = pin.map((p) => canon.get(p.toLowerCase()) ?? escapeLatex(p)).filter(notSuppressed);
+      }
+    }
     if (maxItemsPerLine > 0) items = items.slice(0, maxItemsPerLine);
     return `      \\textbf{${orig.label}}{: ${items.join(", ")} \\\\}`;
   });
@@ -491,6 +508,29 @@ export function assembleSkillsSection(
     }
   }
 
+  let out = section.before;
+  out += `\\begin{itemize}[leftmargin=0.15in, label={}]${nl}`;
+  out += `    \\small{\\item{${nl}`;
+  out += lines.join(nl);
+  out += `${nl}    }}${nl}`;
+  out += `  ${section.after.trimStart()}`;
+  return out;
+}
+
+/**
+ * Consulting/analyst skills are Excel/SQL, not the engineering extras pool.
+ * The model and JD-term backfill keep reintroducing Node/Stripe/OpenAI;
+ * this overwrites the four master lines after assembly. Extra lines
+ * (e.g. Professional) stay as assembled.
+ */
+export function pinBusinessSkills(tex: string, maxItemsPerLine = 0): string {
+  const section = parseSkillsSection(tex);
+  const nl = section.nl;
+  const lines = section.lines.map((orig) => {
+    let items = businessSkillPin(orig.label) ?? orig.items;
+    if (maxItemsPerLine > 0) items = items.slice(0, maxItemsPerLine);
+    return `      \\textbf{${orig.label}}{: ${items.join(", ")} \\\\`;
+  });
   let out = section.before;
   out += `\\begin{itemize}[leftmargin=0.15in, label={}]${nl}`;
   out += `    \\small{\\item{${nl}`;

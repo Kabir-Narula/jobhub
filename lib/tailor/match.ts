@@ -1,3 +1,5 @@
+import { stripHtml } from "@/lib/sources/http";
+
 const STOPWORDS = new Set(
   `the a an and or of to in for with on at by from as is are was were be been being this that these those you your we our they their it its he she his her i me my him them us will would can could should may might must shall not no do does did done have has had having than then so such if when where while who whom whose which what how why all any both each few more most other some own same only very just about into over under again further once here there out up down off above below between through during before after against within without along across behind beyond plus per via etc work working team teams role job candidate candidates ability strong experience experienced skills skill requirements preferred qualifications responsibilities opportunity opportunities opportunitie including include includes included across areas area support supporting clients client services service new grad full time position join joining years year day days week weeks months month professional professionals talent provide provides provided process policy application applications apply applying personal build building built together core workplace worklife balance
   `.split(/\s+/)
@@ -40,6 +42,9 @@ const SYNONYMS: [RegExp, string][] = [
   [/^(gcp|google cloud|google cloud platform)$/, "googlecloud"],
   [/^(aws|amazon web services)$/, "aws"],
   [/^(llm|llms|large language model|large language models)$/, "llm"],
+  [/^power query$/, "powerquery"],
+  [/^power bi$/, "powerbi"],
+  [/^index\s*\/?\s*match$/, "indexmatch"],
   [/^(etl|elt)$/, "etl"],
   [/^(bi|business intelligence)$/, "businessintelligence"],
   [/^(db|database|databases)$/, "database"],
@@ -81,7 +86,9 @@ function stripBoilerplate(jd: string): string {
 /** Extract distinctive unigrams + bigrams from the JD. */
 export function jdTerms(jobDescription: string, cap = 40, excludeTokens: string[] = []): string[] {
   const exclude = new Set(excludeTokens.map((t) => norm(t)));
-  const clean = stripBoilerplate(jobDescription).toLowerCase();
+  // Careers-page HTML and &#x27; apostrophes used to become fake "tech" terms
+  // (x27, h59) that scored every consulting resume at 0%.
+  const clean = stripBoilerplate(stripHtml(jobDescription)).toLowerCase();
   // Noise checks run on the RAW word (stopword lists hold natural forms like
   // "responsibilities"); norm() runs after, for storage/canonicalization.
   const keep = (raw: string) =>
@@ -190,9 +197,14 @@ function covered(term: string, plain: string, plainSquash: string): boolean {
   return parts.every((w) => hasWord(w, plain));
 }
 
-export function matchScore(jobDescription: string, resumeTex: string, companyName = ""): number | null {
+export function matchScore(jobDescription: string, resumeTex: string, companyName = "", jobTitle = ""): number | null {
   if (!jobDescription.trim()) return null; // no JD to score against — display as "—", not 0%
-  const terms = claimableJdTerms(jobDescription, 40, companyName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean));
+  const terms = claimableJdTerms(
+    jobDescription,
+    40,
+    companyName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean),
+    jobTitle
+  );
   if (terms.length === 0) return null;
   const plain = plainTex(resumeTex);
   const plainSquash = plain.replace(/\s+/g, "");
@@ -212,7 +224,7 @@ const TECH_LEXICON = new Set(
    pinecone weaviate qdrant chromadb chroma faiss milvus pgvector ollama vllm llamacpp mlflow kubeflow triton
    langgraph langsmith autogen crewai spacy nltk xgboost lightgbm onnx tensorrt jax
    powerbi tableau looker dagster prefect kinesis pubsub
-   excel powerpoint
+   excel powerpoint vlookup xlookup powerquery indexmatch sumifs countifs alteryx qualtrics
    sas spss stata alteryx knime qlik jupyter anaconda dask polars duckdb
    regression classification clustering forecasting segmentation statistics statistical
    econometrics bayesian anova pca randomforest catboost timeseries arima
@@ -226,8 +238,12 @@ export function isTechTerm(term: string): boolean {
   if (t.length < 2 && t !== "r") return false; // "c" alone is JD noise; "C++" is the real term
   if (/^[a-z0-9-]+\.(com|ca|io|ai|org|net|dev|co|app)$/.test(t)) return false; // bare domains are never skills
   if (/^([a-z]\.)+[a-z]?$/.test(t)) return false; // abbreviations like "u.s", "u.k"
-  if (/[+#0-9]/.test(t)) return true; // c++, c#, .net, 3scale...
+  // HTML entities (&#x27; → x27) and CSS fragments (h59) used to pass because
+  // any digit made a token "tech". Digits only count on known tech spellings.
+  if (/^[a-z]{1,4}\d{1,4}$/i.test(t) && !TECH_LEXICON.has(t)) return false;
+  if (/[+#]/.test(t)) return true; // c++, c#
   if (t.includes(".") && !t.endsWith(".")) return true; // node.js, next.js, asp.net
+  if (/\d/.test(t) && TECH_LEXICON.has(t)) return true;
   const words = t.split(/\s+/);
   if (words.every((w) => TECH_LEXICON.has(w))) return true;
   // bigrams with a tech head noun: "rest api", "machine learning", "data pipeline"
@@ -271,15 +287,29 @@ export function isClaimableTerm(term: string): boolean {
 /** JD terms worth optimizing for: distinctive AND claimable. Extracts from a deep
  *  pool so thin/fluffy JDs still surface their few real tech terms (frequency
  *  ranking buries f=1 tools like "Kafka" under benefits prose in a top-40 cut). */
-export function claimableJdTerms(jobDescription: string, cap = 40, excludeTokens: string[] = []): string[] {
-  return jdTerms(jobDescription, Math.max(cap * 3, 120), excludeTokens).filter(isClaimableTerm).slice(0, cap);
+/** Engineering-only tokens that a BA/Associate JD scrape must not require. */
+const BUSINESS_DROP = new Set(
+  "spark pyspark hadoop kafka kubernetes docker fastapi databricks terraform redis kotlin".split(" ")
+);
+
+export function claimableJdTerms(
+  jobDescription: string,
+  cap = 40,
+  excludeTokens: string[] = [],
+  jobTitle = ""
+): string[] {
+  let terms = jdTerms(jobDescription, Math.max(cap * 3, 120), excludeTokens).filter(isClaimableTerm);
+  if (jobTitle && !/\b(engineer|developer|software|data engineer|ml engineer)\b/i.test(jobTitle)) {
+    terms = terms.filter((t) => !t.split(/\s+/).some((w) => BUSINESS_DROP.has(w)));
+  }
+  return terms.slice(0, cap);
 }
 
 /** Missing terms for display (what the resume doesn't cover) — claimable only. */
-export function missingTerms(jobDescription: string, resumeTex: string, cap = 12, companyName = ""): string[] {
+export function missingTerms(jobDescription: string, resumeTex: string, cap = 12, companyName = "", jobTitle = ""): string[] {
   const plain = plainTex(resumeTex);
   const plainSquash = plain.replace(/\s+/g, "");
-  return claimableJdTerms(jobDescription, 60, companyName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean))
+  return claimableJdTerms(jobDescription, 60, companyName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean), jobTitle)
     .filter((t) => !covered(t, plain, plainSquash))
     .slice(0, cap);
 }

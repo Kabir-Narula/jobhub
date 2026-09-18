@@ -43,6 +43,10 @@ export function decodeEntities(s: string): string {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;|&apos;/g, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => {
+      const n = parseInt(h, 16);
+      return n >= 32 && n < 0x10000 ? String.fromCharCode(n) : " ";
+    })
     .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)));
 }
 

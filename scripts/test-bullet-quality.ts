@@ -302,6 +302,11 @@ check(
   keepTitleQualifier("Software Engineer", "Data Engineer") === "Data Engineer"
 );
 check(
+  "Academic WIL is rewritten to Co-op",
+  clampConsultingTitle("Software Engineer Intern (Academic WIL)", "Business Analyst Intern (Academic WIL)") ===
+    "Business Analyst Intern (Co-op)"
+);
+check(
   "consulting titles keep the co-op marker",
   clampConsultingTitle("Software Engineer (Co-op)", "Business Analyst") === "Business Analyst (Co-op)"
 );
@@ -377,6 +382,157 @@ check(
   "consulting CAR bullets pass the consulting auditor",
   highSeverityCount(consultingIssues) === 0,
   messages(consultingIssues.filter((i) => i.severity === "high"))
+);
+const leakIssues = auditExperienceBullets(
+  [
+    {
+      company: "Project Human City",
+      bullets: [
+        "Compared authentication and error-handling flows across mobile and web clients, then recommended shared rules.",
+        "Found a mismatch in weekly occupancy, reconciled it in Excel, and the report went out.",
+        "Walked the ops lead through the occupancy recommendation so they stopped chasing the spreadsheet.",
+      ],
+    },
+  ],
+  { expandedCount: 1, family: "consulting" }
+);
+check(
+  "authentication/error-handling on a consulting resume is a high-severity leak",
+  leakIssues.some((i) => i.severity === "high" && /software-implementation/i.test(i.message)),
+  messages(leakIssues)
+);
+const mobileLeak = auditExperienceBullets(
+  [
+    {
+      company: "Project Human City",
+      bullets: [
+        "Compared third-party data across mobile and web clients, then standardized the shared outputs.",
+        "Found a mismatch in weekly occupancy, reconciled it in Excel, and the report went out.",
+        "Walked the ops lead through the occupancy recommendation so they stopped chasing the spreadsheet.",
+      ],
+    },
+  ],
+  { expandedCount: 1, family: "consulting" }
+);
+check(
+  "mobile-and-web / third-party data on a consulting resume is a high-severity leak",
+  mobileLeak.some((i) => i.severity === "high" && /software-implementation/i.test(i.message)),
+  messages(mobileLeak)
+);
+const twoBulletStub = auditExperienceBullets(
+  [
+    {
+      company: "Seneca Polytechnic — INNWIL Lab | VYBE Platform",
+      bullets: [
+        "Found a mismatch in the weekly occupancy file, reconciled the source in Excel, and the report went out without a chase.",
+        "Walked the ops lead through the occupancy recommendation so they stopped chasing the weekly spreadsheet.",
+      ],
+    },
+  ],
+  { expandedCount: 1, family: "consulting" }
+);
+check(
+  "a 2-bullet consulting entry is a high-severity stub",
+  twoBulletStub.some((i) => i.severity === "high" && /3 CAR bullets/i.test(i.message)),
+  messages(twoBulletStub)
+);
+const campusDup = auditExperienceBullets(
+  [
+    {
+      company: "Seneca Polytechnic — ITS",
+      bullets: [
+        "Restored HyFlex audio and display for a professor after the camera dropped so class could start.",
+        "Rewrote faculty notices in Word after instructors asked the same HyFlex setup questions each week.",
+        "Traced repeat projector failures and showed faculty the recovery steps so they stopped waiting on ITS.",
+      ],
+    },
+    {
+      company: "Seneca Polytechnic — Student Services",
+      bullets: [
+        "Matched open request IDs with VLOOKUP after the paper log dropped follow-ups, and the desk stopped losing items.",
+        "Mapped repeated student questions to process gaps and standardized faculty notices for the front desk.",
+        "During advising, passed recurring onboarding concerns to campus staff so orientation notes were updated.",
+      ],
+    },
+  ],
+  { expandedCount: 2, family: "consulting" }
+);
+check(
+  "reused faculty-notices copy across campus-ops jobs is high severity",
+  campusDup.some((i) => i.severity === "high" && /faculty notices/i.test(i.message)),
+  messages(campusDup)
+);
+const hyflexGood = auditExperienceBullets(
+  [
+    {
+      company: "Seneca Polytechnic — ITS",
+      bullets: [
+        "Restored HyFlex audio and display for a professor in one of 30+ rooms after the camera dropped so class could start.",
+        "Traced repeat lab login failures to a stale image, reimaged the station, and the next section ran on time.",
+        "Showed faculty the projector recovery steps after the third restore so they could get the room back without waiting.",
+      ],
+    },
+  ],
+  { expandedCount: 1, family: "consulting" }
+);
+check(
+  "HyFlex troubleshooting bullets pass without Excel/Word stamps",
+  highSeverityCount(hyflexGood) === 0,
+  messages(hyflexGood.filter((i) => i.severity === "high"))
+);
+const hyflexDocs = auditExperienceBullets(
+  [
+    {
+      company: "Seneca Polytechnic — ITS",
+      bullets: [
+        "Tracked incidents across 30 HyFlex rooms in Excel, then escalated repeat equipment patterns to ITS staff.",
+        "Rewrote faculty notices in Word after instructors asked the same HyFlex setup questions each week.",
+        "Documented HyFlex procedures in Word so the support desk had a reusable guide.",
+      ],
+    },
+  ],
+  { expandedCount: 1, family: "consulting" }
+);
+check(
+  "HyFlex documentation-only bullets are high severity",
+  hyflexDocs.some((i) => i.severity === "high" && /documentation/i.test(i.message)),
+  messages(hyflexDocs)
+);
+const excelStamp = auditExperienceBullets(
+  [
+    {
+      company: "Seneca Polytechnic — INNWIL Lab | VYBE Platform",
+      bullets: [
+        "Found a mismatch in the weekly occupancy file, reconciled the source in Excel, and the report went out.",
+        "Built an Excel occupancy model after the Friday file kept arriving late, then sized the gap across 3 sites.",
+        "Walked the ops lead through an Excel walkthrough so they stopped chasing the weekly spreadsheet.",
+      ],
+    },
+  ],
+  { expandedCount: 1, family: "consulting" }
+);
+check(
+  "Excel stamped on 3+ bullets is high severity",
+  excelStamp.some((i) => i.severity === "high" && /Excel\/Word\/PowerPoint is stamped/i.test(i.message)),
+  messages(excelStamp)
+);
+const vlookupEntry = auditExperienceBullets(
+  [
+    {
+      company: "Seneca Polytechnic — Student Services",
+      bullets: [
+        "Matched open request IDs with VLOOKUP after 6 follow-ups were dropped, and the desk stopped losing items.",
+        "Walked incoming students through onboarding in one-on-ones, then passed recurring concerns to campus staff.",
+        "Found a mismatch in weekly occupancy, reconciled the source, and the report went out without a chase.",
+      ],
+    },
+  ],
+  { expandedCount: 1, family: "consulting" }
+);
+check(
+  "a VLOOKUP tracker bullet counts as a consulting artifact without saying Excel",
+  highSeverityCount(vlookupEntry) === 0,
+  messages(vlookupEntry.filter((i) => i.severity === "high"))
 );
 const consultingAsSwe = auditExperienceBullets(CONSULTING_ENTRY, { expandedCount: 1 });
 check(

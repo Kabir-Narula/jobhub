@@ -171,9 +171,16 @@ const CLUSTER: Record<string, string> = {
   windows_booster: "systems",
 };
 
-function projectScore(jobText: string, p: ProjectProfile): number {
+function projectScore(jobText: string, p: ProjectProfile, business = false): number {
   const hay = jobText.toLowerCase();
-  return p.keywords.reduce((n, k) => n + (hay.includes(k.toLowerCase()) ? 1 : 0), 0);
+  let n = p.keywords.reduce((acc, k) => acc + (hay.includes(k.toLowerCase()) ? 1 : 0), 0);
+  if (business) {
+    if (p.id === "expense_manager") n += 8;
+    if (p.id === "jobhub") n += 6;
+    if (p.id === "vertexflow" || p.id === "windows_booster") n -= 5;
+    if (p.id === "bettermind" || p.id === "axom") n -= 4;
+  }
+  return n;
 }
 
 /**
@@ -182,11 +189,16 @@ function projectScore(jobText: string, p: ProjectProfile): number {
  * the second slot should be the strongest project from another cluster so the
  * resume answers more of the JD instead of repeating inference twice.
  */
-export function rankProjects(jobText: string, take: number, exclude: string[] = []): ProjectProfile[] {
+export function rankProjects(
+  jobText: string,
+  take: number,
+  exclude: string[] = [],
+  opts: { business?: boolean } = {}
+): ProjectProfile[] {
   const blocked = new Set(exclude);
   const scored = PROJECTS
     .filter((p) => !blocked.has(p.id))
-    .map((p) => ({ p, score: projectScore(jobText, p) }))
+    .map((p) => ({ p, score: projectScore(jobText, p, opts.business) }))
     .sort((a, b) => b.score - a.score || a.p.name.localeCompare(b.p.name));
 
   const picked: ProjectProfile[] = [];

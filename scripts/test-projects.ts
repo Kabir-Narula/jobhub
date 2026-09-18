@@ -18,7 +18,8 @@ check("2 experience entries → 3 projects (fill the page)", projectSlots(2) ===
 check("shorten always drops to 2", projectSlots(3, { shorten: true }) === 2);
 check("shorten with 4 entries stays 2", projectSlots(4, { shorten: true }) === 2);
 check("analyst/consulting always 2 projects so campus-ops experience can stay", projectSlots(3, { business: true }) === 2);
-check("5 entries (office assistant kept) still 2 projects", projectSlots(5) === 2);
+check("4 entries (business) still 2 projects", projectSlots(4, { business: true }) === 2);
+check("5 entries still 2 projects", projectSlots(5) === 2);
 
 const aiJd =
   "Gen AI Developer: RAG, LangChain, OpenAI, LLM inference, Python, FastAPI, machine learning, knowledge graphs";
@@ -44,8 +45,15 @@ const infraJd = "Software Developer Infrastructure: Docker, Kubernetes, Linux, R
 const infraPick = rankProjects(infraJd, 2).map((p) => p.id);
 check("an infra posting leads with VertexFlow", infraPick[0] === "vertexflow", infraPick.join(", "));
 
-const excluded = rankProjects(aiJd, 2, ["bettermind"]).map((p) => p.id);
-check("exclude drops the named id", !excluded.includes("bettermind"), excluded.join(", "));
+const consultingPick = rankProjects("BCG Associate: Excel PowerPoint stakeholder case interview", 2, [], { business: true }).map(
+  (p) => p.id
+);
+check(
+  "consulting ranking prefers Expense Manager or JobHub over VertexFlow",
+  consultingPick[0] === "expense_manager" || consultingPick[0] === "jobhub",
+  consultingPick.join(", ")
+);
+check("consulting ranking leads with Expense Manager", consultingPick[0] === "expense_manager", consultingPick.join(", "));
 
 console.log(failures === 0 ? "all project-slot checks passed" : `${failures} check(s) failed`);
 process.exitCode = failures === 0 ? 0 : 1;

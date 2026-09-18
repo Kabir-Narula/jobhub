@@ -7,11 +7,11 @@
  *
  * No LLM calls. Run: npx tsx scripts/test-tailor-quality.ts
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { polishBullet } from "../lib/tailor/generate";
 import { claimableJdTerms, isClaimableTerm, isTechTerm, matchScore } from "../lib/tailor/match";
-import { normalizeForTectonic, parseSkillsSection, assembleSkillsSection } from "../lib/tailor/latex";
+import { normalizeForTectonic, parseSkillsSection, assembleSkillsSection, pinBusinessSkills } from "../lib/tailor/latex";
 
 let failed = 0;
 function check(name: string, cond: boolean, detail = "") {
@@ -71,6 +71,34 @@ check("skills: 'event driven' is not a tech term", !isTechTerm("event driven"));
 check("skills: 'event streaming' stays a tech term", isTechTerm("event streaming"));
 check("skills: 'data pipelines' stays a tech term", isTechTerm("data pipelines"));
 
+const MINI_SKILLS = `\\section{Skills}
+  \\begin{itemize}[leftmargin=0.15in, label={}]
+    \\small{\\item{
+      \\textbf{Languages}{: SQL, Python, Java \\\\}
+      \\textbf{Infra \\& Tools}{: Git, Linux \\\\}
+      \\textbf{Frameworks}{: FastAPI, React, Node.js \\\\}
+      \\textbf{Cloud \\& Data}{: PostgreSQL, Supabase \\\\}
+    }}
+  \\end{itemize}
+\\end{document}
+`;
+const mini = parseSkillsSection(MINI_SKILLS);
+const miniLine = (tex: string, label: string) => tex.split("\n").find((l) => l.includes(label)) ?? "";
+const pinned = pinBusinessSkills(
+  assembleSkillsSection(mini, [{ label: "Frameworks", items: ["Node.js", "FastAPI", "React"] }], 0, [
+    "Node.js",
+    "Fastify",
+    "React",
+    "OpenAI",
+    "FastAPI",
+  ])
+);
+check("consulting pin drops Node.js from Frameworks", !miniLine(pinned, "Frameworks").includes("Node"), miniLine(pinned, "Frameworks"));
+check("consulting pin leads Infra with Excel", miniLine(pinned, "Infra \\& Tools").includes("Excel"), miniLine(pinned, "Infra \\& Tools"));
+check("consulting pin uses Pivot Tables not a VLOOKUP stamp", miniLine(pinned, "Infra \\& Tools").includes("Pivot") && !miniLine(pinned, "Infra \\& Tools").includes("VLOOKUP"), miniLine(pinned, "Infra \\& Tools"));
+check("consulting pin keeps SQL in Languages", miniLine(pinned, "Languages").includes("SQL"), miniLine(pinned, "Languages"));
+check("consulting suppress does not restore FastAPI", !miniLine(pinned, "Frameworks").includes("FastAPI"), miniLine(pinned, "Frameworks"));
+
 // ---------- claimable JD terms ----------
 // Real JDs repeat their requirements; bigrams only count at f>=2 by design,
 // so this fixture repeats the technical requirements the way real postings do.
@@ -101,7 +129,11 @@ const score = matchScore(FLUFFY_JD, resumeTex, "BMO");
 check("fluff-free resume scores >=70 against claimable terms", score !== null && score >= 70, `score=${score}`);
 
 // ---------- skills canonical labels ----------
-const masterTex = normalizeForTectonic(readFileSync(path.join(process.cwd(), "..", "Resume.tex"), "utf8"));
+const masterPath = path.join(process.cwd(), "..", "Resume.tex");
+if (!existsSync(masterPath)) {
+  console.log("skip master regroup tests — no ../Resume.tex");
+} else {
+const masterTex = normalizeForTectonic(readFileSync(masterPath, "utf8"));
 const section = parseSkillsSection(masterTex);
 const line = (tex: string, label: string) => tex.split("\n").find((l) => l.includes(label)) ?? "";
 
@@ -138,6 +170,7 @@ check(
 // JD-allowed extra with no canonical home stays where the model put it
 const withExtra = assembleSkillsSection(section, [{ label: "Cloud & Data", items: ["PostgreSQL", "Kubernetes"] }], 0, [], ["Kubernetes"]);
 check("JD extra (no home) stays on chosen line", line(withExtra, "Cloud \\& Data").includes("Kubernetes"), withExtra);
+}
 
 if (failed) {
   console.log(`\n${failed} failed`);

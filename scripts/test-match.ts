@@ -56,5 +56,28 @@ const excelTerms = claimableJdTerms(JD_EXCEL, 25);
 check("excel is extracted from a consulting JD", excelTerms.includes("excel"), excelTerms.join(", "));
 check("powerpoint is extracted from a consulting JD", excelTerms.includes("powerpoint"), excelTerms.join(", "));
 
+console.log("\n6) HTML entities and CSS fragments are not ATS requirements");
+check("x27 is not a tech term", !isTechTerm("x27"));
+check("h59 is not a tech term", !isTechTerm("h59"));
+check("c++ is still a tech term", isTechTerm("c++"));
+const JD_ENTITY = `Consulting Business Analyst. You&#x27;ll work in Excel. You&#x27;ll present in PowerPoint. Excel Excel PowerPoint.`;
+const entityTerms = claimableJdTerms(JD_ENTITY, 25, [], "Business Analyst");
+check("apostrophe entities do not become x27", !entityTerms.includes("x27"), entityTerms.join(", "));
+check("excel still extracts from entity-heavy HTML", entityTerms.includes("excel"), entityTerms.join(", "));
+const resumeExcel = String.raw`\section{Skills}
+\begin{itemize}\item \textbf{Infra \& Tools}{: Excel, PowerPoint \\}\end{itemize}
+\section{Experience}\resumeItem{Built an Excel tracker.}`;
+check(
+  "entity-heavy JD does not score 0% when Excel is on the resume",
+  (matchScore(JD_ENTITY, resumeExcel, "McKinsey", "Business Analyst") ?? 0) > 0,
+  `score=${matchScore(JD_ENTITY, resumeExcel, "McKinsey", "Business Analyst")}`
+);
+const JD_SPARK_CHROME = `Associate role. Spark Spark Spark. Data Science and Analytics. Excel Excel PowerPoint.`;
+check(
+  "spark is not required on a BCG Associate posting",
+  !claimableJdTerms(JD_SPARK_CHROME, 25, [], "Associate, Western Canadian Universities").some((t) => t.includes("spark")),
+  claimableJdTerms(JD_SPARK_CHROME, 25, [], "Associate, Western Canadian Universities").join(", ")
+);
+
 console.log(failures === 0 ? "\nall match checks passed" : `\n${failures} check(s) FAILED`);
 if (failures > 0) process.exit(1);

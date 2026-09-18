@@ -10,6 +10,7 @@ import {
   assembleProjectsSection,
   parseSkillsSection,
   assembleSkillsSection,
+  pinBusinessSkills,
   insertAchievements,
   injectPdfMeta,
   ensureSkillsTerms,
@@ -89,7 +90,8 @@ function toEntry(profile: { name: string; githubUrl: string; techLine: string; y
 function resolveProjects(
   gen: GeneratedContent["projects"],
   count: number,
-  jobText: string
+  jobText: string,
+  business = false
 ): { entries: ProjectEntry[]; chosen: string[] } {
   const valid = (gen ?? [])
     .map((g) => {
@@ -101,7 +103,7 @@ function resolveProjects(
 
   const unique = [...new Map(valid.map((v) => [v.id, v])).values()];
   if (unique.length < count) {
-    for (const p of rankProjects(jobText, count, unique.map((u) => u.id))) {
+    for (const p of rankProjects(jobText, count, unique.map((u) => u.id), { business })) {
       if (unique.length >= count) break;
       unique.push({ entry: toEntry(p), id: p.id });
     }
@@ -110,7 +112,7 @@ function resolveProjects(
   if (picked.length > 0) {
     return { entries: picked.map((u) => u.entry), chosen: picked.map((u) => u.id) };
   }
-  const fallback = rankProjects(jobText, Math.max(count, 2)).slice(0, Math.max(count, 2));
+  const fallback = rankProjects(jobText, Math.max(count, 2), [], { business }).slice(0, Math.max(count, 2));
   return {
     entries: fallback.map((p) => toEntry(p)),
     chosen: fallback.map((p) => p.id),
@@ -218,7 +220,7 @@ export async function POST(request: Request) {
   const projectCount = projectSlots(parsedForJob.entries.length, { business });
 
   const companyTokens = job.company.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-  const targetKeywords = claimableJdTerms(job.description, 25, companyTokens);
+  const targetKeywords = claimableJdTerms(job.description, 25, companyTokens, job.title);
   for (const t of SKILL_SEEDS[family] ?? []) {
     if (!targetKeywords.includes(t)) targetKeywords.unshift(t);
   }
@@ -319,7 +321,8 @@ export async function POST(request: Request) {
     const { entries: projectEntries } = resolveProjects(
       gen.projects,
       clamps.maxProjects ?? projectCount,
-      job!.description
+      job!.description,
+      business
     );
     tex = assembleProjectsSection(parseProjectsSection(tex), projectEntries, clamps.maxProjBullets ?? 0);
     // Skills may include: master pool + verified extras + JD soft skills +
@@ -329,7 +332,7 @@ export async function POST(request: Request) {
       " " +
       (gen.projects ?? []).flatMap((p) => p.bullets ?? []).join(" ")
     ).toLowerCase();
-    const hardAllowed = claimableJdTerms(job!.description, 40, companyTokens)
+    const hardAllowed = claimableJdTerms(job!.description, 40, companyTokens, job!.title)
       .filter(isTechTerm) // only skill-shaped terms may enter a skills block
       .filter((t) => t.split(" ").every((w) => genText.includes(w)))
       .filter(allowedByLens);
@@ -344,6 +347,9 @@ export async function POST(request: Request) {
       placementGaps(job!.description, tex, 6, job!.company).filter(allowedByLens),
       clamps.compactSkills || 7
     );
+    // Last write: consulting skills are Excel/SQL, not Node/Stripe/OpenAI
+    // the extras pool and JD backfill keep trying to restore.
+    if (business) tex = pinBusinessSkills(tex, clamps.compactSkills ?? 0);
     if (clamps.achievements !== 0) tex = insertAchievements(tex, ACHIEVEMENTS.slice(0, clamps.achievements ?? ACHIEVEMENTS.length));
     // ATS ranking layer: the exact-title signal lives in the most recent
     // entry's title (2-of-3 rewording rule, natural to a human reader) and in
@@ -366,16 +372,25 @@ export async function POST(request: Request) {
     maxProjBullets?: number;
     maxProjects?: number;
     achievements?: number;
-  }[] = [
-    {},
-    { compactSkills: 5 },
-    // Drop the fill project before touching experience — it was added because
-    // there was room, and it is the first thing that should go when there isn't.
-    { compactSkills: 4, maxProjects: 2 },
-    { compactSkills: 4, maxExpBullets: 3, maxProjects: 2, maxProjBullets: 2 },
-    { compactSkills: 4, maxExpBullets: 3, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
-    { compactSkills: 4, maxExpBullets: 2, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
-  ];
+  }[] = business
+    ? [
+        {},
+        { compactSkills: 5 },
+        { compactSkills: 4, maxProjects: 2 },
+        { compactSkills: 4, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
+        // Never drop consulting entries to 2 bullets — that is the McKinsey stub.
+        { compactSkills: 3, maxExpBullets: 3, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
+      ]
+    : [
+        {},
+        { compactSkills: 5 },
+        // Drop the fill project before touching experience — it was added because
+        // there was room, and it is the first thing that should go when there isn't.
+        { compactSkills: 4, maxProjects: 2 },
+        { compactSkills: 4, maxExpBullets: 3, maxProjects: 2, maxProjBullets: 2 },
+        { compactSkills: 4, maxExpBullets: 3, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
+        { compactSkills: 4, maxExpBullets: 2, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
+      ];
   // The clamp step that made the page fit. Later passes must rebuild with it:
   // rebuilding unclamped guarantees an overflow and the pass gets discarded.
   let activeClamps: Clamps = {};
@@ -403,9 +418,9 @@ export async function POST(request: Request) {
   }
 
   // --- ATS optimization loop: score, weave claimable missing terms, re-score ---
-  let score = matchScore(job.description, resumeTex, job.company);
+  let score = matchScore(job.description, resumeTex, job.company, job.title);
   if (score !== null && score < 70) {
-    const missing = missingTerms(job.description, resumeTex, 25, job.company).filter(allowedByLens);
+    const missing = missingTerms(job.description, resumeTex, 25, job.company, job.title).filter(allowedByLens);
     if (missing.length > 0) {
       const boosted = await generateContent({
         ...baseInput,
@@ -415,7 +430,7 @@ export async function POST(request: Request) {
       const boostedTex = buildTex(boosted, activeClamps);
       const boostedResult = await compileLatex(boostedTex);
       if (boostedResult.pageCount === 1) {
-        const boostedScore = matchScore(job.description, boostedTex, job.company);
+        const boostedScore = matchScore(job.description, boostedTex, job.company, job.title);
         if (boostedScore !== null && (score === null || boostedScore > score)) {
           resumeTex = boostedTex;
           resumeResult = boostedResult;
@@ -454,7 +469,9 @@ export async function POST(request: Request) {
   // for high-severity issues, and only if it survives the same page and ATS bars
   // as every other pass.
   const auditOpts = {
-    expandedCount: Math.min(2, parsedForJob.entries.length - 1),
+    // Consulting: every entry is CAR, including campus-ops. SWE: last software
+    // entry stays the verbatim-true anchor.
+    expandedCount: business ? parsedForJob.entries.length : Math.min(2, parsedForJob.entries.length - 1),
     ...(business ? { family: "consulting" as const } : {}),
   };
   const auditAll = (gen: typeof generated) => [
@@ -484,7 +501,7 @@ export async function POST(request: Request) {
     ) {
       const repairedTex = buildTex(repaired, activeClamps);
       const repairedResult = await compileLatex(repairedTex);
-      const repairedScore = matchScore(job.description, repairedTex, job.company);
+      const repairedScore = matchScore(job.description, repairedTex, job.company, job.title);
       // Better prose is not worth falling out of the keyword ranking, and it is
       // never worth a second page.
       if (
@@ -513,7 +530,7 @@ export async function POST(request: Request) {
   // Every pass that could replace `generated` has now run.
   const finalTitleChanges = titleChangesFor(generated);
   const shippedProjectCount = activeClamps.maxProjects ?? projectCount;
-  const { chosen: chosenProjects } = resolveProjects(generated.projects, shippedProjectCount, job.description);
+  const { chosen: chosenProjects } = resolveProjects(generated.projects, shippedProjectCount, job.description, business);
 
   // --- cover letter ---
   const parsedCover = parseCover(coverMaster.texContent);
@@ -541,7 +558,7 @@ export async function POST(request: Request) {
   // --- diffs + score ---
   const resumeDiff = createTwoFilesPatch("master.tex", "tailored.tex", masterTex, resumeTex, "", "", { context: 2 });
   const coverDiff = createTwoFilesPatch("master.tex", "tailored.tex", coverMaster.texContent, coverTex, "", "", { context: 2 });
-  const missing = missingTerms(job.description, resumeTex, 12, job.company);
+  const missing = missingTerms(job.description, resumeTex, 12, job.company, job.title);
 
   // --- persist + upload ---
   await ensureBucket();

@@ -11,29 +11,66 @@ export interface Lens {
   suppress: string[];
 }
 
+/** Engineering stack that must never appear on a consulting/analyst skills line. */
+export const BUSINESS_SKILL_SUPPRESS = [
+  "Kotlin",
+  "Blender",
+  "FastAPI",
+  "Next.js",
+  "tRPC",
+  "Three.js",
+  "React",
+  "Prisma",
+  "Express",
+  "Fastify",
+  "OpenAI",
+  "Machine Learning",
+  "Node.js",
+  "Stripe",
+  "Clerk",
+  "Zod",
+  "Supabase",
+  "Vercel",
+  "TypeScript",
+  "C++",
+  "Java",
+  "Query Optimization",
+  "API Integration",
+  "JWT",
+  "WebSockets",
+  "Prompt Engineering",
+  "LLM",
+  "Knowledge Graphs",
+  "Spaced Repetition",
+  "GLB",
+  "Database Design",
+];
+
 const CONSULTING_LENS: Lens = {
   id: "consulting",
   foreground: [
-    "Excel / spreadsheet analysis",
+    "Excel / spreadsheet analysis — name a Pivot Table, INDEX/MATCH, Power Query, or SQL join from jd_matched_techniques, not 'used Excel' and not a default VLOOKUP",
     "SQL or Python used to pull or clean a number",
     "stakeholder walkthroughs and recommendations",
-    "PowerPoint / Word communication",
+    "PowerPoint as a decision deck (once), not a stamp",
     "diagnosis that changed a decision or removed a manual chase",
-    "campus ops: office trackers, mentoring, front-desk process",
+    "HyFlex: restore classroom and lab tech for professors, then document only if needed",
+    "campus ops: office request tracker + mentoring, not a second documentation job",
   ],
-  suppress: ["Kotlin", "Blender", "FastAPI", "Next.js", "tRPC", "Three.js"],
+  suppress: BUSINESS_SKILL_SUPPRESS,
 };
 
 const ANALYST_LENS: Lens = {
   id: "analyst",
   foreground: [
-    "Excel trackers and models",
+    "Excel techniques from the posting (Pivot Table, INDEX/MATCH, Power Query, SQL) — not 'used Excel' and not a default VLOOKUP",
     "SQL pulls / variance / cohorts",
-    "Word/PowerPoint communication",
+    "one Word or PowerPoint artifact, not a stamp on every job",
     "synthesizing messy inputs for a stakeholder",
-    "campus ops and mentoring when it shows process + people",
+    "HyFlex classroom/lab troubleshooting for faculty",
+    "campus ops mentoring and request tracking when it shows process + people",
   ],
-  suppress: ["Kotlin", "Blender", "FastAPI", "Next.js", "tRPC", "Three.js", "Docker"],
+  suppress: BUSINESS_SKILL_SUPPRESS,
 };
 
 const PRODUCT_LENS: Lens = {
@@ -141,18 +178,20 @@ export function lensInstruction(lens: Lens | null): string {
 
 Foreground ONLY: ${lens.foreground.join("; ")}.
 Do NOT mention these in experience or lead skills with them: ${lens.suppress.join(", ")}.
-Skills MUST lead with Excel, Word, PowerPoint, SQL, Python (analysis, not APIs). Demote FastAPI/Next.js/Kotlin.
-Experience titles: 2 of the SOFTWARE entries may become Analyst / Business Analyst / Insights Analyst, keeping (Co-op)/(Freelance)/(Academic WIL). NEVER retitle Student Office Assistant, Peer Mentor, or HyFlex. Never Consultant.
-Bullets: Context-Analysis-Result. Campus ops entries stay Excel/Word/mentoring/front-desk — not software. Drop a GitHub project if the page is tight. At most ONE software-implementation bullet on the whole page.`;
+Skills MUST lead with Excel, Pivot Tables, Power Query, INDEX/MATCH, PowerPoint, SQL, Python. Demote FastAPI/Next.js/Kotlin. Word is assumed — do not list it as a flex. In experience, name a TECHNIQUE from jd_matched_techniques — never default to VLOOKUP, never stamp Excel/Word on every bullet.
+Experience titles: software internships become Analyst / Business Analyst / Insights Analyst, keeping (Co-op)/(Freelance)/(Contract, Part-time). NEVER retitle Student Office Assistant, Peer Mentor, or HyFlex. Never Consultant. Never write Academic WIL.
+Bullets: Context-Analysis-Result, exactly 3 per entry. A BCG/McKinsey partner must understand the business problem. BANNED as the story: payloads, authentication flows, execution plans, deployment checklists, API fields, Python processing logs, extraction workflows, mobile-and-web clients, backend defects. Those are software internals. Write variance / mismatch / recommendation / stakeholder instead.
+HyFlex (ITS): you resolved classroom and lab failures for professors (audio, display, camera, login, peripherals) — in person and remotely across 30+ rooms. At most ONE later bullet documents a recurring issue after you fixed it. Never rewrite HyFlex as Excel/Word.
+Office Assistant: one request tracker using INDEX/MATCH or another jd_matched_techniques lookup + advising. Never HyFlex equipment. Four experience entries max. Skills MUST be Excel, Pivot Tables, Power Query, INDEX/MATCH, PowerPoint, SQL, Python, Jira — never Node, Stripe, Fastify, OpenAI, Supabase, Vercel.`;
   }
   if (lens.id === "analyst") {
     return `ANALYST / INSIGHTS ROLE FAMILY — beats every SWE rule. ${ANALYST_RESUME_NORMS}
 
 Foreground ONLY: ${lens.foreground.join("; ")}.
 Suppress in experience: ${lens.suppress.join(", ")}.
-Skills lead: Excel, Word, PowerPoint, SQL. Python only as analysis (pandas/SQL), never FastAPI.
-Keep Student Office Assistant & Peer Mentor and ITS HyFlex. Write them as process, Excel trackers, documentation, advising. Do not retitle them. Prefer those over a third project.
-Software internships become analysis + stakeholder bullets, not endpoints.`;
+Skills lead: Excel, Pivot Tables, Power Query, INDEX/MATCH, PowerPoint, SQL. Python only as analysis (pandas/SQL), never FastAPI. Word is assumed.
+Keep Student Office Assistant & Peer Mentor and ITS HyFlex. HyFlex = restore classroom/lab tech for faculty, then optionally document. Office Assistant = request tracker from jd_matched_techniques + advising. Do not retitle them. Prefer those over a third project.
+Software internships become analysis + stakeholder bullets, not endpoints. Skills MUST be Excel, Pivot Tables, PowerPoint, SQL, Python — never Fastify, OpenAI, Node, Stripe. If the JD names Tableau/Qualtrics/Nielsen, map to a pivot or secondary-research synthesis — do not invent those products.`;
   }
   if (lens.id === "product") {
     return `PRODUCT ROLE FAMILY. ${PRODUCT_RESUME_NORMS} Foreground: ${lens.foreground.join("; ")}. Suppress: ${lens.suppress.join(", ")}.`;

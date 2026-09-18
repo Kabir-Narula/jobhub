@@ -57,6 +57,13 @@ check(
   detectLens("Business Analyst", "problem solving client teams excel powerpoint", "McKinsey & Company")?.id === "consulting"
 );
 check(
+  "consulting lens suppresses Node.js and Fastify",
+  Boolean(
+    detectLens("Business Analyst", "", "McKinsey & Company")?.suppress.some((s) => /node\.js/i.test(s)) &&
+      detectLens("Business Analyst", "", "McKinsey & Company")?.suppress.some((s) => /fastify/i.test(s))
+  )
+);
+check(
   "Software Engineer at McKinsey Digital stays SWE",
   detectRoleFamily("Software Engineer", "McKinsey & Company", "Java Python Kubernetes") === "swe"
 );
@@ -69,6 +76,8 @@ check(
   detectRoleFamily("Associate Software Engineer", "Boston Consulting Group", "") === "swe"
 );
 check("Excel is a claimable analyst tool", isTechTerm("excel"));
+check("VLOOKUP is a claimable analyst tool", isTechTerm("vlookup"));
+check("Power Query is a claimable analyst tool", isTechTerm("powerquery"));
 check("PowerPoint is a claimable analyst tool", isTechTerm("powerpoint"));
 check("bare 'word' is not a skill term", !isTechTerm("word"));
 check(
@@ -82,8 +91,8 @@ check(
 check("SWE JD without those words gets no forced consulting skills", softSkillsFor("Python FastAPI PostgreSQL").length === 0);
 
 const masterish = [
-  { company: "Seneca Polytechnic — INNWIL Lab | VYBE Platform", title: "Software Engineer Intern (Academic WIL)" },
-  { company: "Seneca Polytechnic — ITS", title: "Student HyFlex Ambassador + Lab Monitor (Co-op)" },
+  { company: "Seneca Polytechnic — INNWIL Lab | VYBE Platform", title: "Software Engineer Intern (Co-op)" },
+  { company: "Seneca Polytechnic — ITS", title: "Student HyFlex Ambassador + Lab Monitor (Contract, Part-time)" },
   { company: "Project Human City", title: "Software Engineer (Co-op)" },
   { company: "Seneca Polytechnic — Student Services", title: "Student Office Assistant & Peer Mentor" },
   { company: "Three of Cups", title: "Software Engineer (Freelance)" },
@@ -91,9 +100,20 @@ const masterish = [
 check("ITS is campus-ops", isCampusOpsEntry(masterish[1]));
 check("office assistant is campus-ops", isCampusOpsEntry(masterish[3]));
 check("INNWIL is not campus-ops", !isCampusOpsEntry(masterish[0]));
-check("analyst keeps campus-ops entries", keepCampusOps("analyst") && selectExperienceEntries(masterish, "analyst").length === 5);
+check(
+  "analyst keeps campus-ops and caps at 4 (drops oldest freelance)",
+  keepCampusOps("analyst") && selectExperienceEntries(masterish, "analyst").length === 4
+);
+check(
+  "analyst drops Three of Cups so the page can hold 3 bullets",
+  !selectExperienceEntries(masterish, "analyst").some((e) => /three of cups/i.test(e.company))
+);
 check("SWE drops campus-ops entries", selectExperienceEntries(masterish, "swe").length === 3);
-check("analyst resumes drop a project to make room", projectSlots(5, { business: true }) === 2);
+check(
+  "SWE still has the freelance software role",
+  selectExperienceEntries(masterish, "swe").some((e) => /three of cups/i.test(e.company))
+);
+check("analyst resumes drop a project to make room", projectSlots(4, { business: true }) === 2);
 
 console.log(failures === 0 ? "\nall role-family checks passed" : `\n${failures} check(s) FAILED`);
 if (failures > 0) process.exit(1);
