@@ -31,6 +31,7 @@ export async function POST(request: Request) {
     company: job.company,
     jobTitle: job.title,
     jobDescription: job.description,
+    deep: Boolean(body?.force),
   });
   await prisma.job.update({
     where: { id: job.id },

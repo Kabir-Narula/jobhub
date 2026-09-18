@@ -8,5 +8,5 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     select: { diffFromMaster: true, texContent: true },
   });
   if (!doc) return NextResponse.json({ error: "not found" }, { status: 404 });
-  return NextResponse.json(doc);
+  return NextResponse.json(doc, { headers: { "Cache-Control": "private, no-store" } });
 }

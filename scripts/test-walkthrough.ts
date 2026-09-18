@@ -12,6 +12,7 @@ config({ path: [".env.local", ".env"] });
 import { PrismaClient } from "@prisma/client";
 import { parseResume, parseSkillsSection } from "../lib/tailor/latex";
 import { detectLens } from "../lib/tailor/lens";
+import { detectRoleFamily, isBusinessFamily } from "../lib/tailor/role-family";
 import { softSkillsFor } from "../lib/tailor/soft-skills";
 import { claimableJdTerms, missingTerms } from "../lib/tailor/match";
 import { auditExperienceBullets, auditProjectBullets, bannedNumberShapes, highSeverityCount } from "../lib/tailor/bullet-quality";
@@ -31,7 +32,10 @@ async function main() {
   console.log(`${job.title}\n${job.company} — ${job.locationRaw || job.city || "?"}\nJD length: ${job.description.length} chars`);
 
   hr("WHAT THE PIPELINE DECIDES BEFORE CALLING THE MODEL");
-  const lens = detectLens(job.title, job.description);
+  const lens = detectLens(job.title, job.description, job.company);
+  const family = detectRoleFamily(job.title, job.company, job.description);
+  const business = isBusinessFamily(family);
+  console.log(`family: ${family}`);
   console.log(`lens: ${lens?.id ?? "(none — no dominant theme)"}`);
   if (lens) {
     console.log(`  foreground: ${lens.foreground.join(", ")}`);
@@ -40,7 +44,9 @@ async function main() {
   const companyTokens = job.company.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   const kws = claimableJdTerms(job.description, 25, companyTokens);
   console.log(`target keywords (${kws.length}): ${kws.join(", ")}`);
-  console.log(`soft skills matched: ${softSkillsFor(job.description).join(", ") || "(none)"}`);
+  console.log(
+    `soft skills matched: ${softSkillsFor(job.description, family === "consulting" || family === "analyst" || family === "product" ? family : undefined).join(", ") || "(none)"}`
+  );
 
   let json: {
     resume: { id: string; version: number; pageCount: number; matchScore: number | null; fillPct?: number; missingKeywords?: string[] };
@@ -116,9 +122,12 @@ async function main() {
   const audit = [
     ...auditExperienceBullets(
       after.entries.map((e) => ({ company: e.company, bullets: e.bullets })),
-      { expandedCount: Math.min(2, after.entries.length - 1) }
+      {
+        expandedCount: Math.min(2, after.entries.length - 1),
+        ...(business ? { family: "consulting" as const } : {}),
+      }
     ),
-    ...auditProjectBullets(projectAuditInput),
+    ...auditProjectBullets(projectAuditInput, business ? { family: "consulting" } : {}),
   ];
   const banned = bannedNumberShapes(after.entries.flatMap((e) => e.bullets));
   console.log(`high-severity issues: ${highSeverityCount(audit)}`);

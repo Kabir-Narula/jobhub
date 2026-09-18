@@ -17,6 +17,8 @@ check("3 experience entries → 3 projects", projectSlots(3) === 3);
 check("2 experience entries → 3 projects (fill the page)", projectSlots(2) === 3);
 check("shorten always drops to 2", projectSlots(3, { shorten: true }) === 2);
 check("shorten with 4 entries stays 2", projectSlots(4, { shorten: true }) === 2);
+check("analyst/consulting always 2 projects so campus-ops experience can stay", projectSlots(3, { business: true }) === 2);
+check("5 entries (office assistant kept) still 2 projects", projectSlots(5) === 2);
 
 const aiJd =
   "Gen AI Developer: RAG, LangChain, OpenAI, LLM inference, Python, FastAPI, machine learning, knowledge graphs";

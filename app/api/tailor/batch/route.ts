@@ -64,7 +64,7 @@ export async function POST(request: Request) {
         const res = await fetch(`${origin}/api/tailor/generate`, {
           method: "POST",
           headers: { "Content-Type": "application/json", cookie },
-          body: JSON.stringify({ jobId }),
+          body: JSON.stringify({ jobId, force: true }),
         });
         results.push({ jobId, ok: res.ok, error: res.ok ? undefined : `HTTP ${res.status}` });
       } catch (e) {

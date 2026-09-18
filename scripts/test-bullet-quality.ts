@@ -12,7 +12,7 @@ import {
   highSeverityCount,
   bannedNumberShapes,
 } from "../lib/tailor/bullet-quality";
-import { polishBullet, alignByCompany, keepTitleQualifier } from "../lib/tailor/generate";
+import { polishBullet, alignByCompany, keepTitleQualifier, clampConsultingTitle } from "../lib/tailor/generate";
 
 let failures = 0;
 function check(name: string, cond: boolean, detail = "") {
@@ -301,6 +301,19 @@ check(
   "titles with no qualifier are untouched",
   keepTitleQualifier("Software Engineer", "Data Engineer") === "Data Engineer"
 );
+check(
+  "consulting titles keep the co-op marker",
+  clampConsultingTitle("Software Engineer (Co-op)", "Business Analyst") === "Business Analyst (Co-op)"
+);
+check(
+  "Consultant is rewritten to Analyst",
+  clampConsultingTitle("Software Engineer (Co-op)", "Management Consultant (Co-op)") === "Business Analyst (Co-op)",
+  clampConsultingTitle("Software Engineer (Co-op)", "Management Consultant (Co-op)")
+);
+check(
+  "Senior is not invented on a co-op title",
+  clampConsultingTitle("Software Engineer (Co-op)", "Senior Business Analyst (Co-op)") === "Software Engineer (Co-op)"
+);
 
 // --------------------------------------- cover-letter company facts are exempt
 // TD's research mentions a "$1,790 in value" package; quoting it in the cover
@@ -347,6 +360,29 @@ check(
   auditProjectBullets([{ id: "axom", bullets: ["Exam-prep app that turns slides into practice tests."] }]).some((i) =>
     /exactly 2/.test(i.message)
   )
+);
+
+const CONSULTING_ENTRY = [
+  {
+    company: "Seneca Polytechnic — INNWIL Lab | VYBE Platform",
+    bullets: [
+      "Found a mismatch in the weekly occupancy file, reconciled the source in Excel, and the report went out without a chase.",
+      "Built an Excel occupancy model after the Friday file kept arriving late, then sized the gap across 3 sites.",
+      "Walked the ops lead through the occupancy recommendation so they stopped chasing the weekly spreadsheet.",
+    ],
+  },
+];
+const consultingIssues = auditExperienceBullets(CONSULTING_ENTRY, { expandedCount: 1, family: "consulting" });
+check(
+  "consulting CAR bullets pass the consulting auditor",
+  highSeverityCount(consultingIssues) === 0,
+  messages(consultingIssues.filter((i) => i.severity === "high"))
+);
+const consultingAsSwe = auditExperienceBullets(CONSULTING_ENTRY, { expandedCount: 1 });
+check(
+  "the same CAR bullets fail the SWE mechanism quota",
+  consultingAsSwe.some((i) => /mechanism|greenfield|artifact/i.test(i.message)),
+  messages(consultingAsSwe)
 );
 
 console.log(failures === 0 ? "all bullet-quality checks passed" : `${failures} check(s) failed`);

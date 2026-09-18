@@ -104,10 +104,14 @@ export async function researchCompany(input: {
   jobDescription: string;
   deep?: boolean;
 }): Promise<CompanyResearch> {
-  const { fetchRedditIntel } = await import("./reddit");
+  const { fetchRedditIntel, fetchRoleResumeIntel } = await import("./reddit");
+  const { detectRoleFamily } = await import("./role-family");
+  const family = detectRoleFamily(input.jobTitle, input.company, input.jobDescription);
   const [homepage, redditIntel] = await Promise.all([
     fetchHomepageText(input.company),
-    fetchRedditIntel(input.company),
+    Promise.all([fetchRoleResumeIntel(family), fetchRedditIntel(input.company, { family })]).then(([resume, company]) =>
+      [resume, company].filter(Boolean).join("\n\n")
+    ),
   ]);
   const deepPages = input.deep && homepage ? await fetchDeepPages(homepage.url) : "";
 
@@ -116,11 +120,11 @@ export async function researchCompany(input: {
     homepage ? `\nCompany homepage content (${homepage.url}):\n${homepage.text}` : "\nNo homepage content could be fetched; rely on your knowledge.",
     deepPages ? `\nAdditional pages from their site (about/careers/blog):\n${deepPages}` : "",
     redditIntel ? `\nReal candidate experiences on Reddit about this company (hiring, interviews, what worked):\n${redditIntel}` : "",
-    `\nJob description (excerpt):\n${input.jobDescription.slice(0, 4000)}`,
+    `\nJob description (excerpt):\n${input.jobDescription.slice(0, 8000)}`,
     `\nReturn JSON with keys:`,
     `- "mission": one sentence on what the company does / why it exists`,
     `- "product": one sentence on the main product(s) and who uses them`,
-    `- "stack": array of up to 8 technologies the company is known to use (from the JD and your knowledge)`,
+    `- "stack": array of up to 8 tools this team actually uses. For consulting/BA/insights/analyst roles list analyst tools (Excel, PowerPoint, SQL, Tableau) — not engineering frameworks unless the JD names them. For software roles list technologies from the JD and your knowledge.`,
     `- "news": array of up to 4 recent/relevant facts (funding, launches, scale, engineering culture) — only things you are confident about`,
     `- "hookFact": ONE specific, current, verifiable fact about the company that a candidate could open a cover letter with — a real metric, a concrete product detail, or a recent move. Prefer something found in the provided site content over general knowledge. Empty string if nothing solid exists.`,
     `- "tone": "casual" if their public voice is startup/engineering-blog informal, "formal" if it's corporate/enterprise formal`,
@@ -129,7 +133,7 @@ export async function researchCompany(input: {
   ].join("\n");
 
   const res = await openai().chat.completions.create({
-    model: model("cheap"),
+    model: model("quality"),
     messages: [
       { role: "system", content: "You are a meticulous company researcher. Output valid JSON only." },
       { role: "user", content: prompt },

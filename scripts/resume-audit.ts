@@ -1,12 +1,9 @@
 import { config } from "dotenv";
 config({ path: [".env.local", ".env"] });
 import { PrismaClient } from "@prisma/client";
+import { detectRoleFamily, keepCampusOps } from "../lib/tailor/role-family";
 
 const p = new PrismaClient();
-
-const KEEP_TITLE_RE =
-  /\b(itil|help ?desk|desktop support|technical support|support engineer|technical consultant|technical analyst|it support|it analyst|it consultant|field (service|support)|systems? admin|lab monitor|implementation (engineer|consultant|specialist)|solutions? (analyst|engineer|consultant)|technical account|professional services|devops|sre|site reliability|infrastructure|platform engineer|cloud (engineer|ops)|network engineer)\b/i;
-const KEEP_DESC_RE = /\b(itil|incident management|help ?desk|desktop support)\b/i;
 
 const clean = (s: string) =>
   s.replace(/\\[a-zA-Z]+\*?(\[[^\]]*\])?/g, " ").replace(/[{}$]/g, " ").replace(/\s+/g, " ").trim();
@@ -36,7 +33,8 @@ async function main() {
   });
 
   for (const d of docs) {
-    const supportRelevant = KEEP_TITLE_RE.test(d.job.title) || KEEP_DESC_RE.test(d.job.description.slice(0, 3000));
+    const family = detectRoleFamily(d.job.title, d.job.company, d.job.description);
+    const campusOps = keepCampusOps(family);
     const tex = d.texContent;
 
     const expBody = tex.split(/\\section\{Experience\}/i)[1]?.split(/\\section\{Projects\}/i)[0] ?? "";
@@ -52,7 +50,7 @@ async function main() {
     const inBand = allWc.filter((w) => w >= 14 && w <= 30).length;
 
     console.log(`\n${d.createdAt.toISOString().slice(0, 16)}  ${d.job.title.slice(0, 42)} @ ${d.job.company}`);
-    console.log(`  hyflex=${supportRelevant ? "KEPT" : "DROPPED"} entries=${expEntries.length} pages=${d.pageCount} ats=${d.matchScore ?? "?"}  expBullets=${allWc.length} in-14-30w-band=${inBand}/${allWc.length}`);
+    console.log(`  family=${family} campusOps=${campusOps ? "KEPT" : "DROPPED"} entries=${expEntries.length} pages=${d.pageCount} ats=${d.matchScore ?? "?"}  expBullets=${allWc.length} in-14-30w-band=${inBand}/${allWc.length}`);
     for (const e of expEntries) {
       const wc = e.bullets.map(words);
       const flag = wc.some((w) => w > 30 || w < 14) ? "  <-- OFF-BAND" : "";

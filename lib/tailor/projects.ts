@@ -153,9 +153,11 @@ export function projectById(id: string): ProjectProfile | undefined {
  */
 export function projectSlots(
   entryCount: number,
-  opts: { shorten?: boolean } = {}
+  opts: { shorten?: boolean; business?: boolean } = {}
 ): number {
   if (opts.shorten) return 2;
+  // Analyst/consulting: campus-ops experience is the extra story — drop a project.
+  if (opts.business) return 2;
   return entryCount >= 4 ? 2 : 3;
 }
 

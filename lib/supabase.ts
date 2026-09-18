@@ -40,3 +40,9 @@ export async function downloadPdf(path: string): Promise<Buffer> {
   if (error || !data) throw new Error(`PDF download failed: ${error?.message ?? "not found"}`);
   return Buffer.from(await data.arrayBuffer());
 }
+
+export async function deletePdf(path: string): Promise<void> {
+  if (!path.trim()) return;
+  const sb = supabaseAdmin();
+  await sb.storage.from(bucketName()).remove([path]);
+}

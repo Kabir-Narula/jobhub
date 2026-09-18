@@ -38,15 +38,15 @@ const RESUME_PAGE_LIMIT = 1;
 const COVER_PAGE_LIMIT = 1; // master cover template is single-page
 const FILL_TARGET = 0.9; // below this, run one auto-expand pass (no empty bottom)
 
-async function getResearch(jobId: string, deep = false): Promise<CompanyResearch | null> {
+async function getResearch(jobId: string, refresh = false): Promise<CompanyResearch | null> {
   const job = await prisma.job.findUniqueOrThrow({ where: { id: jobId } });
-  if (job.companyResearch && !deep) return job.companyResearch as unknown as CompanyResearch;
+  if (job.companyResearch && !refresh) return job.companyResearch as unknown as CompanyResearch;
   try {
     const research = await researchCompany({
       company: job.company,
       jobTitle: job.title,
       jobDescription: job.description,
-      deep,
+      deep: refresh,
     });
     await prisma.job.update({
       where: { id: job.id },
@@ -181,7 +181,7 @@ export async function POST(request: Request) {
   const masterTex = resumeMaster.texContent;
   const parsedResume = parseResume(masterTex);
   const skillsSection = parseSkillsSection(masterTex);
-  const research = await getResearch(job.id, deepResearch);
+  const research = await getResearch(job.id, deepResearch || Boolean(body?.force));
   if (!research) {
     warnings.push("Company research failed — generated without company intel (no hook fact or tone match). Retry for a stronger cover letter.");
   }
@@ -189,31 +189,39 @@ export async function POST(request: Request) {
   const jobInput = { title: job.title, company: job.company, locationRaw: job.locationRaw, description: job.description };
   const { detectLens, lensInstruction } = await import("@/lib/tailor/lens");
   const { softSkillsFor } = await import("@/lib/tailor/soft-skills");
-  const lens = detectLens(job.title, job.description);
+  const { detectRoleFamily, isBusinessFamily, selectExperienceEntries, SKILL_SEEDS } = await import("@/lib/tailor/role-family");
+  const family = detectRoleFamily(job.title, job.company, job.description);
+  const business = isBusinessFamily(family);
+  const lens = detectLens(job.title, job.description, job.company);
   const lensNote = lensInstruction(lens);
   const lensSuppress = lens?.suppress ?? [];
-  const softSkills = softSkillsFor(job.description);
+  const allowedByLens = (term: string) => {
+    const k = term.toLowerCase();
+    return !lensSuppress.some((s) => {
+      const sk = s.toLowerCase();
+      return Boolean(sk) && (k.includes(sk) || sk.includes(k));
+    });
+  };
+  const softSkills = softSkillsFor(
+    job.description,
+    family === "consulting" || family === "analyst" || family === "product" ? family : undefined
+  );
 
-  // Conditional entries: the ITS HyFlex support role is kept only for
-  // IT-support/consulting/infra-flavored postings; on everything else the
-  // space goes to richer programming bullets. Title-led detection (strict),
-  // with strong description phrases as backup.
-  const KEEP_TITLE_RE =
-    /\b(itil|help ?desk|desktop support|technical support|support engineer|technical consultant|technical analyst|it support|it analyst|it consultant|field (service|support)|systems? admin|lab monitor|implementation (engineer|consultant|specialist)|solutions? (analyst|engineer|consultant)|technical account|professional services|devops|sre|site reliability|infrastructure|platform engineer|cloud (engineer|ops)|network engineer)\b/i;
-  const KEEP_DESC_RE = /\b(itil|incident management|help ?desk|desktop support)\b/i;
-  const supportRelevant =
-    KEEP_TITLE_RE.test(job.title) || KEEP_DESC_RE.test(job.description.slice(0, 3000));
-  const entriesToUse = supportRelevant
-    ? parsedResume.entries
-    : parsedResume.entries.filter((e) => !/ITS/i.test(e.company));
+  // Campus-ops entries (ITS HyFlex, Student Office Assistant & Peer Mentor) stay
+  // on consulting/analyst/product/infra resumes and drop on SWE so the page
+  // can hold programming bullets + a third project.
+  const entriesToUse = selectExperienceEntries(parsedResume.entries, family);
   const droppedEntries = parsedResume.entries
-    .filter((e) => /ITS/i.test(e.company) && !supportRelevant)
+    .filter((e) => !entriesToUse.includes(e))
     .map((e) => `${e.title} at ${e.company}`);
   const parsedForJob = { ...parsedResume, entries: entriesToUse };
-  const projectCount = projectSlots(parsedForJob.entries.length);
+  const projectCount = projectSlots(parsedForJob.entries.length, { business });
 
   const companyTokens = job.company.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   const targetKeywords = claimableJdTerms(job.description, 25, companyTokens);
+  for (const t of SKILL_SEEDS[family] ?? []) {
+    if (!targetKeywords.includes(t)) targetKeywords.unshift(t);
+  }
 
   // Every pass shares this. Spelling the arguments out per call silently dropped
   // targetKeywords from all four refinement passes, so the resume that actually
@@ -228,6 +236,7 @@ export async function POST(request: Request) {
     softSkills,
     targetKeywords,
     projectCount,
+    ...(family !== "swe" ? { roleFamily: family } : {}),
   };
 
   let generated: GeneratedContent = await generateContent(baseInput);
@@ -268,7 +277,7 @@ export async function POST(request: Request) {
   ];
   let banned = bannedNumberShapes(resumeClaims());
   if (banned.length > 0) {
-    generated = await generateContent({ ...baseInput, cheap: true });
+    generated = await generateContent({ ...baseInput });
     banned = bannedNumberShapes(resumeClaims());
     if (banned.length > 0) {
       warnings.push(`Remove before sending — these cannot be defended in a screen: ${banned.join(", ")}`);
@@ -322,12 +331,19 @@ export async function POST(request: Request) {
     ).toLowerCase();
     const hardAllowed = claimableJdTerms(job!.description, 40, companyTokens)
       .filter(isTechTerm) // only skill-shaped terms may enter a skills block
-      .filter((t) => t.split(" ").every((w) => genText.includes(w)));
+      .filter((t) => t.split(" ").every((w) => genText.includes(w)))
+      .filter(allowedByLens);
     const allowedExtra = [...new Set([...softSkills, ...hardAllowed])];
     tex = assembleSkillsSection(parseSkillsSection(tex), gen.skills ?? null, clamps.compactSkills ?? 0, lensSuppress, allowedExtra);
     // Placement fix: bullet-backed JD terms the skills block missed get
     // appended deterministically (parsers weight the skills field most).
-    tex = ensureSkillsTerms(tex, placementGaps(job!.description, tex, 6, job!.company), clamps.compactSkills || 7);
+    // Must still honor the lens suppress list — otherwise FastAPI from a
+    // GitHub project bullet re-enters a consulting skills block after assembly.
+    tex = ensureSkillsTerms(
+      tex,
+      placementGaps(job!.description, tex, 6, job!.company).filter(allowedByLens),
+      clamps.compactSkills || 7
+    );
     if (clamps.achievements !== 0) tex = insertAchievements(tex, ACHIEVEMENTS.slice(0, clamps.achievements ?? ACHIEVEMENTS.length));
     // ATS ranking layer: the exact-title signal lives in the most recent
     // entry's title (2-of-3 rewording rule, natural to a human reader) and in
@@ -389,7 +405,7 @@ export async function POST(request: Request) {
   // --- ATS optimization loop: score, weave claimable missing terms, re-score ---
   let score = matchScore(job.description, resumeTex, job.company);
   if (score !== null && score < 70) {
-    const missing = missingTerms(job.description, resumeTex, 25, job.company);
+    const missing = missingTerms(job.description, resumeTex, 25, job.company).filter(allowedByLens);
     if (missing.length > 0) {
       const boosted = await generateContent({
         ...baseInput,
@@ -433,14 +449,17 @@ export async function POST(request: Request) {
   // --- bullet doctrine gate, on the draft that actually ships ---
   // Deliberately last: the prompt alone drifts back to filler, keyword lists and
   // entries built from three identical greenfield bullets, and auditing the FIRST
-  // draft measured content the cheap-tier shorten pass then overwrote — the
-  // repair was spent on a draft nobody would ever see. Same trap as the title
-  // note. One repair, only for high-severity issues, and only if it survives the
-  // same page and ATS bars as every other pass.
-  const auditOpts = { expandedCount: Math.min(2, parsedForJob.entries.length - 1) };
+  // draft measured content later passes then overwrote — the repair was spent on
+  // a draft nobody would ever see. Same trap as the title note. One repair, only
+  // for high-severity issues, and only if it survives the same page and ATS bars
+  // as every other pass.
+  const auditOpts = {
+    expandedCount: Math.min(2, parsedForJob.entries.length - 1),
+    ...(business ? { family: "consulting" as const } : {}),
+  };
   const auditAll = (gen: typeof generated) => [
     ...auditExperienceBullets(gen.experience, auditOpts),
-    ...auditProjectBullets(gen.projects ?? []),
+    ...auditProjectBullets(gen.projects ?? [], business ? { family: "consulting" } : {}),
   ];
   let bulletIssues = auditAll(generated);
   // A repair costs one quality-tier call plus a compile. Skipping it when the
@@ -450,7 +469,7 @@ export async function POST(request: Request) {
   if (highSeverityCount(bulletIssues) > 0 && timeForRepair) {
     const repaired = await generateContent({
       ...baseInput,
-      qualityIssues: qualityFeedback(bulletIssues),
+      qualityIssues: qualityFeedback(bulletIssues, business ? "consulting" : undefined),
       // Keep whichever length mode made the page fit, or the repair overflows and
       // gets discarded for a reason that has nothing to do with bullet quality.
       ...(wasCompressed ? { shorten: true, projectCount: 2 } : {}),

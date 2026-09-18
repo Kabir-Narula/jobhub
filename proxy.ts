@@ -9,12 +9,12 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) {
-    return NextResponse.next();
+    return NextResponse.next({ request });
   }
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
   if (verifySessionToken(token)) {
-    return NextResponse.next();
+    return NextResponse.next({ request });
   }
 
   if (pathname.startsWith("/api/")) {

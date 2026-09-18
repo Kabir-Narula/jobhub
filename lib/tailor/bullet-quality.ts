@@ -52,6 +52,10 @@ const NAMED_TECH =
 const ARTIFACT =
   /\b(?:endpoint|endpoints|service|services|api|apis|queue|job|jobs|worker|workers|schema|schemas|table|tables|index|indexes|indices|query|queries|migration|migrations|pipeline|pipelines|script|scripts|report|reports|dashboard|screen|page|form|export|import|upload|webhook|cron|test|tests|fixture|fixtures|suite|build|deploy|deployment|release|runbook|design doc|ticket|flag|cache|parser|adapter|module|component|integration|checklist|log|logs|alert|config|handler|route|middleware|repository|branch|pull request|readme|documentation|layer|flow|contract|contracts|classifier|reranker|scheduler|validator|citation|citations|payload|payloads|column|columns|constraint|constraints)\b/i;
 
+/** Consulting CAR artifacts — a model/deck/recommendation is the thing to ask about. */
+const CONSULTING_ARTIFACT =
+  /\b(?:model|models|spreadsheet|workbook|deck|slide|slides|briefing|memo|recommendation|recommendations|workstream|analysis|forecast|sizing|cohort|interview|interviews|kpi|kpis|hypothesis|variance|walkthrough|stakeholder|stakeholders|excel|sql pull)\b/i;
+
 /** A result is a state change: something stopped, dropped, or went away. */
 const RESULT_SIGNAL =
   /\b(?:stopped|no longer|eliminat\w+|removed|cut|down to|dropped from|reduced|from \d+[^.]* to \d+|unblock\w+|without manual|by hand|automatic\w*|instead of manually|freed|caught|prevent\w+ the|surfac\w+|replac\w+)\b/i;
@@ -110,13 +114,16 @@ export interface AuditOptions {
    * allowed to be a plain, unembellished account.
    */
   expandedCount?: number;
+  /** Consulting/BA/insights: CAR bullets, not SWE mechanism quotas. */
+  family?: "consulting";
 }
 
 export function auditExperienceBullets(
   entries: { company: string; bullets: string[] }[],
   opts: AuditOptions = {}
 ): BulletIssue[] {
-  const { minWords = 14, maxWords = 28, expandedCount = 2 } = opts;
+  const { minWords = 14, maxWords = 28, expandedCount = 2, family } = opts;
+  const consulting = family === "consulting";
   const issues: BulletIssue[] = [];
   const add = (company: string, severity: BulletIssue["severity"], message: string) =>
     issues.push({ company, severity, message });
@@ -153,7 +160,7 @@ export function auditExperienceBullets(
       // level below; here it is only advisory, because a per-bullet hard rule
       // forces every line into mechanism-speak and stops the entry reading like
       // a real job.
-      if (techNames.length > 0 && !TECHNIQUE_SIGNAL.test(b)) {
+      if (techNames.length > 0 && !TECHNIQUE_SIGNAL.test(b) && !consulting) {
         const excused = RESULT_SIGNAL.test(b) || /\d/.test(b) || TEAM_SIGNAL.test(b);
         add(
           company,
@@ -162,8 +169,14 @@ export function auditExperienceBullets(
         );
       }
 
-      if (!ARTIFACT.test(b)) {
-        add(company, "high", `"${short}" names no concrete artifact (endpoint, job, schema, migration, test, report) — nothing here a recruiter can ask about`);
+      if (!(ARTIFACT.test(b) || (consulting && CONSULTING_ARTIFACT.test(b)))) {
+        add(
+          company,
+          "high",
+          consulting
+            ? `"${short}" names no concrete analysis artifact (Excel model, SQL pull, deck, recommendation, variance) — nothing a partner can ask about`
+            : `"${short}" names no concrete artifact (endpoint, job, schema, migration, test, report) — nothing here a recruiter can ask about`
+        );
       }
 
       if (ABSTRACT_ENDING.test(b)) {
@@ -187,21 +200,32 @@ export function auditExperienceBullets(
         add(company, "high", `no bullet in this entry states what changed — at least one needs a concrete result (a step removed, an error that stopped, a duration that dropped)`);
       }
       if (!bullets.some((b) => TEAM_SIGNAL.test(b))) {
-        add(company, "high", `no bullet in this entry shows other people — add one that involves code review, a sprint demo, a runbook someone used, or a stakeholder request`);
+        add(
+          company,
+          "high",
+          consulting
+            ? `no bullet in this entry shows other people — add a stakeholder walkthrough, a handoff, or a recommendation someone used`
+            : `no bullet in this entry shows other people — add one that involves code review, a sprint demo, a runbook someone used, or a stakeholder request`
+        );
       }
       // Technical depth, measured across the entry rather than per bullet. An
       // entry where only one line of three shows a real mechanism reads as
       // keyword-shaped to a staff engineer even when every bullet passes on its
       // own: the technologies are all present, the engineering is not.
       const withTechnique = bullets.filter((b) => TECHNIQUE_SIGNAL.test(b)).length;
-      if (bullets.length >= 3 && withTechnique * 2 < bullets.length) {
+      if (!consulting && bullets.length >= 3 && withTechnique * 2 < bullets.length) {
         add(
           company,
           "high",
           `only ${withTechnique} of ${bullets.length} bullets in this entry show a real mechanism — a technical screener reads the rest as keywords; name the index, partition, grouping key, retry, fixture or contract that made the work work`
         );
       }
-      if (!bullets.some((b) => FIX_SIGNAL.test(b))) {
+      if (consulting) {
+        const diagnose = /\b(?:found|mismatch|reconcil\w*|gap|variance|diagnos\w+|traced|investigat\w+|noticed|caught|corrected)\b/i;
+        if (!bullets.some((b) => diagnose.test(b) || FIX_SIGNAL.test(b))) {
+          add(company, "high", `no bullet in this entry diagnoses a problem — consulting screens for "did you diagnose something, not just execute"`);
+        }
+      } else if (!bullets.some((b) => FIX_SIGNAL.test(b))) {
         add(company, "high", `every bullet in this entry is greenfield building — real jobs include tracing a bug, cutting a slow query, or a migration`);
       }
 
@@ -278,7 +302,11 @@ const PRODUCT_PURPOSE =
 const IMPLEMENTATION_LEAD =
   /^(?:built|engineered|implemented|designed|added|wired|modeled|defined|shipped)\b[\s\S]{0,80}\b(?:pipeline|schema|endpoint|api|service|queue|worker|constraint)\b/i;
 
-export function auditProjectBullets(projects: { id?: string; bullets: string[] }[]): BulletIssue[] {
+export function auditProjectBullets(
+  projects: { id?: string; bullets: string[] }[],
+  opts: { family?: "consulting" } = {}
+): BulletIssue[] {
+  const consulting = opts.family === "consulting";
   const issues: BulletIssue[] = [];
   const add = (name: string, severity: BulletIssue["severity"], message: string) =>
     issues.push({ company: name, severity, message });
@@ -313,16 +341,23 @@ export function auditProjectBullets(projects: { id?: string; bullets: string[] }
     }
 
     const howTech = [...new Set((how.match(NAMED_TECH) ?? []).map((t) => t.toLowerCase()))];
-    if (howTech.length === 0) {
+    if (howTech.length === 0 && !consulting) {
       add(name, "high", `bullet 2 ("${howShort}") names no technology — this is the implementation line`);
     } else if (howTech.length > 2) {
       add(name, "high", `bullet 2 names ${howTech.length} technologies (${howTech.join(", ")}) — max 2, or it reads as a keyword list`);
     }
-    if (!TECHNIQUE_SIGNAL.test(how)) {
+    if (!consulting && !TECHNIQUE_SIGNAL.test(how)) {
       add(
         name,
         "high",
         `bullet 2 ("${howShort}") lists tech with no technique — name the index, worker, scheduler, or constraint that made the feature work`
+      );
+    }
+    if (consulting && !(CONSULTING_ARTIFACT.test(how) || TECHNIQUE_SIGNAL.test(how) || howTech.length > 0)) {
+      add(
+        name,
+        "high",
+        `bullet 2 ("${howShort}") never states how the product produces an insight or decision — name the analysis or the distinctive feature`
       );
     }
   }
@@ -330,14 +365,18 @@ export function auditProjectBullets(projects: { id?: string; bullets: string[] }
 }
 
 /** Feedback block for the repair pass. Specific failures only — generic scolding changes nothing. */
-export function qualityFeedback(issues: BulletIssue[]): string {
+export function qualityFeedback(issues: BulletIssue[], family?: "consulting"): string {
   const high = issues.filter((i) => i.severity === "high");
   const low = issues.filter((i) => i.severity === "low");
   const lines = [...high, ...low].map((i) => `- [${i.company}] ${i.message}`);
+  const compose =
+    family === "consulting"
+      ? "Do not simply reword the flagged bullets. Recompose affected experience as consulting CAR bullets: one diagnosis, one Excel/SQL analysis, one stakeholder recommendation that changed a decision or removed a chase. Do NOT repair by adding FastAPI, indexes, or CI. For projects: bullet 1 is the business problem for a user; bullet 2 is how it produces an insight or decision."
+      : "Do not simply reword the flagged bullets. Recompose affected experience entries so each one reads like a real few months on a real team: one build, one fix, one piece of work involving other people, each with a concrete artifact and at most two named technologies. For projects: bullet 1 is what the product is (plain English, at most one technology); bullet 2 is distinctive features + tech + technique, framed to this posting.";
   return [
     "QUALITY REPAIR PASS. Your previous draft failed these specific checks. Rewrite the flagged experience and project bullets from scratch to fix every one of them while following all original rules (bullet_count_rule still governs experience count and length; projects stay at exactly 2 bullets — purpose, then implementation):",
     ...lines,
-    "Do not simply reword the flagged bullets. Recompose affected experience entries so each one reads like a real few months on a real team: one build, one fix, one piece of work involving other people, each with a concrete artifact and at most two named technologies. For projects: bullet 1 is what the product is (plain English, at most one technology); bullet 2 is distinctive features + tech + technique, framed to this posting.",
+    compose,
   ].join("\n");
 }
 

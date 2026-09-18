@@ -47,5 +47,14 @@ check("PostgreSQL satisfies a SQL requirement", matchScore(JD_SQL, RESUME_PG) ==
 console.log("\n4) no JD means no score (displayed as a dash, never 0%)");
 check("empty JD scores null", matchScore("", RESUME_PG) === null);
 
+console.log("\n5) consulting analyst tools are claimable");
+check("excel is a tech term", isTechTerm("excel"));
+check("powerpoint is a tech term", isTechTerm("powerpoint"));
+check("bare word is not a tech term", !isTechTerm("word"));
+const JD_EXCEL = `Requirements: advanced Excel. Excel models and PowerPoint decks. Excel Excel PowerPoint.`;
+const excelTerms = claimableJdTerms(JD_EXCEL, 25);
+check("excel is extracted from a consulting JD", excelTerms.includes("excel"), excelTerms.join(", "));
+check("powerpoint is extracted from a consulting JD", excelTerms.includes("powerpoint"), excelTerms.join(", "));
+
 console.log(failures === 0 ? "\nall match checks passed" : `\n${failures} check(s) FAILED`);
 if (failures > 0) process.exit(1);

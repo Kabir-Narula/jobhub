@@ -212,6 +212,7 @@ const TECH_LEXICON = new Set(
    pinecone weaviate qdrant chromadb chroma faiss milvus pgvector ollama vllm llamacpp mlflow kubeflow triton
    langgraph langsmith autogen crewai spacy nltk xgboost lightgbm onnx tensorrt jax
    powerbi tableau looker dagster prefect kinesis pubsub
+   excel powerpoint
    sas spss stata alteryx knime qlik jupyter anaconda dask polars duckdb
    regression classification clustering forecasting segmentation statistics statistical
    econometrics bayesian anova pca randomforest catboost timeseries arima
@@ -254,7 +255,7 @@ const CANON_TECH = new Set(
  * are excluded — they must never drive the score or the boost pass.
  */
 const CLAIM_HEADS = new Set(
-  "api apis application applications system systems service services pipeline pipelines database databases schema schemas review reviews testing test tests deployment deployments infrastructure monitoring security automation integration integrations migration migrations optimization optimizations design designs pattern patterns architecture architectures debugging documentation framework frameworks cloud clouds container containers algorithm algorithms structure structures network networking server servers development engineering science computing programming stack stacks frontend backend fullstack mobile web ui ux data ml ai ci cd os devops observability reliability scalability performance concurrency threading parsing rendering caching authentication authorization".split(" ")
+  "api apis application applications system systems service services pipeline pipelines database databases schema schemas review reviews testing test tests deployment deployments infrastructure monitoring security automation integration integrations migration migrations optimization optimizations design designs pattern patterns architecture architectures debugging documentation framework frameworks cloud clouds container containers algorithm algorithms structure structures network networking server servers development engineering science computing programming stack stacks frontend backend fullstack mobile web ui ux data ml ai ci cd os devops observability reliability scalability performance concurrency threading parsing rendering caching authentication authorization analysis analyses insight insights recommendation recommendations".split(" ")
 );
 
 export function isClaimableTerm(term: string): boolean {

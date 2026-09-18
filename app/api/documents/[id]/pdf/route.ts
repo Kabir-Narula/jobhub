@@ -32,7 +32,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": download ? `attachment; filename="${name}"` : `inline; filename="${name}"`,
-      "Cache-Control": "private, max-age=60",
+      "Cache-Control": "private, no-store",
     },
   });
 }

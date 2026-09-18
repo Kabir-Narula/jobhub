@@ -5,6 +5,7 @@ import { jdTerms } from "@/lib/tailor/match";
 import { bouncedEmailSet } from "@/lib/contacts/blocklist";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function TailorPage({ params }: { params: Promise<{ jobId: string }> }) {
   const { jobId } = await params;
