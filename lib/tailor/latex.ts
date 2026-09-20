@@ -10,7 +10,8 @@
  */
 
 import { EXTRA_SKILLS, extraSkillsPool } from "./skills-extra";
-import { businessSkillPin } from "./analyst-techniques";
+import { businessSkillPin, clampBusinessSkillLine } from "./analyst-techniques";
+import { BUSINESS_SKILL_SUPPRESS } from "./lens";
 
 // ---------- engine compatibility ----------
 
@@ -523,14 +524,38 @@ export function assembleSkillsSection(
  * this overwrites the four master lines after assembly. Extra lines
  * (e.g. Professional) stay as assembled.
  */
-export function pinBusinessSkills(tex: string, maxItemsPerLine = 0): string {
+/**
+ * Consulting/analyst skills: keep Excel/SQL/PowerPoint as the core, then MERGE
+ * intern-defensible extras the posting actually asks for (dashboards, KPIs,
+ * market research). Do not replace the block with a four-item stub, and do
+ * not restore Node/Stripe/OpenAI. Extra lines (Professional) stay; if the
+ * model skipped Professional, inject it from the JD-matched soft-skill list.
+ */
+export function pinBusinessSkills(
+  tex: string,
+  maxItemsPerLine = 0,
+  opts: { jobDescription?: string; professional?: string[] } = {}
+): string {
   const section = parseSkillsSection(tex);
   const nl = section.nl;
+  const swe = BUSINESS_SKILL_SUPPRESS.map((s) => s.toLowerCase());
+  const notSwe = (item: string) => {
+    const plain = item.replace(/\\([&%$#_{}])/g, "$1").toLowerCase();
+    return !swe.some((s) => s && plain.includes(s));
+  };
+  const unescape = (s: string) => s.replace(/\\([&%$#_{}])/g, "$1");
   const lines = section.lines.map((orig) => {
-    let items = businessSkillPin(orig.label) ?? orig.items;
-    if (maxItemsPerLine > 0) items = items.slice(0, maxItemsPerLine);
-    return `      \\textbf{${orig.label}}{: ${items.join(", ")} \\\\`;
+    const pin = businessSkillPin(orig.label, opts.jobDescription ?? "");
+    let items = pin ? pin.map((p) => escapeLatex(p)) : orig.items.filter(notSwe);
+    items = [...new Map(items.map((i) => [unescape(i).toLowerCase(), i])).values()];
+    items = clampBusinessSkillLine(items, maxItemsPerLine);
+    return `      \\textbf{${orig.label}}{: ${items.join(", ")} \\\\}`;
   });
+  const hasProfessional = lines.some((l) => /textbf\{Professional\}/i.test(l));
+  const professional = (opts.professional ?? []).map((p) => p.trim()).filter(Boolean).slice(0, 5);
+  if (!hasProfessional && professional.length > 0) {
+    lines.push(`      \\textbf{Professional}{: ${professional.map((p) => escapeLatex(p)).join(", ")} \\\\}`);
+  }
   let out = section.before;
   out += `\\begin{itemize}[leftmargin=0.15in, label={}]${nl}`;
   out += `    \\small{\\item{${nl}`;
@@ -594,7 +619,7 @@ export function ensureSkillsTerms(tex: string, terms: string[], maxPerLine = 7):
 
   const AFFINITY: [RegExp, RegExp][] = [
     [/language/i, /^(java|python|typescript|javascript|kotlin|swift|go|golang|ruby|scala|c\+\+|c#|rust|php|matlab|haskell|perl|r)$/i],
-    [/cloud|data/i, /sql|postgres|mysql|mongo|snowflake|redshift|spark|hadoop|etl|aws|azure|gcp|cloud|s3|ec2|lambda|data/i],
+    [/cloud|data/i, /sql|postgres|mysql|mongo|snowflake|redshift|spark|hadoop|etl|aws|azure|gcp|cloud|s3|ec2|lambda|data|dashboard|kpi|market/i],
     [/infra|ml|tools/i, /docker|kubernetes|k8s|linux|git|jenkins|terraform|redis|kafka|devops|ci\/cd|cicd|ml|ai|llm|openai|pytorch|tensorflow|jira|confluence|excel|powerpoint|word/i],
     [/framework|tech/i, /react|next|node|express|fastapi|django|flask|spring|angular|vue|api|rest|graphql|prisma|drizzle|tailwind/i],
   ];

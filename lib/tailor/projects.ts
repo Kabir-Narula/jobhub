@@ -11,6 +11,8 @@ export interface ProjectProfile {
   githubUrl: string;
   /** The \emph{...} tech line under the project name (same role as in the master). */
   techLine: string;
+  /** Consulting/analyst heading — analysis artifact, not React/Next.js/Express. */
+  businessTechLine?: string;
   year: string;
   /** Grounded bullets (plain text, no LaTeX). 2-3 per project. */
   bullets: string[];
@@ -85,6 +87,7 @@ export const PROJECTS: ProjectProfile[] = [
     name: "Expense Manager",
     githubUrl: "https://github.com/Kabir-Narula/Expense_manager",
     techLine: "Team Project, React, Express",
+    businessTechLine: "Team Project, Dashboards, Monthly Trends",
     year: "2024",
     summary:
       "Team-built budgeting app (4 developers; front-end role): categorized expense/income tracking, multi-account and shared-account support, dashboard analytics.",
@@ -99,6 +102,7 @@ export const PROJECTS: ProjectProfile[] = [
     name: "JobHub",
     githubUrl: "https://github.com/Kabir-Narula/jobhub",
     techLine: "Next.js 16, Prisma/PostgreSQL, LLM Pipeline",
+    businessTechLine: "Application Tracker, PostgreSQL",
     year: "2026",
     summary:
       "Full-stack job-search platform: aggregates postings from 40+ ATS/aggregator sources on a schedule, tracks applications end-to-end, and generates tailored LaTeX resume PDFs per job.",

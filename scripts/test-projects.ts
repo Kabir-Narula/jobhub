@@ -2,7 +2,7 @@
  * Slot count and diversity ranking for the project library. No LLM, no DB.
  * Usage: npx tsx scripts/test-projects.ts
  */
-import { projectSlots, rankProjects } from "../lib/tailor/projects";
+import { PROJECTS, projectSlots, rankProjects } from "../lib/tailor/projects";
 
 let failures = 0;
 function check(name: string, cond: boolean, detail = "") {
@@ -54,6 +54,19 @@ check(
   consultingPick.join(", ")
 );
 check("consulting ranking leads with Expense Manager", consultingPick[0] === "expense_manager", consultingPick.join(", "));
+
+const expense = PROJECTS.find((p) => p.id === "expense_manager");
+const jobhub = PROJECTS.find((p) => p.id === "jobhub");
+check(
+  "Expense Manager consulting tech line has dashboards, not React/Express",
+  Boolean(expense?.businessTechLine?.includes("Dashboard")) && !expense?.businessTechLine?.includes("React") && !expense?.businessTechLine?.includes("Express"),
+  expense?.businessTechLine
+);
+check(
+  "JobHub consulting tech line is an application tracker, not Next.js/Prisma/LLM",
+  Boolean(jobhub?.businessTechLine?.includes("Application Tracker")) && !jobhub?.businessTechLine?.includes("Next.js") && !jobhub?.businessTechLine?.includes("Prisma"),
+  jobhub?.businessTechLine
+);
 
 console.log(failures === 0 ? "all project-slot checks passed" : `${failures} check(s) failed`);
 process.exitCode = failures === 0 ? 0 : 1;

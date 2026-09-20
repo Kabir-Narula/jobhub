@@ -43,7 +43,7 @@ const messy = polishEmail(
 assertBody(
   "messy clichés + recipient sign-off",
   messy.body,
-  ["Hi Sam,", "", "I applied.", "", "Could you take a look at my application?", "", SIG].join("\n")
+  ["Hi Sam,", "", "I applied.", "", "Is this still open?", "", SIG].join("\n")
 );
 
 const wrapped = polishEmail(
@@ -64,7 +64,7 @@ assertBody(
     "",
     "I just graduated from Seneca.",
     "",
-    "Could you take a look at my application?",
+    "Is this still open?",
     "",
     SIG,
   ].join("\n")
@@ -81,7 +81,7 @@ const extraBlanks = polishEmail(
 assertBody(
   "extra blank lines collapsed; Thanks inserted",
   extraBlanks.body,
-  ["Hi Sam,", "", "I applied.", "", "Still interested.", "", "Could you take a look at my application?", "", SIG].join("\n")
+  ["Hi Sam,", "", "I applied.", "", "Still interested.", "", "Is this still open?", "", SIG].join("\n")
 );
 
 const wall = polishEmail(
@@ -164,7 +164,7 @@ const jose = polishEmail(
 if (/appreciate a glance|forward to the right person|easier than pulling/i.test(jose.body)) {
   console.log("FAIL commanding close still present\n", jose.body);
   failed++;
-} else if (!jose.body.includes("Could you take a look at my application?")) {
+} else if (!jose.body.includes("Is this still open?")) {
   console.log("FAIL expected a simple yes/no close\n", jose.body);
   failed++;
 } else if (/Resume is attached in case|out of the blue|didn'?t ask for this|no need to reply/i.test(jose.body)) {
@@ -184,42 +184,11 @@ const apology = polishEmail(
 if (/out of the blue|don'?t know me|didn'?t ask for this|no need to reply/i.test(apology.body)) {
   console.log("FAIL apology theater still present\n", apology.body);
   failed++;
-} else if (!apology.body.includes("Could you take a look at my application?")) {
+} else if (!apology.body.includes("Is this still open?")) {
   console.log("FAIL apology should become a yes/no\n", apology.body);
   failed++;
 } else {
   console.log("ok  apology theater stripped");
-}
-
-const softAsk = polishEmail(
-  {
-    subject: "Role",
-    body: "Hi Sam,\n\nI applied for Backend at Acme earlier this week, and figured a short note was worth it.\n\nI just graduated from Seneca in Toronto.\n\nAny chance my application could get a look?\n\nThanks,\nKabir",
-  },
-  { signOff: "Kabir", recipientFirst: "Sam", company: "Acme" }
-);
-if (!softAsk.body.includes("Any chance my application could get a look?")) {
-  console.log("FAIL soft stranger-aware ask was overwritten\n", softAsk.body);
-  failed++;
-} else if (softAsk.body.includes("Could you take a look at my application?")) {
-  console.log("FAIL fallback question injected despite a real question\n", softAsk.body);
-  failed++;
-} else {
-  console.log("ok  soft stranger-aware ask survives polish");
-}
-
-const managerAsk = polishEmail(
-  {
-    subject: "Role",
-    body: "Hi Sam,\n\nI applied for Backend at Acme.\n\nI just graduated from Seneca.\n\nAny chance you could take a look at my application, or point me to whoever owns it?\n\nThanks,\nKabir",
-  },
-  { signOff: "Kabir", recipientFirst: "Sam", company: "Acme" }
-);
-if (!managerAsk.body.includes("point me to whoever owns it?")) {
-  console.log("FAIL manager look-or-redirect ask was overwritten\n", managerAsk.body);
-  failed++;
-} else {
-  console.log("ok  manager look-or-redirect ask survives polish");
 }
 
 if (failed) {

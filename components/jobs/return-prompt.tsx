@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { postOk } from "@/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -116,13 +115,9 @@ export function ReturnPrompt() {
 
   async function onNo() {
     const id = pending!.id;
-    // Close immediately — re-opening a dialog the user just dismissed is worse
-    // than a warning. But say so if the dismissal did not persist, otherwise the
-    // prompt silently comes back on the next visit.
     setPending(null);
     setNotes("");
-    const r = await postOk(`/api/jobs/${id}/apply-prompt-dismiss`);
-    if (!r.ok) toast.error(r.error ?? "Could not save that — this prompt may appear again");
+    await fetch(`/api/jobs/${id}/apply-prompt-dismiss`, { method: "POST" });
   }
 
   async function onSave() {
@@ -154,21 +149,21 @@ export function ReturnPrompt() {
 
   return (
     <Dialog open={Boolean(pending)} onOpenChange={(open) => !open && onNo()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="border-[#e6e3db] bg-white sm:max-w-md">
         {pending && step === "ask" && (
           <>
             <DialogHeader>
               <DialogTitle className="font-display">Welcome back</DialogTitle>
               <DialogDescription>
-                Did you apply to <span className="font-medium text-foreground">{pending.title}</span> at{" "}
-                <span className="font-medium text-foreground">{pending.company}</span>?
+                Did you apply to <span className="font-medium text-[#1c1b17]">{pending.title}</span> at{" "}
+                <span className="font-medium text-[#1c1b17]">{pending.company}</span>?
               </DialogDescription>
             </DialogHeader>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={onNo}>
+              <Button variant="outline" className="border-[#e6e3db]" onClick={onNo}>
                 Not yet
               </Button>
-              <Button onClick={onYes}>
+              <Button className="bg-[#c2410c] text-[#fdf8f3] hover:bg-[#9a3412]" onClick={onYes}>
                 Yes, I applied
               </Button>
             </div>
@@ -185,9 +180,9 @@ export function ReturnPrompt() {
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
-                  <Label className="text-xs text-muted-foreground">Resume version</Label>
+                  <Label className="text-xs text-[#8b877a]">Resume version</Label>
                   <Select value={resumeId} onValueChange={(v) => setResumeId(v ?? "none")}>
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-white">
                       <SelectValue placeholder="None" />
                     </SelectTrigger>
                     <SelectContent>
@@ -201,9 +196,9 @@ export function ReturnPrompt() {
                   </Select>
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <Label className="text-xs text-muted-foreground">Cover letter version</Label>
+                  <Label className="text-xs text-[#8b877a]">Cover letter version</Label>
                   <Select value={coverId} onValueChange={(v) => setCoverId(v ?? "none")}>
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-white">
                       <SelectValue placeholder="None" />
                     </SelectTrigger>
                     <SelectContent>
@@ -218,19 +213,20 @@ export function ReturnPrompt() {
                 </div>
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label className="text-xs text-muted-foreground">Notes</Label>
+                <Label className="text-xs text-[#8b877a]">Notes</Label>
                 <Textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Referral? Contact? Anything to remember…"
-                  className="min-h-20"
+                  className="min-h-20 bg-white"
                 />
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setStep("ask")}>
+                <Button variant="outline" className="border-[#e6e3db]" onClick={() => setStep("ask")}>
                   Back
                 </Button>
                 <Button
+                  className="bg-[#c2410c] text-[#fdf8f3] hover:bg-[#9a3412]"
                   onClick={onSave}
                   disabled={saving}
                 >

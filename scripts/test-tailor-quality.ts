@@ -97,7 +97,30 @@ check("consulting pin drops Node.js from Frameworks", !miniLine(pinned, "Framewo
 check("consulting pin leads Infra with Excel", miniLine(pinned, "Infra \\& Tools").includes("Excel"), miniLine(pinned, "Infra \\& Tools"));
 check("consulting pin uses Pivot Tables not a VLOOKUP stamp", miniLine(pinned, "Infra \\& Tools").includes("Pivot") && !miniLine(pinned, "Infra \\& Tools").includes("VLOOKUP"), miniLine(pinned, "Infra \\& Tools"));
 check("consulting pin keeps SQL in Languages", miniLine(pinned, "Languages").includes("SQL"), miniLine(pinned, "Languages"));
+check(
+  "consulting pin closes every skills line brace (LaTeX Missing } was a 500)",
+  pinned.split("\n").filter((l) => l.includes("textbf")).every((l) => /\\\\\s*\}/.test(l)),
+  pinned
+);
 check("consulting suppress does not restore FastAPI", !miniLine(pinned, "Frameworks").includes("FastAPI"), miniLine(pinned, "Frameworks"));
+check("consulting Frameworks is Agile/Scrum not a Git-only line", miniLine(pinned, "Frameworks").includes("Agile") && !/^[^:]*:\s*Git\s*\\\\/.test(miniLine(pinned, "Frameworks")), miniLine(pinned, "Frameworks"));
+check("consulting pin keeps PowerPoint even when compacting to 4", miniLine(pinBusinessSkills(MINI_SKILLS, 4), "Infra \\& Tools").includes("PowerPoint"));
+
+const lillyPinned = pinBusinessSkills(MINI_SKILLS, 6, {
+  jobDescription:
+    "Design dashboards and reports to monitor KPIs and product performance. Support market research and competitive intelligence. Analyze IQVIA and Qualtrics. Tableau a plus.",
+  professional: ["Analytical Thinking", "Stakeholder Communication", "Problem Solving"],
+});
+check("Lilly-like JD adds Dashboard Reporting and KPI Tracking", miniLine(lillyPinned, "Cloud \\& Data").includes("Dashboard") && miniLine(lillyPinned, "Cloud \\& Data").includes("KPI"), miniLine(lillyPinned, "Cloud \\& Data"));
+check("Lilly-like JD adds Market Research, never IQVIA or Tableau as a skill", miniLine(lillyPinned, "Cloud \\& Data").includes("Market Research") && !lillyPinned.includes("IQVIA") && !lillyPinned.includes("Tableau"), lillyPinned);
+check("Lilly-like JD injects a Professional line", lillyPinned.includes("Professional") && lillyPinned.includes("Analytical Thinking"), lillyPinned);
+
+const bcgPinned = pinBusinessSkills(MINI_SKILLS, 0, {
+  jobDescription: "We seek people with drive, energy, first-rate minds, and ability to lead and persuade.",
+  professional: ["Problem Solving", "Analytical Thinking"],
+});
+check("tool-silent BCG JD does not invent Market Research or dashboards", !bcgPinned.includes("Market Research") && !bcgPinned.includes("Dashboard"), bcgPinned);
+check("tool-silent BCG still has PowerPoint and Professional", miniLine(bcgPinned, "Infra \\& Tools").includes("PowerPoint") && bcgPinned.includes("Professional"), bcgPinned);
 
 // ---------- claimable JD terms ----------
 // Real JDs repeat their requirements; bigrams only count at f>=2 by design,
@@ -143,8 +166,8 @@ const regrouped = assembleSkillsSection(section, [
   { label: "Frameworks", items: ["Java", "FastAPI"] },
 ]);
 check(
-  "mislabeled Agile/Scrum re-homed to Infra & Tools",
-  !line(regrouped, "Languages").includes("Agile") && line(regrouped, "Infra \\& Tools").includes("Agile/Scrum"),
+  "mislabeled Agile/Scrum re-homed to Frameworks",
+  !line(regrouped, "Languages").includes("Agile") && line(regrouped, "Frameworks").includes("Agile/Scrum"),
   regrouped
 );
 check(

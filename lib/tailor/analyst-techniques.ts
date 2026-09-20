@@ -185,19 +185,113 @@ export function techniqueBrief(jobDescription: string, family: RoleFamily): stri
   ].join("\n");
 }
 
-/** Skills pin: real analysis vocabulary, not a VLOOKUP/Word stamp. */
-export const BUSINESS_SKILL_CORE: Record<"languages" | "infra" | "frameworks" | "cloud", string[]> = {
+export type BusinessSkillBucket = "languages" | "infra" | "frameworks" | "cloud";
+
+/**
+ * Skills pin: real analysis vocabulary, not a VLOOKUP/Word stamp.
+ * Frameworks is methods (Agile + JD-matched research), never a Git-only line.
+ * Git belongs under Infra when there is room — PrepLounge does not list it.
+ */
+export const BUSINESS_SKILL_CORE: Record<BusinessSkillBucket, string[]> = {
   languages: ["SQL", "Python"],
   infra: ["Excel", "Pivot Tables", "Power Query", "INDEX/MATCH", "PowerPoint", "Jira"],
-  frameworks: ["Git"],
+  frameworks: ["Agile/Scrum"],
   cloud: ["PostgreSQL"],
 };
 
-export function businessSkillPin(label: string): string[] | null {
+/** Compact must never drop these — they are the ATS home for BA/insights. */
+export const BUSINESS_SKILL_PROTECT = [
+  "SQL",
+  "Python",
+  "Excel",
+  "Pivot Tables",
+  "Power Query",
+  "INDEX/MATCH",
+  "PowerPoint",
+];
+
+/**
+ * Intern-defensible extras scored against THIS posting. Tableau/IQVIA/Qualtrics
+ * in the JD map onto Dashboard Reporting / Market Research / Secondary Research
+ * — never onto the vendor name (candidate has not used those products).
+ */
+const BUSINESS_JD_EXTRAS: { item: string; bucket: BusinessSkillBucket; jd: RegExp }[] = [
+  { item: "XLOOKUP", bucket: "infra", jd: /\bxlookup\b/i },
+  { item: "VLOOKUP", bucket: "infra", jd: /\bvlookup\b/i },
+  { item: "SUMIFS", bucket: "infra", jd: /\bsumifs?\b|\bcountifs?\b/i },
+  {
+    item: "Secondary Research",
+    bucket: "frameworks",
+    jd: /secondary|market research|qualtrics|nielsen|iri|circana|survey|syndicat|mintel/i,
+  },
+  { item: "Segmentation", bucket: "frameworks", jd: /segment|cohort|cluster|consumer/i },
+  {
+    item: "Market Research",
+    bucket: "cloud",
+    jd: /market research|competitive intelligence|pharmaceutical market|consumer insights/i,
+  },
+  {
+    item: "Dashboard Reporting",
+    bucket: "cloud",
+    jd: /dashboard|tableau|power bi|powerbi|looker|qlik/i,
+  },
+  { item: "KPI Tracking", bucket: "cloud", jd: /\bkpis?\b|product performance|performance driver/i },
+];
+
+/** Vendors the candidate must not list as skills or experience. */
+export const BUSINESS_NEVER_INVENT =
+  /\b(?:tableau|power bi|powerbi|alteryx|qualtrics|nielsen|iqvia|spss|sas|think-?cell|salesforce|\bcrm\b)\b/i;
+
+function skillBucket(label: string): BusinessSkillBucket | null {
   const k = label.replace(/\\/g, "").toLowerCase();
-  if (k.includes("language")) return BUSINESS_SKILL_CORE.languages;
-  if (k.includes("infra")) return BUSINESS_SKILL_CORE.infra;
-  if (k.includes("framework")) return BUSINESS_SKILL_CORE.frameworks;
-  if (k.includes("cloud")) return BUSINESS_SKILL_CORE.cloud;
+  if (k.includes("language")) return "languages";
+  if (k.includes("infra")) return "infra";
+  if (k.includes("framework")) return "frameworks";
+  if (k.includes("cloud")) return "cloud";
   return null;
+}
+
+function dedupeSkills(items: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of items) {
+    const item = raw.trim();
+    if (!item) continue;
+    const key = item.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
+export function businessSkillPin(label: string, jobDescription = ""): string[] | null {
+  const bucket = skillBucket(label);
+  if (!bucket) return null;
+  const extras = jobDescription
+    ? BUSINESS_JD_EXTRAS.filter((e) => e.bucket === bucket && e.jd.test(jobDescription)).map((e) => e.item)
+    : [];
+  return dedupeSkills([...BUSINESS_SKILL_CORE[bucket], ...extras]);
+}
+
+/** Flat intern-defensible skills for this posting (ATS backfill + target keywords). */
+export function claimableBusinessSkillItems(jobDescription: string): string[] {
+  return dedupeSkills([
+    ...BUSINESS_SKILL_CORE.languages,
+    ...BUSINESS_SKILL_CORE.infra,
+    ...BUSINESS_SKILL_CORE.frameworks,
+    ...BUSINESS_SKILL_CORE.cloud,
+    ...BUSINESS_JD_EXTRAS.filter((e) => e.jd.test(jobDescription)).map((e) => e.item),
+  ]);
+}
+
+/** Drop extras from the end first; never drop Excel/PowerPoint/SQL/Python. */
+export function clampBusinessSkillLine(items: string[], max: number): string[] {
+  if (max <= 0 || items.length <= max) return items;
+  const protect = new Set(BUSINESS_SKILL_PROTECT.map((p) => p.toLowerCase()));
+  const out = [...items];
+  for (let i = out.length - 1; i >= 0 && out.length > max; i--) {
+    if (!protect.has(out[i].toLowerCase())) out.splice(i, 1);
+  }
+  return out;
 }

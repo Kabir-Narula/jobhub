@@ -85,8 +85,8 @@ export function selectExperienceEntries<T extends { company: string; title: stri
 }
 
 export const SKILL_SEEDS: Partial<Record<RoleFamily, string[]>> = {
-  consulting: ["excel", "powerpoint", "sql"],
-  analyst: ["excel", "powerpoint", "sql"],
+  consulting: ["excel", "powerpoint", "sql", "python"],
+  analyst: ["excel", "powerpoint", "sql", "python", "dashboard"],
   product: ["excel", "jira"],
 };
 
@@ -109,7 +109,7 @@ export const CONSULTING_RESUME_NORMS = `Real Reddit lines from r/McKinsey_BCG_Ba
 
 export const ANALYST_RESUME_NORMS = `Real Reddit lines from r/analytics, r/datascience, and r/consulting about analyst / insights resumes:
 
-- Lead skills with Excel (Pivot Tables, INDEX/MATCH, Power Query), SQL, PowerPoint, then Python if you actually used it for analysis — not FastAPI, Next.js, Fastify, OpenAI, Node, or Word-as-flex.
+- Lead skills with Excel (Pivot Tables, INDEX/MATCH, Power Query), SQL, PowerPoint, then Python if you actually used it for analysis — not FastAPI, Next.js, Fastify, OpenAI, Node, or Word-as-flex. Add posting-matched Dashboard Reporting / KPI Tracking / Market Research / Secondary Research. Always a Professional line. Never Git as the whole Frameworks line.
 - Bullets are question → method from jd_matched_techniques (pivot, SQL join, cohort, secondary synthesis) → what a stakeholder did with it. "Used Excel" is not a bullet. Never default to VLOOKUP.
 - Insights/market-research screens look for synthesis: secondary research, segmentation, a pattern someone used. JD may name Qualtrics/SPSS/Nielsen — map to secondary-research synthesis, do not invent those products.
 - Do not write data-engineering bullets (Spark, ETL platforms, CI) for a Data Analyst / Insights Associate posting.

@@ -32,6 +32,7 @@ import { matchScore, missingTerms, claimableJdTerms, isTechTerm, placementGaps }
 import { pageFill } from "@/lib/tailor/fill";
 import { PROJECTS, projectById, projectSlots, rankProjects } from "@/lib/tailor/projects";
 import { ensureBucket, uploadPdf } from "@/lib/supabase";
+import { claimableBusinessSkillItems } from "@/lib/tailor/analyst-techniques";
 
 export const maxDuration = 300;
 
@@ -76,11 +77,11 @@ function projectPair(profile: { summary: string; bullets: string[] }, generated?
   return [ensurePeriod(profile.summary), profile.bullets[0]].filter(Boolean).slice(0, 2);
 }
 
-function toEntry(profile: { name: string; githubUrl: string; techLine: string; year: string; summary: string; bullets: string[] }, generated?: string[]): ProjectEntry {
+function toEntry(profile: { name: string; githubUrl: string; techLine: string; businessTechLine?: string; year: string; summary: string; bullets: string[] }, generated?: string[], business = false): ProjectEntry {
   return {
     name: profile.name,
     githubUrl: profile.githubUrl,
-    techLine: profile.techLine,
+    techLine: business && profile.businessTechLine ? profile.businessTechLine : profile.techLine,
     year: profile.year,
     bullets: projectPair(profile, generated),
   };
@@ -97,7 +98,7 @@ function resolveProjects(
     .map((g) => {
       const profile = projectById(String(g?.id ?? ""));
       if (!profile) return null;
-      return { entry: toEntry(profile, Array.isArray(g.bullets) ? g.bullets.map(String) : []), id: profile.id };
+      return { entry: toEntry(profile, Array.isArray(g.bullets) ? g.bullets.map(String) : [], business), id: profile.id };
     })
     .filter((x): x is { entry: ProjectEntry; id: string } => x !== null);
 
@@ -105,7 +106,7 @@ function resolveProjects(
   if (unique.length < count) {
     for (const p of rankProjects(jobText, count, unique.map((u) => u.id), { business })) {
       if (unique.length >= count) break;
-      unique.push({ entry: toEntry(p), id: p.id });
+      unique.push({ entry: toEntry(p, undefined, business), id: p.id });
     }
   }
   const picked = unique.slice(0, count);
@@ -114,7 +115,7 @@ function resolveProjects(
   }
   const fallback = rankProjects(jobText, Math.max(count, 2), [], { business }).slice(0, Math.max(count, 2));
   return {
-    entries: fallback.map((p) => toEntry(p)),
+    entries: fallback.map((p) => toEntry(p, undefined, business)),
     chosen: fallback.map((p) => p.id),
   };
 }
@@ -158,6 +159,7 @@ export async function POST(request: Request) {
 
   const warnings: string[] = [];
   const requestStart = Date.now();
+  try {
 
   // Jobs without a stored JD (Simplify rows, LinkedIn cards) get hydrated
   // on demand — without it the tailor and ATS score have nothing to work from.
@@ -223,6 +225,12 @@ export async function POST(request: Request) {
   const targetKeywords = claimableJdTerms(job.description, 25, companyTokens, job.title);
   for (const t of SKILL_SEEDS[family] ?? []) {
     if (!targetKeywords.includes(t)) targetKeywords.unshift(t);
+  }
+  if (business) {
+    for (const item of claimableBusinessSkillItems(job.description)) {
+      const k = item.toLowerCase();
+      if (!targetKeywords.includes(k)) targetKeywords.push(k);
+    }
   }
 
   // Every pass shares this. Spelling the arguments out per call silently dropped
@@ -332,24 +340,27 @@ export async function POST(request: Request) {
       " " +
       (gen.projects ?? []).flatMap((p) => p.bullets ?? []).join(" ")
     ).toLowerCase();
-    const hardAllowed = claimableJdTerms(job!.description, 40, companyTokens, job!.title)
-      .filter(isTechTerm) // only skill-shaped terms may enter a skills block
-      .filter((t) => t.split(" ").every((w) => genText.includes(w)))
-      .filter(allowedByLens);
+    const hardAllowed = business
+      ? claimableBusinessSkillItems(job!.description).filter(allowedByLens)
+      : claimableJdTerms(job!.description, 40, companyTokens, job!.title)
+          .filter(isTechTerm)
+          .filter((t) => t.split(" ").every((w) => genText.includes(w)))
+          .filter(allowedByLens);
     const allowedExtra = [...new Set([...softSkills, ...hardAllowed])];
     tex = assembleSkillsSection(parseSkillsSection(tex), gen.skills ?? null, clamps.compactSkills ?? 0, lensSuppress, allowedExtra);
-    // Placement fix: bullet-backed JD terms the skills block missed get
-    // appended deterministically (parsers weight the skills field most).
-    // Must still honor the lens suppress list — otherwise FastAPI from a
-    // GitHub project bullet re-enters a consulting skills block after assembly.
-    tex = ensureSkillsTerms(
-      tex,
-      placementGaps(job!.description, tex, 6, job!.company).filter(allowedByLens),
-      clamps.compactSkills || 7
-    );
-    // Last write: consulting skills are Excel/SQL, not Node/Stripe/OpenAI
-    // the extras pool and JD backfill keep trying to restore.
-    if (business) tex = pinBusinessSkills(tex, clamps.compactSkills ?? 0);
+    if (business) {
+      tex = pinBusinessSkills(tex, clamps.compactSkills ?? 0, {
+        jobDescription: job!.description,
+        professional: softSkills,
+      });
+      tex = ensureSkillsTerms(tex, hardAllowed, Math.max(clamps.compactSkills || 0, 7));
+    } else {
+      tex = ensureSkillsTerms(
+        tex,
+        placementGaps(job!.description, tex, 6, job!.company).filter(allowedByLens),
+        clamps.compactSkills || 7
+      );
+    }
     if (clamps.achievements !== 0) tex = insertAchievements(tex, ACHIEVEMENTS.slice(0, clamps.achievements ?? ACHIEVEMENTS.length));
     // ATS ranking layer: the exact-title signal lives in the most recent
     // entry's title (2-of-3 rewording rule, natural to a human reader) and in
@@ -375,11 +386,12 @@ export async function POST(request: Request) {
   }[] = business
     ? [
         {},
-        { compactSkills: 5 },
-        { compactSkills: 4, maxProjects: 2 },
-        { compactSkills: 4, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
+        { compactSkills: 7 },
+        { compactSkills: 6, maxProjects: 2 },
+        { compactSkills: 6, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
         // Never drop consulting entries to 2 bullets — that is the McKinsey stub.
-        { compactSkills: 3, maxExpBullets: 3, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
+        // Never compact below PowerPoint/Excel — those are the ATS home.
+        { compactSkills: 6, maxExpBullets: 3, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
       ]
     : [
         {},
@@ -616,4 +628,14 @@ export async function POST(request: Request) {
     droppedEntries,
     research,
   });
+  } catch (err) {
+    console.error("[tailor/generate]", err);
+    const raw = err instanceof Error ? err.message : "";
+    const error = /Tectonic|Missing \\}/i.test(raw)
+      ? "Resume failed to compile. Click generate again."
+      : /omitted experience/i.test(raw)
+        ? "The model skipped an experience entry. Click generate again."
+        : "Generation failed. Click generate again.";
+    return NextResponse.json({ error }, { status: 500 });
+  }
 }

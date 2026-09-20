@@ -38,33 +38,23 @@ const CANDIDATE = {
   ],
 };
 
-const SYSTEM_PROMPT = `You write a short email as Kabir Narula, 22, software graduate in Toronto, to someone who does not know him. Write like a real person: warm, plain, specific. Not a sales email. Not a cover letter. Not an apology. And not a form letter: if this exact email could go to ten other companies unchanged, it is wrong.
+const SYSTEM_PROMPT = `You write a short email as Kabir Narula, 22, software graduate in Toronto. Write like a real person typing on a phone. Not a sales email. Not a cover letter. Not an apology.
 
 WHAT ACTUALLY GETS READ (recruiters who sat through hundreds of these):
-- 90 to 130 words. Two or three short paragraphs, then one easy question.
-- Why you're writing lands in the first two sentences: he applied for this exact role.
-- The middle connects ONE real thing about him to ONE real thing about this role or company, using the JD line or the researched product/hook in the payload. If nothing honestly connects, use one project in spoken English and skip the connection. Never invent company facts.
-- The point of the email is the close: ask them to look at his application, or point him to the person who will. One sentence, low pressure, easy to say no to. Asking whether the role is still open is a wasted email; eyes on the application is the goal.
+- 3 to 5 sentences. Two short paragraphs, then one question. Under 90 words.
+- Why you're writing in sentence one (you applied for this exact role).
+- One concrete thing you built, in spoken English. That is the only proof.
+- Close with a yes/no question they can answer in three words. Not a task. Not permission to ignore you.
+- Do not narrate that this is a cold email. Everyone knows.
 
 WHO KABIR IS (do not invent extra biography):
 - Graduated August 2026, Seneca Polytechnic, Software Development, Toronto. NOT a student.
 - Intern: Python/FastAPI + CI/CD at Seneca's INNWIL lab
 - Side products in spoken English: VertexFlow = Git for 3D files, Linux/Blender worker so the site doesn't freeze. BetterMind = journaling app whose companion remembers past entries.
 
-SHAPE (pick one per email and vary across emails; do not reuse the example sentences):
-A. Applied, then connection, then ask.
-B. Connection first ("the posting mentions X, and I built X"), then applied, then ask.
-C. Only when real company research exists: one honest sentence on what they build or why it caught his eye, then applied, then connection, then ask.
-Openings can vary: "I applied for", "I put in an application for", "saw the posting and applied". The same opening every time is the tell.
-
-WARMTH, MEASURED:
-- Contractions, plain words, one natural connector at most ("figured", "honestly") and some emails need none.
-- Be gracious to a stranger through the ask, not the opener: "if you're not the right person to ask, no worries" is fine.
-- Never apologize for writing, never narrate that this is a cold email, never flatter.
-
 HARD BANS (all of these read as ChatGPT in 2026):
 - Apology theater: "out of the blue", "you don't know me", "I know you didn't ask", "no need to reply if this isn't useful", "sorry to bother", "I know you're busy", "silent row in the ATS", "put a name to it"
-- Orders dressed as politeness: "please glance", "when you have a chance", "a forward is enough", "look at the ATS", "easier than pulling it from the ATS"
+- Orders: "please glance", "when you have a chance", "a forward is enough", "look at the ATS", "easier than pulling it from the ATS"
 - Cover-letter sludge: passionate, excited to contribute, great fit, leverage, utilize, I hope this finds you well, just reaching out
 - Fake research: company metrics, "when I saw that you", Reddit, Glassdoor
 - Resume bullets, tech lists, em-dashes, markdown, P.S., signing their name
@@ -72,31 +62,34 @@ HARD BANS (all of these read as ChatGPT in 2026):
 LAYOUT:
 Hi {First},
 
-{paragraph}
+{1-2 sentences: I applied for {exact role} at {company}.}
 
-{paragraph}
+{1-2 sentences: recent Seneca grad + ONE project in spoken English. GitHub URL only for an engineer, offered not pushed.}
 
-{question}
+{one yes/no question}
 
 Thanks,
 
 Formatter adds the signature. Do not write LinkedIn/phone/email.
 
-THE ASK: use the exact style the payload gives for this recipient — it always asks for eyes on the application (or a pointer to whoever owns it), phrased so a stranger can say yes in one line or ignore it without guilt. Never "15 minutes of your time". Never "I'd love to chat". Never "let me know if you have any questions".
+THE QUESTION (pick one, keep it boring):
+- "Is this still open?"
+- "Are you the right person for this?"
+Never "15 minutes of your time". Never "I'd love to chat". Never "let me know if you have any questions".
 
 SUBJECT: "{role} - Kabir Narula"  (flat, not clever)
 
-Copy this REGISTER (facts change per email, the warmth and plainness stay):
+Copy this VOICE (facts can change, the flatness cannot):
 
 Subject: Software Developer - Kabir Narula
 
 Hi Jose,
 
-I applied for the entry-level Software Developer role at Konrad earlier this week, and figured a short note straight to a person was worth it.
+I applied for the entry-level Software Developer role at Konrad.
 
-I just graduated from Seneca in Toronto, and the posting's mention of internal tooling is basically my last year: at Seneca's research lab I built small Python/FastAPI services with GitHub Actions so deploys stopped breaking things, and my side project BetterMind is a journaling app whose companion actually remembers your past entries.
+I'm a recent Seneca grad in Toronto. I've been building BetterMind, a journaling app where the chat remembers your past entries instead of starting from scratch each time.
 
-Any chance you could take a look at my application, or point me to whoever owns it?
+Is this still open?
 
 Thanks,
 
@@ -106,27 +99,26 @@ Subject: Backend Engineer - Kabir Narula
 
 Hi Devon,
 
-Saw the Backend Engineer posting at Northline and applied last night.
+Applied for Backend Engineer at Northline.
 
-I'm a recent Seneca grad. My main side project is VertexFlow, basically Git for 3D files: a Linux worker chews through the heavy mesh processing in a queue so the web app stays fast. github.com/Kabir-Narula/Vertex_flow if you want a look.
+Just finished at Seneca. Side project is VertexFlow - Git for 3D files, with a Linux worker so the web app doesn't freeze. github.com/Kabir-Narula/Vertex_flow if you want a look.
 
-If the project sounds relevant, would you be open to passing my name to the hiring team?
+Are you on that team?
 
 Thanks,
 
 Return JSON: {"subject":"...","body":"..."} with real newlines.`;
 
-const FOLLOWUP_PROMPT = `You write a short follow-up as Kabir Narula (Seneca grad, August 2026, not a student) to someone who never replied. 3-4 sentences, 60-90 words. Warm and plain. No guilt, no apology theater, no new claims about work.
+const FOLLOWUP_PROMPT = `You write a short follow-up as Kabir Narula (Seneca grad, August 2026, not a student). 3-4 sentences. No guilt. No apology theater.
 
 Hi {First},
 
-Applied {N} days ago for {role} at {company}. Still interested, plus one honest sentence why: connect the JD line to something real of his, or skip the reason if nothing connects.
+Applied {N} days ago for {role} at {company}. Still interested.
 
-{the follow-up ask, one sentence, low pressure: eyes on the application — "Any chance my application could get a look?" or "Could you point me to whoever's reviewing it?"}
+Is this still open?
 
 Thanks,
 
-One human beat is fine ("figured one more note wouldn't hurt"), once, no groveling.
 BANNED: circling back, touching base, gentle reminder, did you get my email, out of the blue, no need to reply, I know you're busy, em-dashes, markdown, P.S.
 Subject: "following up - {role}". Return JSON.`;
 
@@ -147,13 +139,10 @@ export function classifyRecipient(role: string | undefined | null): RecipientKin
   if (/engineering manager|hiring manager|director|head of|team lead|tech lead|\bvp\b|vice president|\bcto\b|founder|\bmanager\b/i.test(t)) {
     return "manager";
   }
-  // Recruiter before engineer: "Engineering Recruiter" and "Software Talent
-  // Acquisition" match the engineer pattern too, and testing engineer first sent
-  // them the referral ask instead of the review-my-application ask.
+  if (/software|engineer|developer|swe|programmer|architect/i.test(t)) return "engineer";
   if (/recruit|talent|sourcer|staffing|people ops|\bhr\b|human resources/i.test(t)) {
     return "recruiter";
   }
-  if (/software|engineer|developer|swe|programmer|architect/i.test(t)) return "engineer";
   return "unknown";
 }
 
@@ -185,16 +174,16 @@ function researchForEmail(research: CompanyResearch | null) {
 }
 
 const CLOSE_BY_KIND: Record<RecipientKind, string> = {
-  campus: 'Close with one of: "Could you take a look at my application?" / "Any chance my application could get a look?"',
-  recruiter: 'Close with one of: "Could you take a look at my application?" / "Any chance my application could get a look?"',
-  manager: 'Close with one of: "Any chance you could take a look at my application, or point me to whoever owns it?" / "If this isn\'t your desk, could you point me to whoever\'s reviewing it?"',
-  engineer: 'Close with one of: "If the project sounds relevant, would you be open to passing my name to the hiring team?" / "Would you be open to a referral if the work looks relevant?"',
-  unknown: 'Close with one of: "Could you take a look at my application, or point me to whoever reviews it?" / "Any chance my application could get a look?"',
+  campus: "Close with: Is this still open?",
+  recruiter: "Close with: Is this still open?",
+  manager: "Close with: Are you the right person for this? or Is this still open?",
+  engineer: "Close with: Are you on that team?",
+  unknown: "Close with: Is this still open?",
 };
 
-const SIMPLE_QUESTION = "Could you take a look at my application?";
+const SIMPLE_QUESTION = "Is this still open?";
 const COMMANDING_CLOSE =
-  /appreciate a glance|when you have a chance|please take a look|grateful if you took a look|a glance when you have|i'd be grateful if you|easier than (pulling it from )?the ats|easier than the ats|15-minute|i'd love to (chat|connect)/i;
+  /appreciate a glance|when you have a chance|forward to the right person|if this role is on your team|please take a look|grateful if you took a look|look at the application|easier than (pulling it from )?the ats|easier than the ats|i'd be grateful if you|if you own this role|a glance when you have|15-minute|i'd love to (chat|connect)/i;
 const FAKE_HUMILITY =
   /out of the blue|don'?t know me from anyone|you don'?t know me|i know you didn'?t ask|no need to reply if this isn'?t useful|sorry to bother|i know you'?re busy|silent row in the ats|put a name to it|weird to email someone|ignore this if it'?s not your world|anyway, ignore this/i;
 
@@ -343,12 +332,15 @@ export function polishEmail(
   if (paras.length && (COMMANDING_CLOSE.test(paras[paras.length - 1]) || FAKE_HUMILITY.test(paras[paras.length - 1]))) {
     paras[paras.length - 1] = SIMPLE_QUESTION;
   }
-  // Guarantees at least one paragraph, so no empty-body case remains below.
   if (!paras.some((p) => /\?\s*$/.test(p))) paras.push(SIMPLE_QUESTION);
+  if (paras.length === 0) paras = [SIMPLE_QUESTION];
 
   const parts = [greetingLine(opts)];
   for (const p of paras) {
     parts.push("", p);
+  }
+  if (paras.length === 0) {
+    parts.push("", SIMPLE_QUESTION);
   }
   parts.push("", "Thanks,", "", ...EMAIL_SIGNATURE);
 
@@ -358,12 +350,12 @@ export function polishEmail(
 function fallbackDraft(input: DraftInput, _kind: RecipientKind, first: string | null): EmailDraft {
   const project = input.projects[0];
   const who = project
-    ? `I just graduated from Seneca in Toronto. Lately I've been building ${project.name}: ${project.oneLiner.replace(/\.$/, "")}.`
+    ? `I just graduated from Seneca in Toronto. I've been building ${project.name} - ${project.oneLiner.replace(/\.$/, "")}.`
     : "I just graduated from Seneca in Toronto (Software Development, August 2026).";
   const body = [
     first ? `Hi ${first},` : `Hi ${input.job.company} team,`,
     "",
-    `I applied for ${input.job.title} at ${input.job.company} earlier this week, and figured a short note straight to a person was worth it.`,
+    `I applied for ${input.job.title} at ${input.job.company}.`,
     "",
     who,
     "",
@@ -376,24 +368,19 @@ function fallbackDraft(input: DraftInput, _kind: RecipientKind, first: string | 
 }
 
 async function completeJson(system: string, user: unknown, tier: "quality" | "cheap"): Promise<EmailDraft | null> {
-  try {
-    const res = await openai().chat.completions.create({
-      model: model(tier),
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: JSON.stringify(user) },
-      ],
-      response_format: { type: "json_object" },
-    });
-    const parsed = parseJson(res.choices[0]?.message?.content ?? "{}");
-    const subject = typeof parsed.subject === "string" ? parsed.subject : "";
-    const body = typeof parsed.body === "string" ? parsed.body : "";
-    if (!body.trim()) return null;
-    return { subject, body };
-  } catch {
-    // LLM down (quota/network) — caller falls back to the deterministic draft
-    return null;
-  }
+  const res = await openai().chat.completions.create({
+    model: model(tier),
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: JSON.stringify(user) },
+    ],
+    response_format: { type: "json_object" },
+  });
+  const parsed = parseJson(res.choices[0]?.message?.content ?? "{}");
+  const subject = typeof parsed.subject === "string" ? parsed.subject : "";
+  const body = typeof parsed.body === "string" ? parsed.body : "";
+  if (!body.trim()) return null;
+  return { subject, body };
 }
 
 function userPayload(input: DraftInput, extra: Record<string, unknown> = {}) {
@@ -414,12 +401,10 @@ function userPayload(input: DraftInput, extra: Record<string, unknown> = {}) {
       : { kind: "unknown" as const, greeting: `Hi ${input.job.company} team,`, whyThisInbox: CLOSE_BY_KIND.unknown },
     job: { title: input.job.title, company: input.job.company },
     role_in_one_line: input.job.description.replace(/\s+/g, " ").trim().slice(0, 400),
-    company_research_use_if_real: researchForEmail(input.research),
-    connect_him_to_the_role:
-      "Tie ONE real thing about him (project or internship) to ONE real thing in role_in_one_line or the company research. If nothing honestly connects, skip the connection and use one project in spoken English.",
+    company_for_optional_interest: researchForEmail(input.research),
     talk_about_at_most_one_of_these_projects: input.projects,
     already_applied_online: true,
-    close_with_the_ask_that_fits_this_recipient: CLOSE_BY_KIND[kind],
+    close_is_a_yes_no_question: CLOSE_BY_KIND[kind],
     sign_off_exactly: "Thanks,",
     spacing: "one blank line between greeting / paragraphs / Thanks. Do not write a signature; the formatter appends full name, email, phone, LinkedIn, GitHub.",
     ...extra,

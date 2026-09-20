@@ -178,20 +178,20 @@ export function lensInstruction(lens: Lens | null): string {
 
 Foreground ONLY: ${lens.foreground.join("; ")}.
 Do NOT mention these in experience or lead skills with them: ${lens.suppress.join(", ")}.
-Skills MUST lead with Excel, Pivot Tables, Power Query, INDEX/MATCH, PowerPoint, SQL, Python. Demote FastAPI/Next.js/Kotlin. Word is assumed — do not list it as a flex. In experience, name a TECHNIQUE from jd_matched_techniques — never default to VLOOKUP, never stamp Excel/Word on every bullet.
+Skills MUST lead with Excel, Pivot Tables, Power Query, INDEX/MATCH, PowerPoint, SQL, Python, then posting-matched Dashboard Reporting / KPI Tracking / Market Research / Secondary Research. Always include a Professional line. Demote FastAPI/Next.js/Kotlin. Word is assumed — do not list it as a flex. Frameworks is Agile/Scrum plus research methods, never Git alone. In experience, name a TECHNIQUE from jd_matched_techniques — never default to VLOOKUP, never stamp Excel/Word on every bullet. Weave 3-5 posting WORK nouns (insights, KPI, dashboard, market, recommendation, workstream if the JD says it) across the resume, one per bullet, never on HyFlex, never inventing IQVIA/Tableau/Qualtrics.
 Experience titles: software internships become Analyst / Business Analyst / Insights Analyst, keeping (Co-op)/(Freelance)/(Contract, Part-time). NEVER retitle Student Office Assistant, Peer Mentor, or HyFlex. Never Consultant. Never write Academic WIL.
 Bullets: Context-Analysis-Result, exactly 3 per entry. A BCG/McKinsey partner must understand the business problem. BANNED as the story: payloads, authentication flows, execution plans, deployment checklists, API fields, Python processing logs, extraction workflows, mobile-and-web clients, backend defects. Those are software internals. Write variance / mismatch / recommendation / stakeholder instead.
 HyFlex (ITS): you resolved classroom and lab failures for professors (audio, display, camera, login, peripherals) — in person and remotely across 30+ rooms. At most ONE later bullet documents a recurring issue after you fixed it. Never rewrite HyFlex as Excel/Word.
-Office Assistant: one request tracker using INDEX/MATCH or another jd_matched_techniques lookup + advising. Never HyFlex equipment. Four experience entries max. Skills MUST be Excel, Pivot Tables, Power Query, INDEX/MATCH, PowerPoint, SQL, Python, Jira — never Node, Stripe, Fastify, OpenAI, Supabase, Vercel.`;
+Office Assistant: one request tracker using INDEX/MATCH or another jd_matched_techniques lookup + advising. Never HyFlex equipment. Four experience entries max. Skills MUST be Excel, Pivot Tables, Power Query, INDEX/MATCH, PowerPoint, SQL, Python, Jira, Agile/Scrum, plus JD-matched extras — never Node, Stripe, Fastify, OpenAI, Supabase, Vercel, Git-as-the-whole-Frameworks-line.`;
   }
   if (lens.id === "analyst") {
     return `ANALYST / INSIGHTS ROLE FAMILY — beats every SWE rule. ${ANALYST_RESUME_NORMS}
 
 Foreground ONLY: ${lens.foreground.join("; ")}.
 Suppress in experience: ${lens.suppress.join(", ")}.
-Skills lead: Excel, Pivot Tables, Power Query, INDEX/MATCH, PowerPoint, SQL. Python only as analysis (pandas/SQL), never FastAPI. Word is assumed.
+Skills lead: Excel, Pivot Tables, Power Query, INDEX/MATCH, PowerPoint, SQL, then posting-matched Dashboard Reporting / KPI Tracking / Market Research / Secondary Research. Always include a Professional line. Python only as analysis (pandas/SQL), never FastAPI. Word is assumed.
 Keep Student Office Assistant & Peer Mentor and ITS HyFlex. HyFlex = restore classroom/lab tech for faculty, then optionally document. Office Assistant = request tracker from jd_matched_techniques + advising. Do not retitle them. Prefer those over a third project.
-Software internships become analysis + stakeholder bullets, not endpoints. Skills MUST be Excel, Pivot Tables, PowerPoint, SQL, Python — never Fastify, OpenAI, Node, Stripe. If the JD names Tableau/Qualtrics/Nielsen, map to a pivot or secondary-research synthesis — do not invent those products.`;
+Software internships become analysis + stakeholder bullets, not endpoints. Skills MUST be Excel, Pivot Tables, PowerPoint, SQL, Python, Agile/Scrum, plus JD-matched Dashboard Reporting / KPI Tracking / Market Research — never Fastify, OpenAI, Node, Stripe. If the JD names Tableau/Qualtrics/Nielsen/IQVIA, map to a pivot, dashboard, or secondary-research synthesis — do not invent those products in skills or experience.`;
   }
   if (lens.id === "product") {
     return `PRODUCT ROLE FAMILY. ${PRODUCT_RESUME_NORMS} Foreground: ${lens.foreground.join("; ")}. Suppress: ${lens.suppress.join(", ")}.`;

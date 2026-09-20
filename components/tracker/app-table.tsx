@@ -28,13 +28,13 @@ import type { AppWithJob } from "./types";
 
 type SortKey = "company" | "appliedAt" | "status";
 
-/** Aging color for unanswered applications: bold ink at 14d, destructive at 30d. */
+/** Aging color for unanswered applications: amber at 14d, red at 30d. */
 export function agingClass(app: { status: AppStatus; appliedAt: Date }): string {
-  if (app.status !== "APPLIED") return "text-muted-foreground";
+  if (app.status !== "APPLIED") return "text-[#a8a294]";
   const days = differenceInDays(new Date(), app.appliedAt);
-  if (days >= 30) return "font-bold text-destructive";
-  if (days >= 14) return "font-semibold text-foreground";
-  return "text-muted-foreground";
+  if (days >= 30) return "font-semibold text-red-600";
+  if (days >= 14) return "font-medium text-amber-700";
+  return "text-[#a8a294]";
 }
 
 export function AppTable({
@@ -81,7 +81,7 @@ export function AppTable({
   function header(label: string, key: SortKey) {
     return (
       <button
-        className="flex items-center gap-1 hover:text-foreground"
+        className="flex items-center gap-1 hover:text-[#1c1b17]"
         onClick={() => {
           if (sortKey === key) setAsc(!asc);
           else {
@@ -97,20 +97,17 @@ export function AppTable({
 
   if (apps.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-3 py-16">
-        <p className="stamp tilt-l bg-accent">No applications yet</p>
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-          Apply to a job from the Jobs page and confirm when you return.
-        </p>
-      </div>
+      <p className="py-16 text-center text-sm text-[#8b877a]">
+        No applications yet. Apply to a job from the Jobs page and confirm when you return.
+      </p>
     );
   }
 
   return (
-    <div className="rounded-none border-2 border-foreground bg-card shadow-hard-sm">
+    <div className="rounded-lg border border-[#e6e3db]">
       <Table>
         <TableHeader>
-          <TableRow>
+          <TableRow className="border-[#e6e3db]">
             <TableHead>{header("Company", "company")}</TableHead>
             <TableHead>Role</TableHead>
             <TableHead>Location</TableHead>
@@ -124,22 +121,22 @@ export function AppTable({
           {sorted.map((app) => {
             const days = differenceInDays(new Date(), app.appliedAt);
             return (
-              <TableRow key={app.id}>
+              <TableRow key={app.id} className="border-[#e6e3db]">
                 <TableCell>
                   <div className="flex items-center gap-2.5">
-                    <CompanyAvatar company={app.job.company} className="size-7 rounded-none border-2 border-foreground text-xs" />
-                    <span className="font-heading text-[13px] font-bold uppercase tracking-tight text-foreground">{app.job.company}</span>
+                    <CompanyAvatar company={app.job.company} className="size-7 rounded-md text-xs" />
+                    <span className="font-medium text-[#1c1b17]">{app.job.company}</span>
                   </div>
                 </TableCell>
-                <TableCell className="max-w-56 truncate text-muted-foreground">{app.job.title}</TableCell>
+                <TableCell className="max-w-56 truncate text-[#6e6b61]">{app.job.title}</TableCell>
                 <TableCell>
-                  <Badge variant="outline">
+                  <Badge variant="outline" className="border-[#e6e3db] text-[#6e6b61]">
                     {BUCKET_LABEL[app.job.bucket]}
                   </Badge>
                 </TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">
+                <TableCell className="whitespace-nowrap text-[#6e6b61]">
                   {format(app.appliedAt, "MMM d")}
-                  <span className={cn("ml-2 font-mono text-[10px] uppercase tracking-wider", agingClass(app))}>{days}d ago</span>
+                  <span className={cn("ml-2 text-xs", agingClass(app))}>{days}d ago</span>
                 </TableCell>
                 <TableCell>
                   <StatusSelect app={app} onChange={onStatusChange} />
@@ -150,7 +147,7 @@ export function AppTable({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-7 px-2"
+                        className="h-7 px-2 text-xs text-[#6e6b61]"
                         nativeButton={false}
                         render={<a href={`/api/documents/${app.resumeVersion.id}/pdf?download=1`} target="_blank" rel="noreferrer" />}
                       >
@@ -161,7 +158,7 @@ export function AppTable({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-7 px-2"
+                        className="h-7 px-2 text-xs text-[#6e6b61]"
                         nativeButton={false}
                         render={<a href={`/api/documents/${app.coverVersion.id}/pdf?download=1`} target="_blank" rel="noreferrer" />}
                       >
@@ -176,7 +173,7 @@ export function AppTable({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-7 border-foreground bg-accent px-2 text-accent-foreground"
+                        className="h-7 px-2 text-[#c2410c] hover:text-[#9a3412]"
                         title="Interview prep pack"
                         onClick={() => setPrepApp(app)}
                       >
@@ -187,7 +184,7 @@ export function AppTable({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-7 border-foreground bg-primary px-2 text-primary-foreground"
+                        className="h-7 px-2 text-amber-700 hover:text-[#c2410c]"
                         title="Draft a follow-up email"
                         onClick={() => setFollowUpApp(app)}
                       >
@@ -198,8 +195,8 @@ export function AppTable({
                       size="sm"
                       variant="ghost"
                       className={cn(
-                        "h-7 px-2 text-muted-foreground hover:text-foreground",
-                        (localNotes[app.id] ?? app.notes) && "border-foreground bg-primary text-primary-foreground"
+                        "h-7 px-2 text-[#8b877a] hover:text-[#c2410c]",
+                        (localNotes[app.id] ?? app.notes) && "text-[#c2410c]"
                       )}
                       title={localNotes[app.id] ?? app.notes ?? "Add notes"}
                       onClick={() => {
@@ -209,16 +206,16 @@ export function AppTable({
                     >
                       <Pencil className="size-3.5" />
                     </Button>
-                    <Button size="sm" variant="ghost" className="h-7 px-2" nativeButton={false} render={<Link href={`/tailor/${app.jobId}`} />}>
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-[#6e6b61]" nativeButton={false} render={<Link href={`/tailor/${app.jobId}`} />}>
                       <Sparkles className="size-3.5" />
                     </Button>
-                    <Button size="sm" variant="ghost" className="h-7 px-2" nativeButton={false} render={<a href={app.job.applyUrl} target="_blank" rel="noreferrer" />}>
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-[#6e6b61]" nativeButton={false} render={<a href={app.job.applyUrl} target="_blank" rel="noreferrer" />}>
                       <ExternalLink className="size-3.5" />
                     </Button>
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-7 px-2 text-muted-foreground hover:bg-destructive hover:text-white"
+                      className="h-7 px-2 text-[#8b877a] hover:text-red-600"
                       onClick={() => onRemove(app.id)}
                     >
                       <Trash2 className="size-3.5" />
@@ -232,11 +229,11 @@ export function AppTable({
       </Table>
 
       <Dialog open={Boolean(editing)} onOpenChange={(open) => !open && setEditing(null)}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="border-[#e6e3db] bg-white sm:max-w-md">
           {editing && (
             <>
               <DialogHeader>
-                <DialogTitle>
+                <DialogTitle className="font-display text-base">
                   Notes — {editing.job.company}
                 </DialogTitle>
               </DialogHeader>
@@ -244,14 +241,14 @@ export function AppTable({
                 value={notesDraft}
                 onChange={(e) => setNotesDraft(e.target.value)}
                 placeholder="Referral? Contact person? Interview prep notes…"
-                className="min-h-28"
+                className="min-h-28 border-[#e6e3db] bg-white"
                 autoFocus
               />
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setEditing(null)}>
+                <Button variant="outline" className="border-[#e6e3db]" onClick={() => setEditing(null)}>
                   Cancel
                 </Button>
-                <Button onClick={saveNotes}>
+                <Button className="bg-[#c2410c] text-[#fdf8f3] hover:bg-[#9a3412]" onClick={saveNotes}>
                   Save notes
                 </Button>
               </div>

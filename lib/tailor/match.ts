@@ -47,6 +47,9 @@ const SYNONYMS: [RegExp, string][] = [
   [/^index\s*\/?\s*match$/, "indexmatch"],
   [/^(etl|elt)$/, "etl"],
   [/^(bi|business intelligence)$/, "businessintelligence"],
+  [/^dashboards?$/, "dashboard"],
+  [/^kpis?$/, "kpi"],
+  [/^market research$/, "marketresearch"],
   [/^(db|database|databases)$/, "database"],
 ];
 
@@ -225,6 +228,7 @@ const TECH_LEXICON = new Set(
    langgraph langsmith autogen crewai spacy nltk xgboost lightgbm onnx tensorrt jax
    powerbi tableau looker dagster prefect kinesis pubsub
    excel powerpoint vlookup xlookup powerquery indexmatch sumifs countifs alteryx qualtrics
+   dashboard kpi kpis marketresearch
    sas spss stata alteryx knime qlik jupyter anaconda dask polars duckdb
    regression classification clustering forecasting segmentation statistics statistical
    econometrics bayesian anova pca randomforest catboost timeseries arima
@@ -260,7 +264,7 @@ export function isTechTerm(term: string): boolean {
 
 /** Canonical single-token forms produced by SYNONYMS above — all tech terms. */
 const CANON_TECH = new Set(
-  "postgresql kubernetes javascript typescript machinelearning artificialintelligence cicd restapi sqlserver googlecloud aws llm etl database businessintelligence".split(" ")
+  "postgresql kubernetes javascript typescript machinelearning artificialintelligence cicd restapi sqlserver googlecloud aws llm etl database businessintelligence dashboard kpi marketresearch".split(" ")
 );
 
 /**
