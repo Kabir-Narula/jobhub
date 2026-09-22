@@ -5,6 +5,7 @@ import { extraSkillsPool } from "./skills-extra";
 import { verifiedNumbersBrief } from "./verified-numbers";
 import { resumeNormsFor, type RoleFamily, isCampusOpsEntry } from "./role-family";
 import { techniqueBrief } from "./analyst-techniques";
+import type { MetricGuidance } from "./metric-guidance";
 
 export interface GeneratedContent {
   experience: {
@@ -70,7 +71,7 @@ When role_family is "consulting", "analyst", or "product", this block BEATS ever
 TECHNOLOGY DISCIPLINE — product names vs portable terms:
 - PORTABLE (repeat freely): SQL, REST API, HTTP, CI, tests, schema, index, query, queue, pipeline, worker, Git, Linux, report, export. These transfer across companies. Prefer them.
 - PRODUCT NAMES (FastAPI, Django, Flask, Fastify, Next.js, React, Prisma, tRPC, BullMQ, Kotlin, Spark, PyTorch, TensorFlow, Keras, LangChain, Redis, Docker, Kubernetes, Spring): at most ONCE across all experience bullets unless the posting names that exact product, in which case at most TWICE and never in two different employers. The candidate's home stack is FastAPI / Next.js / Prisma / React — those are the default nouns the model overuses. If the posting does not name FastAPI, write "REST API" or "the extraction service". A related API stack is correct; repeating FastAPI at three internships is a template tell.
-- Do NOT import the whole JD tool list into experience. Stretch at most ONE posting-specific product into ONE bullet (already the stretch rule). The rest of the JD tools belong in skills if they are claimable, or nowhere.
+- JD-STACK EMBEDDING (controlled): the full_match entry may carry up to THREE posting-named technologies across its bullets — one per bullet, attached to a mundane artifact, written as plausible junior work (a small internal service, a config change, a scheduled job, a review dashboard). The 70% entry may carry ONE. The distinctive entry carries none. A JD technology embedded this way MUST also appear in the skills section (consistency is checked).
 - A technique without a product name is valid and often better. "Filtered the export before the join" does not need FastAPI in the sentence.
 - Projects are the right place to name the candidate's real stack — those repos actually use FastAPI, Prisma, Next.js. Do not copy that stack into every job.
 
@@ -103,13 +104,13 @@ BULLET MECHANICS:
 - NEVER SELF-APPLY THE POSTING'S EVALUATION ADJECTIVES: "maintainable", "testable", "performant", "analytical", "clean", "efficient", "robust" read as the job description echoed back at the person who wrote it. Name the practice that proves it instead: tests in CI, code review gates, indexed queries, small modules.
 - CUT ruthlessly: no "in order to", no stacked "and/while/by" clauses, no filler ("worked on", "helped with", "was responsible for", "assisted with", "various", "multiple", "successfully", "utilized"). If a word earns nothing, delete it.
 
-NUMBERS AND OUTCOMES — plausibility is the constraint:
+NUMBERS AND OUTCOMES — role-mapped plausibility (metric_guidance is the authority):
 - candidate_verified_numbers are TRUE facts. Use 2-3 across the whole resume, never inflated, never the same one twice, never two numbers in one bullet.
-- Beyond those, in the TWO most relevant entries you MAY state outcomes the candidate could plausibly have produced in that job. The test for every one: could the candidate explain, in one sentence under questioning, how they knew that number? If not, cut it.
-- ALLOWED shapes: a before/after duration on something slow or manual ("a 40-minute manual export down to about 5 minutes"), a count a junior engineer would genuinely know ("three services", "a 12-person team", "about 40 test cases", "two release cycles", "six recurring ticket types"), or an explicit approximation in words ("roughly", "about", "just over").
-- BANNED OUTRIGHT in every section: improvement percentages ("cut latency 47%"), multipliers ("3x faster"), user/revenue/traffic scale ("40,000 users", "millions of requests", "$2M ARR"), uptime and SLA figures ("99.9%"), and anything implying instrumentation an intern would not have owned. These are precisely the numbers that get a resume dismissed as inflated, and they cannot be defended in a technical screen.
+- Beyond those, in the TWO most relevant entries you MAY invent outcomes that fit metric_guidance.allowed_shapes for THIS job family — before/after durations, junior-known counts, baseline-named percentages. The GPT side of the research is on you: pick the shape that fits THIS posting's work (a pipeline job gets rows/night and duration; a reliability job gets failure counts and deploy time; an analysis job gets hours saved and cycle time).
+- metric_guidance.ceilings are hard caps — never exceed them, and metric_guidance.banned_shapes are never allowed anywhere. A number above the ceiling is the fabrication tell that gets a resume dismissed.
+- At most ONE number per bullet, and a number in at most HALF the bullets on the page. Uniformly quantified bullets are as machine-written as uniformly unquantified ones.
 - Prefer a qualitative state change over a weak number. "The nightly reconciliation stopped failing on partial files" is stronger AND safer than "improved reliability by 30%".
-- BUT AT LEAST ONE BULLET ON THE WHOLE RESUME MUST CARRY A MAGNITUDE. A page with no numbers anywhere reads soft in a 10-second scan and gives the executive reader nothing to hold. One allowed-shape figure is enough: a duration ("a 40-minute manual export down to about 5"), a volume ("roughly 200,000 rows a night"), a count ("about 40 test cases", "three services", "a 12-person team"). Put it in the most relevant entry's strongest bullet, where a skimmer will actually see it.
+- BUT AT LEAST ONE BULLET ON THE WHOLE RESUME MUST CARRY A MAGNITUDE. A page with no numbers anywhere reads soft in a 10-second scan and gives the executive reader nothing to hold. One allowed-shape figure is enough. Put it in the most relevant entry's strongest bullet, where a skimmer will actually see it.
 
 THE AUTHENTICITY BALANCE (user-authorized expanded mode):
 - COMPOSE THE TWO MOST RELEVANT SOFTWARE ENTRIES AS IF THE ORIGINAL BULLETS DID NOT EXIST. Read the source bullets only to learn what kind of company it was, what the product did, and roughly what the candidate touched — then write a fresh, coherent account of a junior engineer's few months on that team, aimed at THIS posting. Do not paraphrase the source bullets, do not preserve their order, do not keep their sentence skeletons. If a new bullet reads like a rewording of a source bullet, replace it.
@@ -139,7 +140,9 @@ JOB TITLES — the 2-of-3 rule for software postings; consulting/analyst is diff
 - Hard rules still apply: never upgrade seniority (no Senior/Staff/Lead/Principal). Analyst / Business Analyst / Insights Analyst / Operations Analyst are allowed. Do not invent "data scientist".
 - Set "titleChanged": true whenever you reword.
 
-SKILLS SECTION: this is the ATS home. YOU choose 4 rich lines (5-7 items per line) from the provided master lines PLUS the additional verified pool PLUS intern-defensible extras that fit THIS posting. Rank by relevance to the JD. Keep the four line labels AND each item's line assignment fixed: re-rank WITHIN a line only. Technologies named in experience or projects MUST appear in skills. Skills MAY list claimable tools that are not in a bullet. You MAY append ONE Professional line from soft_skills_allowed when the posting actually asks for those. Never add Node, Stripe, Fastify, OpenAI, Tableau-you-do-not-have, IQVIA, or Word. Do not dump the same Excel-function list onto every consulting resume — pick what this posting makes relevant.
+SKILLS SECTION: this is the ATS keyword home. YOU choose 4 rich lines (5-7 items per line) from the provided master lines PLUS the additional verified pool PLUS posting-adjacent technologies. Rank by relevance to the JD. Keep the four line labels AND each item's line assignment fixed: re-rank WITHIN a line only.
+- POSTING-ADJACENT ADDITIONS ARE ALLOWED: a technology the posting names may be listed even without a bullet backing it, WHEN it is plausible-adjacent to the candidate's world — same ecosystem as verified work (Java from coursework, Spring from Java, Angular from TypeScript/React, Snowflake or BigQuery from SQL, Airflow from Python pipelines, Ansible from automation, Kubernetes from Docker, AWS/Azure/GCP from any deployment, LangChain from OpenAI API work). Cap: at most 6 such additions, they must form ONE coherent capability profile, and they go under the correct line (languages under Languages, frameworks under Frameworks, platforms/data stores under Cloud & Data, tooling under Infra & Tools).
+- Technologies named in experience or projects MUST appear in skills. Skills MAY list adjacent tools that are not in a bullet (that is what the section is for). You MAY append ONE Professional line from soft_skills_allowed when the posting actually asks for those. Never add Node, Stripe, Fastify, OpenAI, Tableau-you-do-not-have, IQVIA, or Word. Never dump the whole JD tool list — 6 additions is the ceiling, chosen by adjacency, never by frequency.
 When role_family is consulting or analyst: you own the skills mix. Use the intern-defensible palette as a ceiling, the JD as the brief, and the verified pool as the truth. Silent postings stay lighter. Insights/KPI/dashboard postings can be richer. Never list Tableau, Power BI, Alteryx, Qualtrics, Nielsen, IQVIA, SPSS, Salesforce, CRM, or Word.
 
 PROJECTS SECTION — count comes from project_count_rule (2 or 3). That field is the single authority. Each project still has EXACTLY 2 bullets with FIXED roles — never two implementation bullets, never a third bullet, never a one-line stub.
@@ -184,6 +187,8 @@ interface GenerateInput {
   projectCount?: number;
   /** Consulting/BA/insights vs default software doctrine. */
   roleFamily?: RoleFamily;
+  /** Role-mapped metric shapes + ceilings for invented-but-plausible outcomes. */
+  metricGuidance?: MetricGuidance;
 }
 
 export async function generateContent(input: GenerateInput): Promise<GeneratedContent> {
@@ -253,6 +258,7 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
       .filter(Boolean)
       .join(" "),
     intern_defensible_palette: techniqueBrief(input.job.description, input.roleFamily ?? "swe"),
+    metric_guidance: input.metricGuidance ?? null,
     // Single authority for bullet count and length. The system prompt, the
     // task text, and output_schema all defer here; stating counts in more than
     // one place produced contradictory payloads (e.g. "exactly 3" alongside "4").

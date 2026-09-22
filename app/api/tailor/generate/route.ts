@@ -33,6 +33,7 @@ import { pageFill } from "@/lib/tailor/fill";
 import { PROJECTS, projectById, projectSlots, rankProjects } from "@/lib/tailor/projects";
 import { ensureBucket, uploadPdf } from "@/lib/supabase";
 import { claimableBusinessSkillItems } from "@/lib/tailor/analyst-techniques";
+import { metricGuidanceFor, jdTechHome, displayTech } from "@/lib/tailor/metric-guidance";
 
 export const maxDuration = 300;
 
@@ -246,6 +247,7 @@ export async function POST(request: Request) {
     softSkills,
     targetKeywords,
     projectCount,
+    metricGuidance: metricGuidanceFor(family),
     ...(family !== "swe" ? { roleFamily: family } : {}),
   };
 
@@ -346,7 +348,16 @@ export async function POST(request: Request) {
           .filter(isTechTerm)
           .filter((t) => t.split(" ").every((w) => genText.includes(w)))
           .filter(allowedByLens);
-    const allowedExtra = [...new Set([...softSkills, ...hardAllowed])];
+    // JD technologies with a plausible-adjacency skills home are allowed into
+    // the skills section even without a bullet backing them — the section is
+    // the ATS keyword home; experience stays coherent (posting-adjacent rule).
+    const jdTechForSkills = business
+      ? []
+      : claimableJdTerms(job!.description, 60, companyTokens, job!.title)
+          .filter((t) => jdTechHome(t) !== undefined)
+          .filter(allowedByLens)
+          .map(displayTech);
+    const allowedExtra = [...new Set([...softSkills, ...hardAllowed, ...jdTechForSkills])];
     tex = assembleSkillsSection(parseSkillsSection(tex), gen.skills ?? null, clamps.compactSkills ?? 0, lensSuppress, allowedExtra);
     if (business) {
       // Keep the model's ranking. Only strip SWE leaks and invented vendors.
@@ -359,10 +370,19 @@ export async function POST(request: Request) {
         clamps.compactSkills || 7
       );
     } else {
+      // Deterministic backfill: homed JD technologies that are still absent
+      // from the skills block are placed by line affinity (cap 6, JD frequency
+      // order). This is what actually moves coverage — the model may choose
+      // fewer posting-adjacent skills than the ceiling allows.
+      const jdBackfill = jdTechForSkills
+        .filter((t) => !tex.toLowerCase().includes(t.toLowerCase()))
+        .slice(0, 12);
       tex = ensureSkillsTerms(
         tex,
-        placementGaps(job!.description, tex, 6, job!.company).filter(allowedByLens),
-        clamps.compactSkills || 7
+        [...new Set([...placementGaps(job!.description, tex, 6, job!.company).filter(allowedByLens).map(displayTech), ...jdBackfill])],
+        // 8/line lets the backfill actually land — 7/line fills the Infra line
+        // before the JD tooling terms get in (the reason coverage kept churning)
+        Math.max(clamps.compactSkills || 0, 8)
       );
     }
     if (clamps.achievements !== 0) tex = insertAchievements(tex, ACHIEVEMENTS.slice(0, clamps.achievements ?? ACHIEVEMENTS.length));

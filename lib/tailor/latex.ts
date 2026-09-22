@@ -10,6 +10,7 @@
  */
 
 import { EXTRA_SKILLS, extraSkillsPool } from "./skills-extra";
+import { JD_TECH_HOME } from "./metric-guidance";
 import { clampBusinessSkillLine, BUSINESS_NEVER_INVENT } from "./analyst-techniques";
 import { BUSINESS_SKILL_SUPPRESS } from "./lens";
 
@@ -438,6 +439,12 @@ export function assembleSkillsSection(
     const target = section.lines.find((l) => unescapeItem(l.label).toLowerCase() === e.label.toLowerCase());
     if (target) home.set(e.item.toLowerCase(), target.label);
   }
+  // JD-derived skills additions (posting-adjacent tech) carry a declared home —
+  // without this they land wherever the model guesses (e.g. "AWS" under Languages).
+  for (const [item, label] of Object.entries(JD_TECH_HOME)) {
+    const target = section.lines.find((l) => unescapeItem(l.label).toLowerCase() === label.toLowerCase());
+    if (target) home.set(item, target.label);
+  }
 
   const buckets = new Map<string, string[]>();
   const seen = new Set<string>();
@@ -606,9 +613,9 @@ export function ensureSkillsTerms(tex: string, terms: string[], maxPerLine = 7):
 
   const AFFINITY: [RegExp, RegExp][] = [
     [/language/i, /^(java|python|typescript|javascript|kotlin|swift|go|golang|ruby|scala|c\+\+|c#|rust|php|matlab|haskell|perl|r)$/i],
-    [/cloud|data/i, /sql|postgres|mysql|mongo|snowflake|redshift|spark|hadoop|etl|aws|azure|gcp|cloud|s3|ec2|lambda|data|dashboard|kpi|market/i],
-    [/infra|ml|tools/i, /docker|kubernetes|k8s|linux|git|jenkins|terraform|redis|kafka|devops|ci\/cd|cicd|ml|ai|llm|openai|pytorch|tensorflow|jira|confluence|excel|powerpoint|word/i],
-    [/framework|tech/i, /react|next|node|express|fastapi|django|flask|spring|angular|vue|api|rest|graphql|prisma|drizzle|tailwind/i],
+    [/cloud|data/i, /sql|postgres|mysql|mongo|snowflake|redshift|spark|hadoop|etl|aws|azure|gcp|cloud|s3|ec2|lambda|data|dashboard|kpi|market|airflow|databricks|bigquery|dbt/i],
+    [/infra|ml|tools/i, /docker|kubernetes|k8s|linux|git|jenkins|terraform|redis|kafka|devops|ci\/cd|cicd|ml|ai|llm|openai|pytorch|tensorflow|jira|confluence|excel|powerpoint|word|ansible|testing/i],
+    [/framework|tech/i, /react|next|node|express|fastapi|django|flask|spring|angular|vue|api|rest|graphql|prisma|drizzle|tailwind|langchain|rails|laravel/i],
   ];
 
   let out = tex;

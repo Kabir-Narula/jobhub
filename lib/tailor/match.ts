@@ -263,6 +263,9 @@ export function isTechTerm(term: string): boolean {
 }
 
 /** Canonical single-token forms produced by SYNONYMS above — all tech terms. */
+/** JD phrases that shape-match a skill but are not skills — never claimable. */
+const CLAIM_BLOCKLIST = new Set(["tech stack", "full stack", "best practices", "problem solving", "problem solver"]);
+
 const CANON_TECH = new Set(
   "postgresql kubernetes javascript typescript machinelearning artificialintelligence cicd restapi sqlserver googlecloud aws llm etl database businessintelligence dashboard kpi marketresearch".split(" ")
 );
@@ -281,6 +284,9 @@ const CLAIM_HEADS = new Set(
 export function isClaimableTerm(term: string): boolean {
   const t = term.toLowerCase().trim();
   if (!t) return false;
+  // JD boilerplate that passes the skill-shape test but is not a skill —
+  // counting it permanently drags the score and can never be legitimately covered.
+  if (CLAIM_BLOCKLIST.has(t)) return false;
   if (CANON_TECH.has(t)) return true;
   if (isTechTerm(t)) return true;
   const words = t.split(/\s+/);
