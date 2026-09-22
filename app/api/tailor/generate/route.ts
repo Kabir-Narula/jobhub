@@ -227,7 +227,7 @@ export async function POST(request: Request) {
     if (!targetKeywords.includes(t)) targetKeywords.unshift(t);
   }
   if (business) {
-    for (const item of claimableBusinessSkillItems(job.description)) {
+    for (const item of claimableBusinessSkillItems(job.description, family)) {
       const k = item.toLowerCase();
       if (!targetKeywords.includes(k)) targetKeywords.push(k);
     }
@@ -341,7 +341,7 @@ export async function POST(request: Request) {
       (gen.projects ?? []).flatMap((p) => p.bullets ?? []).join(" ")
     ).toLowerCase();
     const hardAllowed = business
-      ? claimableBusinessSkillItems(job!.description).filter(allowedByLens)
+      ? claimableBusinessSkillItems(job!.description, family).filter(allowedByLens)
       : claimableJdTerms(job!.description, 40, companyTokens, job!.title)
           .filter(isTechTerm)
           .filter((t) => t.split(" ").every((w) => genText.includes(w)))
@@ -349,11 +349,15 @@ export async function POST(request: Request) {
     const allowedExtra = [...new Set([...softSkills, ...hardAllowed])];
     tex = assembleSkillsSection(parseSkillsSection(tex), gen.skills ?? null, clamps.compactSkills ?? 0, lensSuppress, allowedExtra);
     if (business) {
+      // Keep the model's ranking. Only strip SWE leaks and invented vendors.
       tex = pinBusinessSkills(tex, clamps.compactSkills ?? 0, {
-        jobDescription: job!.description,
         professional: softSkills,
       });
-      tex = ensureSkillsTerms(tex, hardAllowed, Math.max(clamps.compactSkills || 0, 7));
+      tex = ensureSkillsTerms(
+        tex,
+        placementGaps(job!.description, tex, 6, job!.company).filter(allowedByLens),
+        clamps.compactSkills || 7
+      );
     } else {
       tex = ensureSkillsTerms(
         tex,

@@ -35,23 +35,22 @@ export interface AnalystTechnique {
 const BOTH: Array<"consulting" | "analyst"> = ["consulting", "analyst"];
 
 /**
- * Intern-defensible techniques the model may write. Order is the default
- * consulting pick when the JD names nothing (Pivot / INDEX-MATCH / deck / SQL),
- * not VLOOKUP.
+ * Intern-defensible techniques the model may write. Hints only — never a
+ * default dump when the posting names no tools.
  */
 export const ANALYST_TECHNIQUE_PALETTE: AnalystTechnique[] = [
   {
     id: "pivot",
     writeAs: "a Pivot Table",
     why: "PrepLounge + r/consulting: the actual Excel analysis unit, not 'used Excel'",
-    jd: /\bpivot|\bexcel\b|dashboard|aggregat|summar|kpi/i,
+    jd: /\bpivot(?:\s+tables?)?\b|\bexcel\b|\bdashboards?\b|\baggregat|\bkpis?\b/i,
     families: BOTH,
   },
   {
     id: "index-match",
     writeAs: "INDEX/MATCH",
     why: "PrepLounge: connecting datasets. Replaces VLOOKUP as the lookup seniors still probe",
-    jd: /\bexcel\b|lookup|reconcil|match|\bjoin\b|vlookup|xlookup/i,
+    jd: /\bexcel\b|\blookups?\b|\breconcil|\bindex\s*\/\s*match\b|\bvlookup\b|\bxlookup\b/i,
     families: BOTH,
   },
   {
@@ -79,14 +78,14 @@ export const ANALYST_TECHNIQUE_PALETTE: AnalystTechnique[] = [
     id: "power-query",
     writeAs: "Power Query",
     why: "r/consulting: Power Query (and Power Pivot) is how Excel stays alive vs Alteryx",
-    jd: /power query|powerquery|power pivot|alteryx|clean(?:ing)? data|transform/i,
+    jd: /power query|powerquery|power pivot|\balteryx\b|clean(?:ing)? data/i,
     families: BOTH,
   },
   {
     id: "sql-join",
     writeAs: "a SQL join",
     why: "r/consulting: SQL when Excel dies on size. Candidate has real SQL",
-    jd: /\bsql\b|postgres|reconcil|mismatch|query/i,
+    jd: /\bsql\b|\bpostgres(?:ql)?\b|\breconcil|\bmismatch\b|\bquer(?:y|ies)\b/i,
     families: BOTH,
   },
   {
@@ -100,28 +99,28 @@ export const ANALYST_TECHNIQUE_PALETTE: AnalystTechnique[] = [
     id: "deck",
     writeAs: "a PowerPoint deck",
     why: "PrepLounge #1 MBB tool. Action-title slides, not 'used PowerPoint'",
-    jd: /powerpoint|power point|deck|slide|present|communicat|story/i,
+    jd: /powerpoint|power point|\bdecks?\b|\bslides?\b|\bpresent(?:ation|ing)?\b|\bcommunicat/i,
     families: BOTH,
   },
   {
     id: "sizing",
     writeAs: "a variance or sizing walkthrough",
     why: "r/McKinsey_BCG_Bain: diagnosis that informed a go/no-go, intern-scale",
-    jd: /siz(?:e|ing)|forecast|variance|hypothesis|market|case/i,
+    jd: /\bsiz(?:e|ing)\b|\bforecast|\bvariance|\bhypothesis|\bmarket(?:ing)?\b|\bcase interview\b|\bworkstream\b/i,
     families: ["consulting"],
   },
   {
     id: "secondary",
     writeAs: "secondary-research synthesis",
     why: "Insights ATS: secondary data, syndicated sources. Do not invent Nielsen/Qualtrics",
-    jd: /secondary|insights?|market research|syndicat|nielsen|iri|circana|qualtrics|survey|mintel/i,
+    jd: /secondary|\bmarket research\b|\bqualtrics\b|\bnielsen\b|\biri\b|\bcircana\b|\bsurveys?\b|\bsyndicat|\bmintel\b/i,
     families: ["analyst"],
   },
   {
     id: "cohort",
     writeAs: "a cohort or segmentation cut",
     why: "Insights ATS: segmentation / cohort. Method, not SPSS",
-    jd: /cohort|segment|cluster|consumer/i,
+    jd: /\bcohort|\bsegment(?:ation|s)?\b|\bcluster|\bconsumer\b/i,
     families: BOTH,
   },
   {
@@ -133,54 +132,37 @@ export const ANALYST_TECHNIQUE_PALETTE: AnalystTechnique[] = [
   },
 ];
 
-const DEFAULT_CONSULTING = ["pivot", "index-match", "deck", "sql-join"];
-const DEFAULT_ANALYST = ["pivot", "sql-join", "secondary", "cohort"];
-
+/** JD vocabulary that maps onto the intern-defensible palette — hints, not a script. */
 export function matchJdTechniques(jobDescription: string, family: RoleFamily): AnalystTechnique[] {
   if (family !== "consulting" && family !== "analyst") return [];
   const text = jobDescription || "";
   const pool = ANALYST_TECHNIQUE_PALETTE.filter((t) => t.families.includes(family));
-  const scored = pool
+  return pool
     .map((t) => ({ t, n: (text.match(t.jd) || []).length }))
     .filter((x) => x.n > 0)
     .sort((a, b) => b.n - a.n)
-    .map((x) => x.t);
-  if (scored.length >= 3) return scored.slice(0, 4);
-  const fallbackIds = family === "analyst" ? DEFAULT_ANALYST : DEFAULT_CONSULTING;
-  const seen = new Set(scored.map((t) => t.id));
-  const out = [...scored];
-  for (const id of fallbackIds) {
-    if (out.length >= 4) break;
-    const t = pool.find((p) => p.id === id);
-    if (t && !seen.has(t.id)) {
-      seen.add(t.id);
-      out.push(t);
-    }
-  }
-  return out.slice(0, 4);
+    .map((x) => x.t)
+    .slice(0, 4);
 }
 
-/** Payload block: GPT must run this matching step before writing bullets. */
+/** Capability menu for the model. Do not treat this as a mandatory dump. */
 export function techniqueBrief(jobDescription: string, family: RoleFamily): string {
   if (family !== "consulting" && family !== "analyst") return "";
-  const picked = matchJdTechniques(jobDescription, family);
+  const hinted = matchJdTechniques(jobDescription, family);
   const palette = ANALYST_TECHNIQUE_PALETTE.filter((t) => t.families.includes(family))
     .map((t) => `- ${t.writeAs} [${t.id}]: ${t.why}`)
     .join("\n");
   return [
-    "ANALYSIS TOOL STEP — do this BEFORE writing any bullet (strict, high priority):",
-    "1. Read job.description and company_research.stack against the palette below.",
-    "2. Use jd_matched_techniques (already scored for THIS posting) as the default pick.",
-    "3. Spread 2-4 techniques across the resume. One technique must not appear at two employers.",
-    "4. NEVER default to VLOOKUP. r/consulting and PrepLounge treat VLOOKUP as minimum Excel, not a story. Prefer Pivot Tables, INDEX/MATCH, XLOOKUP (only if named), SUMIFS, Power Query, SQL JOIN/GROUP BY, or a PowerPoint deck — whichever the posting actually implies.",
-    "5. Write VLOOKUP only if the JD literally contains VLOOKUP.",
-    "6. Never invent Alteryx, Tableau, SPSS, Qualtrics, Nielsen, Think-Cell, or Power BI in experience. If the JD names those, write the mapped intern-defensible equivalent (Power Query for Alteryx, a pivot for Tableau/Power BI, secondary-research synthesis for Qualtrics/Nielsen).",
-    "7. Word is assumed (Hacking the Case Interview 2026). Do not list Word as a flex and do not stamp it in bullets.",
+    "You choose methods for THIS posting. The palette is what this candidate can defend in an interview — not a list to stamp on every resume.",
+    "Read job.description and pick intern-defensible analysis that actually fits. A tool-silent BCG/McKinsey posting may need no Excel function names at all. An insights posting may need synthesis, KPIs, or dashboards.",
+    "Never invent Tableau, Power BI, Alteryx, Qualtrics, Nielsen, IQVIA, SPSS, Salesforce, CRM, or Think-Cell as something you used. If the JD names those, map to a palette equivalent.",
+    "Write VLOOKUP only if the JD literally contains VLOOKUP. Word is assumed — do not list it.",
     "",
-    "jd_matched_techniques for this posting:",
-    picked.map((t) => `- ${t.writeAs} (${t.id}) — ${t.why}`).join("\n") || "- (none — use consulting defaults: Pivot Table, INDEX/MATCH, PowerPoint deck, SQL join)",
+    hinted.length
+      ? "JD vocabulary that maps onto the palette (hints only — you still decide):\n" + hinted.map((t) => `- ${t.writeAs} (${t.id})`).join("\n")
+      : "This posting named no analysis tools. Do not fill space with Pivot Tables, INDEX/MATCH, or Power Query.",
     "",
-    "full intern-defensible palette:",
+    "intern-defensible palette (interview-safe ceiling):",
     palette,
   ].join("\n");
 }
@@ -188,27 +170,30 @@ export function techniqueBrief(jobDescription: string, family: RoleFamily): stri
 export type BusinessSkillBucket = "languages" | "infra" | "frameworks" | "cloud";
 
 /**
- * Skills pin: real analysis vocabulary, not a VLOOKUP/Word stamp.
- * Frameworks is methods (Agile + JD-matched research), never a Git-only line.
- * Git belongs under Infra when there is room — PrepLounge does not list it.
+ * Always-on skills are intentionally empty. The model ranks from the verified
+ * pool + intern-defensible extras. We only strip SWE leaks and invented vendors.
  */
 export const BUSINESS_SKILL_CORE: Record<BusinessSkillBucket, string[]> = {
-  languages: ["SQL", "Python"],
-  infra: ["Excel", "Pivot Tables", "Power Query", "INDEX/MATCH", "PowerPoint", "Jira"],
-  frameworks: ["Agile/Scrum"],
-  cloud: ["PostgreSQL"],
+  languages: [],
+  infra: [],
+  frameworks: [],
+  cloud: [],
 };
 
-/** Compact must never drop these — they are the ATS home for BA/insights. */
-export const BUSINESS_SKILL_PROTECT = [
-  "SQL",
-  "Python",
-  "Excel",
-  "Pivot Tables",
-  "Power Query",
-  "INDEX/MATCH",
-  "PowerPoint",
-];
+const TECHNIQUE_SKILL: Record<string, { item: string; bucket: BusinessSkillBucket }> = {
+  pivot: { item: "Pivot Tables", bucket: "infra" },
+  "index-match": { item: "INDEX/MATCH", bucket: "infra" },
+  xlookup: { item: "XLOOKUP", bucket: "infra" },
+  vlookup: { item: "VLOOKUP", bucket: "infra" },
+  sumifs: { item: "SUMIFS", bucket: "infra" },
+  "power-query": { item: "Power Query", bucket: "infra" },
+  deck: { item: "PowerPoint", bucket: "infra" },
+  "sql-join": { item: "SQL", bucket: "languages" },
+  "sql-group": { item: "SQL", bucket: "languages" },
+  secondary: { item: "Secondary Research", bucket: "frameworks" },
+  cohort: { item: "Segmentation", bucket: "frameworks" },
+  "bi-map": { item: "Dashboard Reporting", bucket: "cloud" },
+};
 
 /**
  * Intern-defensible extras scored against THIS posting. Tableau/IQVIA/Qualtrics
@@ -222,9 +207,9 @@ const BUSINESS_JD_EXTRAS: { item: string; bucket: BusinessSkillBucket; jd: RegEx
   {
     item: "Secondary Research",
     bucket: "frameworks",
-    jd: /secondary|market research|qualtrics|nielsen|iri|circana|survey|syndicat|mintel/i,
+    jd: /secondary|\bmarket research\b|\bqualtrics\b|\bnielsen\b|\biri\b|\bcircana\b|\bsurveys?\b|\bsyndicat|\bmintel\b/i,
   },
-  { item: "Segmentation", bucket: "frameworks", jd: /segment|cohort|cluster|consumer/i },
+  { item: "Segmentation", bucket: "frameworks", jd: /\bsegment(?:ation|s)?\b|\bcohort|\bcluster|\bconsumer\b/i },
   {
     item: "Market Research",
     bucket: "cloud",
@@ -242,15 +227,6 @@ const BUSINESS_JD_EXTRAS: { item: string; bucket: BusinessSkillBucket; jd: RegEx
 export const BUSINESS_NEVER_INVENT =
   /\b(?:tableau|power bi|powerbi|alteryx|qualtrics|nielsen|iqvia|spss|sas|think-?cell|salesforce|\bcrm\b)\b/i;
 
-function skillBucket(label: string): BusinessSkillBucket | null {
-  const k = label.replace(/\\/g, "").toLowerCase();
-  if (k.includes("language")) return "languages";
-  if (k.includes("infra")) return "infra";
-  if (k.includes("framework")) return "frameworks";
-  if (k.includes("cloud")) return "cloud";
-  return null;
-}
-
 function dedupeSkills(items: string[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
@@ -265,33 +241,18 @@ function dedupeSkills(items: string[]): string[] {
   return out;
 }
 
-export function businessSkillPin(label: string, jobDescription = ""): string[] | null {
-  const bucket = skillBucket(label);
-  if (!bucket) return null;
-  const extras = jobDescription
-    ? BUSINESS_JD_EXTRAS.filter((e) => e.bucket === bucket && e.jd.test(jobDescription)).map((e) => e.item)
-    : [];
-  return dedupeSkills([...BUSINESS_SKILL_CORE[bucket], ...extras]);
-}
-
-/** Flat intern-defensible skills for this posting (ATS backfill + target keywords). */
-export function claimableBusinessSkillItems(jobDescription: string): string[] {
+/** JD-scored intern-defensible extras. Never a forced Excel-function dump. */
+export function claimableBusinessSkillItems(jobDescription: string, family: RoleFamily = "consulting"): string[] {
+  const fromTech = matchJdTechniques(jobDescription, family)
+    .map((t) => TECHNIQUE_SKILL[t.id]?.item)
+    .filter((x): x is string => Boolean(x));
   return dedupeSkills([
-    ...BUSINESS_SKILL_CORE.languages,
-    ...BUSINESS_SKILL_CORE.infra,
-    ...BUSINESS_SKILL_CORE.frameworks,
-    ...BUSINESS_SKILL_CORE.cloud,
+    ...fromTech,
     ...BUSINESS_JD_EXTRAS.filter((e) => e.jd.test(jobDescription)).map((e) => e.item),
   ]);
 }
 
-/** Drop extras from the end first; never drop Excel/PowerPoint/SQL/Python. */
 export function clampBusinessSkillLine(items: string[], max: number): string[] {
   if (max <= 0 || items.length <= max) return items;
-  const protect = new Set(BUSINESS_SKILL_PROTECT.map((p) => p.toLowerCase()));
-  const out = [...items];
-  for (let i = out.length - 1; i >= 0 && out.length > max; i--) {
-    if (!protect.has(out[i].toLowerCase())) out.splice(i, 1);
-  }
-  return out;
+  return items.slice(0, max);
 }

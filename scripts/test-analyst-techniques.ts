@@ -14,8 +14,8 @@ function check(name: string, cond: boolean, detail = "") {
 
 const silent = matchJdTechniques("Drive, creativity, intelligence, lead and persuade.", "consulting").map((t) => t.id);
 check(
-  "a tool-silent BCG JD does not default to VLOOKUP",
-  silent.includes("pivot") && silent.includes("index-match") && !silent.includes("vlookup"),
+  "a tool-silent BCG JD does not invent techniques",
+  silent.length === 0,
   silent.join(", ")
 );
 
@@ -37,13 +37,8 @@ const insights = matchJdTechniques(
 ).map((t) => t.id);
 check("an insights JD picks secondary research, not VLOOKUP", insights.includes("secondary") && !insights.includes("vlookup"), insights.join(", "));
 
-check("consulting skills pin is Pivot Tables / Power Query, not VLOOKUP or Word", BUSINESS_SKILL_CORE.infra.includes("Pivot Tables"));
-check("consulting skills pin includes Power Query", BUSINESS_SKILL_CORE.infra.includes("Power Query"));
-check("consulting skills pin includes INDEX/MATCH", BUSINESS_SKILL_CORE.infra.includes("INDEX/MATCH"));
-check("consulting skills pin includes PowerPoint", BUSINESS_SKILL_CORE.infra.includes("PowerPoint"));
-check("consulting skills pin does not stamp VLOOKUP", !BUSINESS_SKILL_CORE.infra.includes("VLOOKUP"));
-check("consulting skills pin does not stamp Word", !BUSINESS_SKILL_CORE.infra.includes("Microsoft Word"));
-check("consulting Frameworks is Agile/Scrum, not Git", BUSINESS_SKILL_CORE.frameworks.includes("Agile/Scrum") && !BUSINESS_SKILL_CORE.frameworks.includes("Git"));
+check("consulting skills core is empty — the model ranks skills", BUSINESS_SKILL_CORE.languages.length === 0 && BUSINESS_SKILL_CORE.infra.length === 0 && BUSINESS_SKILL_CORE.frameworks.length === 0 && BUSINESS_SKILL_CORE.cloud.length === 0);
+check("joining the firm does not count as INDEX/MATCH", !matchJdTechniques("We are interested in people joining the firm. Candidates should apply.", "consulting").some((t) => t.id === "index-match"));
 
 const lillySkills = claimableBusinessSkillItems(
   "Design dashboards and reports to monitor KPIs. Market research and competitive intelligence. IQVIA, Qualtrics, Tableau."
@@ -51,7 +46,11 @@ const lillySkills = claimableBusinessSkillItems(
 check("Lilly JD claimable skills include Dashboard Reporting and KPI Tracking", lillySkills.includes("Dashboard Reporting") && lillySkills.includes("KPI Tracking"), lillySkills.join(", "));
 check("Lilly JD claimable skills never list IQVIA or Tableau", !lillySkills.includes("IQVIA") && !lillySkills.includes("Tableau") && !lillySkills.includes("Qualtrics"), lillySkills.join(", "));
 const bcgSkills = claimableBusinessSkillItems("Drive, creativity, intelligence, lead and persuade.");
-check("silent BCG JD does not add Market Research", !bcgSkills.includes("Market Research") && !bcgSkills.includes("Dashboard Reporting"), bcgSkills.join(", "));
+check(
+  "silent BCG JD claimable pool is empty — no Excel-function dump",
+  bcgSkills.length === 0,
+  bcgSkills.join(", ")
+);
 
 check("SWE family gets no analyst techniques", matchJdTechniques("Excel SQL Tableau", "swe").length === 0);
 

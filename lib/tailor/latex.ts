@@ -10,7 +10,7 @@
  */
 
 import { EXTRA_SKILLS, extraSkillsPool } from "./skills-extra";
-import { businessSkillPin, clampBusinessSkillLine } from "./analyst-techniques";
+import { clampBusinessSkillLine, BUSINESS_NEVER_INVENT } from "./analyst-techniques";
 import { BUSINESS_SKILL_SUPPRESS } from "./lens";
 
 // ---------- engine compatibility ----------
@@ -404,6 +404,7 @@ export function parseSkillsSection(tex: string): SkillsSection {
  * Rebuilds the skills block. Items are validated against the master's
  * vocabulary PLUS the verified extra-skills pool (repos/coursework) —
  * the LLM may re-rank and select, never invent. Original casing restored.
+ * Empty consulting lines stay empty: we do not pad Excel-function lists.
  */
 export function assembleSkillsSection(
   section: SkillsSection,
@@ -475,14 +476,6 @@ export function assembleSkillsSection(
     // engineering tools — that is how Node.js / Fastify / OpenAI reappeared
     // on consulting resumes after every item on the line was suppressed.
     if (items.length === 0 && suppressSet.size === 0) items = orig.items;
-    if (items.length === 0) {
-      const consultingLens =
-        suppressSet.has("fastapi") || suppressSet.has("openai") || suppressSet.has("react") || suppressSet.has("node.js");
-      if (consultingLens) {
-        const pin = businessSkillPin(orig.label) ?? [];
-        items = pin.map((p) => canon.get(p.toLowerCase()) ?? escapeLatex(p)).filter(notSuppressed);
-      }
-    }
     if (maxItemsPerLine > 0) items = items.slice(0, maxItemsPerLine);
     return `      \\textbf{${orig.label}}{: ${items.join(", ")} \\\\}`;
   });
@@ -519,34 +512,28 @@ export function assembleSkillsSection(
 }
 
 /**
- * Consulting/analyst skills are Excel/SQL, not the engineering extras pool.
- * The model and JD-term backfill keep reintroducing Node/Stripe/OpenAI;
- * this overwrites the four master lines after assembly. Extra lines
- * (e.g. Professional) stay as assembled.
- */
-/**
- * Consulting/analyst skills: keep Excel/SQL/PowerPoint as the core, then MERGE
- * intern-defensible extras the posting actually asks for (dashboards, KPIs,
- * market research). Do not replace the block with a four-item stub, and do
- * not restore Node/Stripe/OpenAI. Extra lines (Professional) stay; if the
- * model skipped Professional, inject it from the JD-matched soft-skill list.
+ * Consulting/analyst skills: keep the model's ranking. Strip SWE leaks and
+ * invented vendors (Tableau/IQVIA). Do not overwrite lines with a CORE dump.
+ * If the model skipped Professional and the posting actually asked for those
+ * soft skills, append that line.
  */
 export function pinBusinessSkills(
   tex: string,
   maxItemsPerLine = 0,
-  opts: { jobDescription?: string; professional?: string[] } = {}
+  opts: { jobDescription?: string; professional?: string[]; family?: import("./role-family").RoleFamily } = {}
 ): string {
   const section = parseSkillsSection(tex);
   const nl = section.nl;
   const swe = BUSINESS_SKILL_SUPPRESS.map((s) => s.toLowerCase());
   const notSwe = (item: string) => {
     const plain = item.replace(/\\([&%$#_{}])/g, "$1").toLowerCase();
+    if (BUSINESS_NEVER_INVENT.test(plain)) return false;
+    if (/^(microsoft word|word)$/i.test(plain.trim())) return false;
     return !swe.some((s) => s && plain.includes(s));
   };
   const unescape = (s: string) => s.replace(/\\([&%$#_{}])/g, "$1");
   const lines = section.lines.map((orig) => {
-    const pin = businessSkillPin(orig.label, opts.jobDescription ?? "");
-    let items = pin ? pin.map((p) => escapeLatex(p)) : orig.items.filter(notSwe);
+    let items = orig.items.filter(notSwe);
     items = [...new Map(items.map((i) => [unescape(i).toLowerCase(), i])).values()];
     items = clampBusinessSkillLine(items, maxItemsPerLine);
     return `      \\textbf{${orig.label}}{: ${items.join(", ")} \\\\}`;

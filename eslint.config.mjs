@@ -13,6 +13,9 @@ const eslintConfig = defineConfig([
       // adjustment pattern instead of effects.
       "react-hooks/purity": "off",
       "react-hooks/set-state-in-effect": "off",
+      // Underscore-prefixed args are intentional API placeholders kept for
+      // future use or interface conformance (e.g. softSkillsFor's family slot).
+      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
     },
   },
   // Override default ignores of eslint-config-next.

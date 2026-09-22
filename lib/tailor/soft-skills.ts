@@ -19,17 +19,7 @@ const SOFT_SKILLS: { item: string; re: RegExp }[] = [
 ];
 
 /** Soft skills that THIS posting actually asks for, capped at 5. */
-export function softSkillsFor(jobDescription: string, family?: "consulting" | "analyst" | "product"): string[] {
+export function softSkillsFor(jobDescription: string, _family?: "consulting" | "analyst" | "product"): string[] {
   const fromJd = SOFT_SKILLS.filter((s) => s.re.test(jobDescription)).map((s) => s.item);
-  if (family === "consulting" || family === "analyst" || family === "product") {
-    const defaults = [
-      "Stakeholder Communication",
-      "Analytical Thinking",
-      "Problem Solving",
-      "Presentation & Demos",
-      "Cross-functional Collaboration",
-    ];
-    return [...new Set([...fromJd, ...defaults])].slice(0, 5);
-  }
   return fromJd.slice(0, 5);
 }

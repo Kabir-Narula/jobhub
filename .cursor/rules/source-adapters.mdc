@@ -11,7 +11,5 @@ alwaysApply: false
 - Register new ATS adapters in `lib/sources/index.ts` and the `AtsType` enum. Remote boards are static.
 - Workday: `limit` hard-capped at 20. `boardToken` format is `host/tenant/site`.
 - LinkedIn is best-effort guest search. Disable with `LINKEDIN_ADAPTER=off`. No login scraping.
-- Manual intake (`lib/jobs/from-url.ts`) uses board JSON → JSON-LD → og/meta. No LLM. Failures return 422.
-- Manual adds are never geo-dropped (bucket falls back to REMOTE/TORONTO).
 - Location policy: Toronto always in; GTA-commutable in; else only if remote.
 - Dedupe: fingerprint → source-ID → normalized title+company, plus end-of-poll sweep.

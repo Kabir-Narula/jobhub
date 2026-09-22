@@ -354,7 +354,7 @@ export function auditExperienceBullets(
       add(
         entries[0].company,
         "high",
-        `Excel/Word/PowerPoint is stamped on ${stamped} experience bullets — name a technique the posting implies (Pivot Table, INDEX/MATCH, Power Query, SQL join, SUMIFS) instead; product names belong in skills`
+        `Excel/Word/PowerPoint is stamped on ${stamped} experience bullets — put product names in skills and write the actual work instead`
       );
     }
   }
@@ -441,7 +441,7 @@ export function qualityFeedback(issues: BulletIssue[], family?: "consulting"): s
   const lines = [...high, ...low].map((i) => `- [${i.company}] ${i.message}`);
   const compose =
     family === "consulting"
-      ? "Do not simply reword the flagged bullets. Recompose affected experience as consulting CAR bullets: one diagnosis, one analysis TECHNIQUE from jd_matched_techniques (Pivot Table, INDEX/MATCH, Power Query, SQL join — never default to VLOOKUP), one stakeholder recommendation that changed a decision. THREE bullets per entry. HyFlex is classroom/lab troubleshooting for professors (restore audio/display/camera/login) — at most one later documentation bullet, never an Excel/Word job. Office Assistant is a request tracker from jd_matched_techniques + advising. Human City is a data-mismatch story, never authentication or mobile-and-web. INNWIL is a file/report mismatch, never extraction workflows. Stamp Excel/Word on at most two experience bullets total; put them in skills. Weave 3-5 posting WORK nouns (insights, KPI, dashboard, market, recommendation) across the resume — one per bullet, never on two employers, never inventing IQVIA/Tableau/Qualtrics/CRM. If the JD names Tableau, Power BI, Alteryx, Qualtrics, Nielsen, or IQVIA, map to the intern-defensible equivalent — do not fake the product. Do NOT repair by adding FastAPI, indexes, Node, Stripe, or CI. For projects: bullet 1 is the business problem for a user; bullet 2 is how it produces an insight or decision — not React/Express."
+      ? "Do not simply reword the flagged bullets. Recompose affected experience as consulting CAR bullets from the source facts and THIS posting — diagnosis, how you worked it, what changed. THREE bullets per entry. Do not paste a Pivot/INDEX-MATCH/Power Query template. HyFlex is classroom/lab troubleshooting for professors, never an Excel/Word job. Office Assistant is request tracking + advising. Human City and INNWIL are mismatch/report stories, never authentication or extraction workflows. Never invent IQVIA/Tableau/Qualtrics/CRM. Do NOT repair by adding FastAPI, indexes, Node, Stripe, or CI. For projects: bullet 1 is the business problem; bullet 2 is how it produces an insight — not React/Express."
       : "Do not simply reword the flagged bullets. Recompose affected experience entries so each one reads like a real few months on a real team: one build, one fix, one piece of work involving other people, each with a concrete artifact and at most two named technologies. For projects: bullet 1 is what the product is (plain English, at most one technology); bullet 2 is distinctive features + tech + technique, framed to this posting.";
   return [
     "QUALITY REPAIR PASS. Your previous draft failed these specific checks. Rewrite the flagged experience and project bullets from scratch to fix every one of them while following all original rules (bullet_count_rule still governs experience count and length; projects stay at exactly 2 bullets — purpose, then implementation):",

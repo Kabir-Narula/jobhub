@@ -124,7 +124,7 @@ export async function researchCompany(input: {
     `\nReturn JSON with keys:`,
     `- "mission": one sentence on what the company does / why it exists`,
     `- "product": one sentence on the main product(s) and who uses them`,
-    `- "stack": array of up to 8 tools this team actually uses. For consulting/BA roles: Excel (Pivot Tables, INDEX/MATCH, Power Query), PowerPoint, SQL, and Tableau/Alteryx only if the JD or your knowledge says the team uses them. For insights/market-research: Excel, SQL, PowerPoint, plus Qualtrics/SPSS/Nielsen/Tableau only if the JD names them. Never invent engineering frameworks for BA/insights postings.`,
+    `- "stack": array of up to 8 tools this team actually uses. Infer from the JD and your knowledge — do not dump Pivot Tables / INDEX/MATCH / Power Query onto every consulting team. For BA/insights, never invent engineering frameworks. Tableau/Alteryx/Qualtrics/SPSS/Nielsen only if the JD or a reliable source names them.`,
     `- "news": array of up to 4 recent/relevant facts (funding, launches, scale, engineering culture) — only things you are confident about`,
     `- "hookFact": ONE specific, current, verifiable fact about the company that a candidate could open a cover letter with — a real metric, a concrete product detail, or a recent move. Prefer something found in the provided site content over general knowledge. Empty string if nothing solid exists.`,
     `- "tone": "casual" if their public voice is startup/engineering-blog informal, "formal" if it's corporate/enterprise formal`,

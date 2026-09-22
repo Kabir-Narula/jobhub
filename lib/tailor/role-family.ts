@@ -90,30 +90,29 @@ export const SKILL_SEEDS: Partial<Record<RoleFamily, string[]>> = {
   product: ["excel", "jira"],
 };
 
-export const CONSULTING_RESUME_NORMS = `Real Reddit lines from r/McKinsey_BCG_Bain and r/consulting about what these resumes must look like — follow them:
+export const CONSULTING_RESUME_NORMS = `Real Reddit lines from r/McKinsey_BCG_Bain and r/consulting about what these resumes must look like — taste, not a script:
 
 - "Each of your bullets has to be in Context - Analysis - Results format (could be CAR/RAC/RCA). Each bullet must be max 1-2 lines."
 - "Consulting screens for: did you diagnose something, not just execute? did you drive something without a playbook? can you connect your work to dollars, time, or scale?"
 - "The resume that gets through at McK or BCG reads like: identified an opportunity through analysis, directly informing the go/no-go decision." Same SHAPE for an intern: diagnosis → analysis → a decision or a process that stopped needing a chase. Do NOT invent deal sizes or $ millions.
 - "Would a partner reading this understand why it mattered?" If no, rewrite.
 - "No need to list out technical skills in experience (consulting don't care)." Experience is analysis, stakeholders, recommendations — not FastAPI/CI.
-- "Skills line for consulting/strategy: Figma isn't relevant. Lead with Excel, Tableau, R, PowerPoint. Add PowerPoint to qualifications." Hacking the Case Interview 2026: do NOT list Word — it is assumed.
-- "Describe the data analysis you did: a pivot, a variance, a regression, a sizing — not 'used Excel'." r/consulting: Power Query / Power Pivot keep Excel alive; "Alteryx for cookin, Tableau for lookin" — map those JD words onto intern-defensible techniques, never invent Alteryx/Tableau in experience.
-- PrepLounge MBB tools in order: PowerPoint, Excel (Pivot Tables, INDEX/MATCH, SUMIFS — VLOOKUP is minimum Excel, not a story), then Alteryx/Tableau if you actually have them.
-- BCG recruiters: "Tailor your headlines so the recruiter can compare you to the role. Mix the role and what you achieved."
-- Translate software internships into consulting language: a weekly export ops ran by hand becomes a Pivot Table or SQL join plus a stakeholder walkthrough; a bug hunt becomes reconciling a number mismatch so the report went out. Name the technique the posting implies (from jd_matched_techniques). Never default to VLOOKUP.
-- Campus ops roles are load-bearing: keep them. Four experience entries, three CAR bullets each — never five stub jobs, never two-bullet stubs. Drop the oldest freelance software role if the page would otherwise go to two-bullet stubs.
-- HyFlex (ITS Lab Monitor): the job is front-line troubleshooting for professors and labs — restore audio, display, camera, login, peripherals across 30+ HyFlex rooms, in person and remotely. You resolved the issue. At most ONE later bullet documents a recurring pattern after the fix. Never rewrite this as Excel trackers or Word notices.
-- Office Assistant: one request tracker using a lookup or filter from jd_matched_techniques (INDEX/MATCH, XLOOKUP, SUMIFS — VLOOKUP only if the JD names it) + one-on-one advising. Never HyFlex equipment. Never put "faculty notices" or "paper logs dropped follow-ups" on both jobs.
-- Never write "Academic WIL" if the role was a co-op. HyFlex is contract part-time, not a co-op. Freeze those parentheticals.`;
+- Hacking the Case Interview 2026: do NOT list Word — it is assumed. Skills belong in the skills section; you pick which intern-defensible tools THIS posting makes relevant.
+- "Describe the data analysis you did" — a method, a variance, a recommendation — not 'used Excel' on every job. Map Tableau/Alteryx JD words onto intern-defensible techniques; never invent those products.
+- BCG recruiters: "Tailor your headlines so the recruiter can compare you to the role."
+- Translate software internships into consulting language from the source facts. Do not reuse one Pivot-Table / INDEX-MATCH script across employers.
+- Campus ops roles are load-bearing: keep them. Four experience entries, three CAR bullets each.
+- HyFlex: front-line troubleshooting for professors and labs — restore audio, display, camera, login, peripherals across 30+ HyFlex rooms. At most ONE later bullet documents a recurring pattern after the fix. Never rewrite this as Excel/Word.
+- Office Assistant: request tracking + advising from the source facts. You decide whether a lookup function belongs.
+- Never write "Academic WIL" if the role was a co-op. Freeze parentheticals.`;
 
-export const ANALYST_RESUME_NORMS = `Real Reddit lines from r/analytics, r/datascience, and r/consulting about analyst / insights resumes:
+export const ANALYST_RESUME_NORMS = `Real Reddit lines from r/analytics, r/datascience, and r/consulting about analyst / insights resumes — taste, not a script:
 
-- Lead skills with Excel (Pivot Tables, INDEX/MATCH, Power Query), SQL, PowerPoint, then Python if you actually used it for analysis — not FastAPI, Next.js, Fastify, OpenAI, Node, or Word-as-flex. Add posting-matched Dashboard Reporting / KPI Tracking / Market Research / Secondary Research. Always a Professional line. Never Git as the whole Frameworks line.
-- Bullets are question → method from jd_matched_techniques (pivot, SQL join, cohort, secondary synthesis) → what a stakeholder did with it. "Used Excel" is not a bullet. Never default to VLOOKUP.
-- Insights/market-research screens look for synthesis: secondary research, segmentation, a pattern someone used. JD may name Qualtrics/SPSS/Nielsen — map to secondary-research synthesis, do not invent those products.
+- Rank skills for THIS posting from the verified pool. Excel/SQL/Python/PowerPoint are intern-defensible when they fit; dashboards, KPIs, market research, segmentation belong when the posting and the work make them real. Never FastAPI, Next.js, Fastify, OpenAI, Node, Word-as-flex, or Git as the whole Frameworks line.
+- Bullets are question → method you choose → what a stakeholder did with it. "Used Excel" is not a bullet. Do not default to VLOOKUP or stamp INDEX/MATCH on every analyst resume.
+- Insights/market-research screens look for synthesis. JD may name Qualtrics/SPSS/Nielsen — map to intern-defensible synthesis, do not invent those products.
 - Do not write data-engineering bullets (Spark, ETL platforms, CI) for a Data Analyst / Insights Associate posting.
-- Campus ops (office assistant, peer mentor) is relevant: operational trackers, documentation, advising, passing themes to leadership. Prefer that over a third GitHub project.
+- Campus ops (office assistant, peer mentor) is relevant. Prefer that over a third GitHub project.
 - HyFlex is classroom/lab troubleshooting for faculty, not a documentation job.`;
 
 export const PRODUCT_RESUME_NORMS = `Product resumes (r/ProductManagement): users, decisions, tradeoffs, stakeholders — not stack dumps. Excel/Jira in skills. Campus ops mentoring/front-desk is evidence you worked with non-engineers.`;

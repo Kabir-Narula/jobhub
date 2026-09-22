@@ -80,14 +80,8 @@ check("VLOOKUP is a claimable analyst tool", isTechTerm("vlookup"));
 check("Power Query is a claimable analyst tool", isTechTerm("powerquery"));
 check("PowerPoint is a claimable analyst tool", isTechTerm("powerpoint"));
 check("bare 'word' is not a skill term", !isTechTerm("word"));
-check(
-  "empty consulting JD still gets Professional skills",
-  softSkillsFor("", "consulting").includes("Stakeholder Communication")
-);
-check(
-  "empty analyst JD still gets Professional skills",
-  softSkillsFor("", "analyst").includes("Analytical Thinking")
-);
+check("empty consulting JD does not invent Professional skills", softSkillsFor("", "consulting").length === 0);
+check("empty analyst JD does not invent Professional skills", softSkillsFor("", "analyst").length === 0);
 check("SWE JD without those words gets no forced consulting skills", softSkillsFor("Python FastAPI PostgreSQL").length === 0);
 
 const masterish = [
