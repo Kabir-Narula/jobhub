@@ -26,6 +26,15 @@ const VAGUE_EVIDENCE =
 const HAS_MAGNITUDE =
   /\d|\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|twenty|thirty)\b/i;
 
+/**
+ * A magnitude a 10-second skim can actually see: digits, or a written count
+ * attached to a concrete work unit ("eight sources", "six defects"). Bare
+ * written counts of abstractions ("two release cycles") don't register as
+ * metrics and don't satisfy the per-entry rule.
+ */
+const STRONG_MAGNITUDE =
+  /\d|\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|twenty|thirty|forty|fifty)\s+(?:[a-z][a-z-]*\s+){0,2}(?:sources?|briefs?|reports?|dashboards?|rooms?|sites?|clients?|projects?|services?|tests?|cases|requests?|records?|rows|teams?|decks?|models?|workbooks?|workshops?|stakeholders?|feeds?|pipelines?|systems?|screens?|flows?|defects?|bugs|features|endpoints?|tables|schemas?|documents?|files|users?)\b/i;
+
 /** Scope a junior engineer cannot claim without a staff engineer noticing. */
 const INFLATED_SCOPE =
   /\b(?:architected|architecting|spearhead\w*|re-?platform\w*|owned the|drove the|led the (?:team|design|architecture)|single-handedly|from the ground up)\b/i;
@@ -281,13 +290,15 @@ export function auditExperienceBullets(
       }
       // Every expanded entry carries at least one magnitude suited to THAT
       // entry's work (a duration, a count, rows per run, hours saved, rooms or
-      // sites covered). The verbatim-true anchor entry is exempt by construction
-      // (it is never in the expanded set); campus-ops uses real source counts.
-      if (!bullets.some((b) => HAS_MAGNITUDE.test(b))) {
+      // sites covered) — strong enough to register on a skim: digits, or a
+      // written count attached to a concrete work unit. The verbatim-true
+      // anchor entry is exempt (never in the expanded set); campus-ops uses
+      // real source counts.
+      if (!bullets.some((b) => STRONG_MAGNITUDE.test(b))) {
         add(
           company,
           "high",
-          `no bullet in this entry carries a number — give this entry's strongest bullet one magnitude that fits its scenario (a duration, a count the writer genuinely knows, rows per run, hours saved, rooms/sites/sources); a page where some employers have numbers and others don't reads uneven on a 10-second skim`
+          `no bullet in this entry carries a visible metric — give this entry's strongest bullet one digit-grade number that fits its scenario (a duration before/after, a count of artifacts, rows per run, hours saved, rooms/sites/sources); written-out counts of abstractions don't register on a skim`
         );
       }
       if (!bullets.some((b) => TEAM_SIGNAL.test(b))) {

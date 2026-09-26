@@ -27,11 +27,14 @@ const BASE_BANNED = [
 
 const GUIDANCE: Record<string, Omit<MetricGuidance, "family" | "bannedShapes">> = {
   swe: {
+    // Shape descriptions deliberately avoid concrete numerals — the model used
+    // to parrot the examples verbatim ("40 minutes", "400ms to 120ms") into
+    // resumes, where they read as fabricated metrics.
     allowedShapes: [
-      "before/after duration on something slow or manual (a 40-minute export down to about 5 minutes)",
-      "latency in the low hundreds of milliseconds (lookup went from ~400ms to ~120ms)",
-      "a count a junior genuinely knows (about 40 test cases, 3 services, a 12-person team, two release cycles)",
-      "percentage improvement WITH a baseline, 15-60% (cut failed runs from about 40% to under 10%)",
+      "a before/after duration on something slow or manual (a long manual export cut to minutes)",
+      "latency before/after on a slow lookup, in the low hundreds of milliseconds",
+      "a count a junior genuinely knows (test cases, services, team size, release cycles)",
+      "percentage improvement WITH a baseline, within the ceiling below",
       "rows or records processed per run (tens of thousands, never millions)",
       "error or failure counts per cycle (single to double digits)",
     ],

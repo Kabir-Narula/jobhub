@@ -718,13 +718,45 @@ const noNumbers = auditExperienceBullets(
 );
 check(
   "entry with no number anywhere is flagged",
-  noNumbers.some((i) => i.company === "INNWIL" && i.severity === "high" && /no bullet in this entry carries a number/.test(i.message)),
+  noNumbers.some((i) => i.company === "INNWIL" && i.severity === "high" && /no bullet in this entry carries a visible metric/.test(i.message)),
   messages(noNumbers)
 );
 check(
   "entry with one number is not flagged",
-  !noNumbers.some((i) => i.company === "Project Human City" && /no bullet in this entry carries a number/.test(i.message)),
+  !noNumbers.some((i) => i.company === "Project Human City" && /no bullet in this entry carries a visible metric/.test(i.message)),
   messages(noNumbers)
+);
+// Written counts of abstractions don't register; written counts of work units do.
+const weakVsStrong = auditExperienceBullets(
+  [
+    {
+      company: "A",
+      bullets: [
+        "Built a Python refresh for the weekly export so partners stopped re-running it by hand.",
+        "Fixed a slow SQL report by filtering before the join, then documented the change.",
+        "Caught contract breaks before two scheduled release cycles reached production.",
+      ],
+    },
+    {
+      company: "B",
+      bullets: [
+        "Traced six release defects through logs and debugger sessions before the release.",
+        "Fixed a slow SQL report by filtering before the join, then documented the change.",
+        "Walked the ops lead through the new export format at sprint review.",
+      ],
+    },
+  ],
+  { expandedCount: 2 }
+);
+check(
+  "'two release cycles' (abstraction) is not a visible metric",
+  weakVsStrong.some((i) => i.company === "A" && /visible metric/.test(i.message)),
+  messages(weakVsStrong)
+);
+check(
+  "'six release defects' (work unit) is a visible metric",
+  !weakVsStrong.some((i) => i.company === "B" && /visible metric/.test(i.message)),
+  messages(weakVsStrong)
 );
 // The verbatim-true anchor is exempt: SWE expanded set is the first two entries.
 const anchorExempt = auditExperienceBullets(
@@ -758,7 +790,7 @@ const anchorExempt = auditExperienceBullets(
 );
 check(
   "anchor entry (not expanded) keeps no-number exemption",
-  !anchorExempt.some((i) => i.company === "C" && /no bullet in this entry carries a number/.test(i.message)),
+  !anchorExempt.some((i) => i.company === "C" && /no bullet in this entry carries a visible metric/.test(i.message)),
   messages(anchorExempt)
 );
 

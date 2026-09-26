@@ -237,7 +237,7 @@ export async function POST(request: Request) {
   };
   const { detectLens, lensInstruction } = await import("@/lib/tailor/lens");
   const { softSkillsFor } = await import("@/lib/tailor/soft-skills");
-  const { detectRoleFamily, isBusinessFamily, selectExperienceEntries, SKILL_SEEDS } = await import("@/lib/tailor/role-family");
+  const { detectRoleFamily, isBusinessFamily, selectExperienceEntries, SKILL_SEEDS, isCampusOpsEntry } = await import("@/lib/tailor/role-family");
   const family = detectRoleFamily(jobInput.title, jobInput.company, jobInput.description);
   const business = isBusinessFamily(family);
   const {
@@ -308,6 +308,19 @@ export async function POST(request: Request) {
     .filter((e) => !entriesToUse.includes(e))
     .map((e) => `${e.title} at ${e.company}`);
   const parsedForJob = { ...parsedResume, entries: entriesToUse };
+  // The anchor entry (last software entry) ships VERBATIM from the master —
+  // title and bullets. This was prompt-only and the model rewrote it anyway,
+  // even parroting metric-guidance example numbers ("400ms to 120ms") into it.
+  // Discarding the model's version here makes the anchor a hard guarantee.
+  let anchorIdx = -1;
+  if (!business) {
+    for (let i = parsedForJob.entries.length - 1; i >= 0; i--) {
+      if (!isCampusOpsEntry(parsedForJob.entries[i])) {
+        anchorIdx = i;
+        break;
+      }
+    }
+  }
   const projectCount = projectSlots(parsedForJob.entries.length, { business });
 
   const companyTokens = jobInput.company.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
@@ -403,7 +416,8 @@ export async function POST(request: Request) {
         company: g.company,
         from: parsedForJob.entries[i].title,
         to: g.title,
-        changed: g.titleChanged && g.title !== parsedForJob.entries[i].title,
+        // the anchor ships verbatim — its title never counts as changed
+        changed: i !== anchorIdx && g.titleChanged && g.title !== parsedForJob.entries[i].title,
       }))
       .filter((t) => t.changed);
 
@@ -416,10 +430,16 @@ export async function POST(request: Request) {
     achievements?: number; // max achievement items (0 = drop the section)
   }
   function buildTex(gen: GeneratedContent, clamps: Clamps = {}): string {
-    const updates: ResumeUpdate[] = gen.experience.map((g, i) => ({
-      title: allowTitleChanges && g.titleChanged ? g.title : undefined,
-      bullets: g.bullets.length ? g.bullets : parsedForJob.entries[i].bullets,
-    }));
+    const updates: ResumeUpdate[] = gen.experience.map((g, i) =>
+      // anchorIdx: empty update — assembleResume keeps title and bullets
+      // byte-for-byte from the master (escaping would corrupt master's LaTeX).
+      i === anchorIdx
+        ? {}
+        : {
+            title: allowTitleChanges && g.titleChanged ? g.title : undefined,
+            bullets: g.bullets.length ? g.bullets : parsedForJob.entries[i].bullets,
+          }
+    );
     let tex = assembleResume(parsedForJob, updates, clamps.maxExpBullets ?? 4);
     const { entries: projectEntries } = resolveProjects(
       gen.projects,
