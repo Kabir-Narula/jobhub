@@ -7,6 +7,10 @@ import {
   ensureHiringScreen,
   hiringScreenFallback,
   JD_DEEP_ANALYSIS_PROTOCOL,
+  detectEmployerArchetype,
+  archetypeScreen,
+  archetypeLensLine,
+  mergeScreenLines,
 } from "../lib/tailor/hiring-screen";
 
 let failures = 0;
@@ -53,6 +57,54 @@ check(
   "JD deep-analysis protocol covers mandatory vs preferred",
   /mandatory requirements vs preferred/i.test(JD_DEEP_ANALYSIS_PROTOCOL) &&
     /target-role relevance/i.test(JD_DEEP_ANALYSIS_PROTOCOL)
+);
+
+// ---------- employer archetypes (all role families) ----------
+check("RBC is bank-campus", detectEmployerArchetype("RBC", "Software Developer, Amplify 2027") === "bank-campus");
+check("TD Securities is bank-campus", detectEmployerArchetype("TD Securities", "Software Engineer Intern") === "bank-campus");
+check("Capital One is bank-campus", detectEmployerArchetype("Capital One", "Associate Data Scientist") === "bank-campus");
+check("Wealthsimple is fintech-scaleup", detectEmployerArchetype("Wealthsimple", "Software Engineer") === "fintech-scaleup");
+check("Toast is fintech-scaleup", detectEmployerArchetype("Toast", "Backend Software Engineer Co-op") === "fintech-scaleup");
+check("TELUS GTLP is institutional-grad", detectEmployerArchetype("TELUS", "Graduate Technology Leadership Program") === "institutional-grad");
+check("Bell is institutional-grad", detectEmployerArchetype("Bell", "Graduate Program - Software Development") === "institutional-grad");
+check("Cornerstone is econ-consulting", detectEmployerArchetype("Cornerstone Research", "Analyst") === "econ-consulting");
+check("Deloitte is big4", detectEmployerArchetype("Deloitte", "Business Analyst") === "big4");
+check("McKinsey is mbb-tier2", detectEmployerArchetype("McKinsey & Company", "Business Analyst") === "mbb-tier2");
+check("Kearney is mbb-tier2", detectEmployerArchetype("Kearney", "Business Analyst") === "mbb-tier2");
+check("ZS is mbb-tier2", detectEmployerArchetype("ZS", "Decision Analytics Associate") === "mbb-tier2");
+check("unknown company is none", detectEmployerArchetype("SomeStartup Inc", "Software Engineer") === "none");
+check(
+  "unknown company with rotational JD is institutional-grad",
+  detectEmployerArchetype("SomeUtility", "Analyst", "Join our rotational program for new graduates. Rotations across teams.") ===
+    "institutional-grad"
+);
+
+check(
+  "bank screen demands STAR-able bullets + hackathon keywords",
+  archetypeScreen("bank-campus").some((s) => /STAR/i.test(s)) &&
+    archetypeScreen("bank-campus").some((s) => /hackathon/i.test(s))
+);
+check(
+  "fintech screen demands proof-of-impact + GitHub",
+  archetypeScreen("fintech-scaleup").some((s) => /proof-of-impact/i.test(s)) &&
+    archetypeScreen("fintech-scaleup").some((s) => /github/i.test(s))
+);
+check(
+  "institutional screen names written leadership requirement",
+  archetypeScreen("institutional-grad").some((s) => /leadership/i.test(s))
+);
+check(
+  "econ screen bans inventing Stata/R",
+  archetypeScreen("econ-consulting").some((s) => /stata/i.test(s))
+);
+check("no archetype → no screen lines", archetypeScreen("none").length === 0);
+check("bank lens line exists and mentions reliability", /reliability|data integrity/i.test(archetypeLensLine("bank-campus")));
+check("no archetype → no lens line", archetypeLensLine("none") === "");
+
+check(
+  "mergeScreenLines dedupes case-insensitively and preserves order",
+  JSON.stringify(mergeScreenLines(["Keep it real", "STAR stories"], ["star stories", "Workday keywords"])) ===
+    JSON.stringify(["Keep it real", "STAR stories", "Workday keywords"])
 );
 
 console.log(failures === 0 ? "all hiring-screen checks passed" : `${failures} check(s) failed`);

@@ -219,3 +219,136 @@ export function ensureHiringScreen(
   }
   return cleaned;
 }
+
+// ---------- employer archetypes (company screen culture — every role family) ----------
+
+/**
+ * Posting flavor describes the ROLE (business families only). The employer
+ * archetype describes the COMPANY's screen — and it applies to SWE and data
+ * roles too: an RBC campus posting and a Wealthsimple posting with identical
+ * JDs pass different screens (Workday keyword match + behavioral STAR stories
+ * vs proof-of-impact + GitHub). Encoded from official campus-program pages and
+ * recruiter guidance (see scripts/test-hiring-screen.ts for the contract).
+ */
+export type EmployerArchetype =
+  | "bank-campus" // Big-5 banks, Capital One, CPP: Workday ATS, co-op conversion, STAR behavioral rounds
+  | "fintech-scaleup" // Wealthsimple/Shopify/Toast/Affirm/Justworks: proof-of-impact, GitHub, ownership
+  | "institutional-grad" // Bell/TELUS/Sun Life/AIG/CGI/Mastercard/TR: rotational programs, leadership potential, eligibility
+  | "econ-consulting" // Cornerstone/CRA/FTI econ: quantitative rigor, transcripts, research
+  | "big4" // Deloitte/PwC/KPMG/EY/Accenture: ATS keywords + client delivery over pedigree
+  | "mbb-tier2" // MBB + Kearney/OW/RB/Strategy&/EY-P/ZS/boutiques: 30-second screen, XYZ bullets
+  | "none";
+
+const BANK_RE =
+  /\b(rbc|royal bank|scotiabank|bank of nova scotia|td bank|td securities|\btd\b|bmo|bank of montreal|cibc|capital one|cpp investments|national bank|manulife|tangerine|equitable bank|desjardins)\b/i;
+const FINTECH_RE =
+  /\b(wealthsimple|shopify|toast(?:tab)?|affirm|justworks|koho|wave(?:apps| financial)?|freshbooks|league|clio|stackadapt|clearco|borrowell)\b/i;
+const INSTITUTIONAL_RE =
+  /\b(bell|telus|sun life|\baig\b|cgi|mastercard|thomson reuters|rogers|shaw|cibc wood gundy|ontario teachers|otpp|omers)\b/i;
+const ECON_RE = /\b(cornerstone research|charles river|\bcrai?\b|analysis group|\bnera\b|fti consulting|compass lexecon)\b/i;
+const BIG4_RE = /\b(deloitte|\bpwc\b|pricewaterhousecoopers|kpmg|\bey\b|ernst\s*(?:&|and)\s*young|accenture)\b/i;
+const MBB_T2_RE =
+  /\b(mckinsey|boston consulting|\bbcg\b|bain\b|kearney|oliver wyman|roland berger|strategy&|ey-parthenon|parthenon|\blek\b|altman solon|simon-kucher|oc&c|\bzs\b(?:\s|$))/i;
+const ROTATIONAL_JD_RE =
+  /\b(graduate (?:technology |leadership )?program|rotational program|rotation(?:al)?s?\b|launch program|new[- ]grad (?:program|rotation)|early careers? (?:program|analyst)|amplify|velocity program|\btilt\b|leadership development program)\b/i;
+
+export function detectEmployerArchetype(company: string, title: string, description = ""): EmployerArchetype {
+  const c = company.trim();
+  if (ECON_RE.test(c)) return "econ-consulting";
+  if (MBB_T2_RE.test(c)) return "mbb-tier2";
+  if (BIG4_RE.test(c)) return "big4";
+  if (BANK_RE.test(c)) return "bank-campus";
+  if (FINTECH_RE.test(c)) return "fintech-scaleup";
+  if (INSTITUTIONAL_RE.test(c)) return "institutional-grad";
+  // Unknown company, but the posting itself is a rotational/graduate program.
+  if (ROTATIONAL_JD_RE.test(`${title}\n${description.slice(0, 1500)}`)) return "institutional-grad";
+  return "none";
+}
+
+/** What this employer's new-grad screen provably rewards (hiring-screen lines). */
+export function archetypeScreen(archetype: EmployerArchetype): string[] {
+  switch (archetype) {
+    case "bank-campus":
+      return [
+        "Bank campus screen (Workday ATS): mirror the posting's exact tools in skills — TD interviewers quiz whatever the resume lists, so claim only what survives trivia",
+        "Eligibility is a hard filter: the graduation window must be obvious (Education line carries it)",
+        "Banks name hackathons, case competitions, and clubs as screening keywords (RBC Amplify, Scotiabank) — the Achievements section is load-bearing here",
+        "Every bullet must expand into a STAR story — behavioral rounds (RBC adds a GROUP interview) probe teamwork, conflict, and ownership",
+        "Quantified analytical bullets read as 'data-driven decision making', the exact phrase these postings screen for",
+        "Community/volunteer and leadership evidence is explicitly screened (CIBC names it); prior co-op outcomes beat projects",
+      ];
+    case "fintech-scaleup":
+      return [
+        "Proof-of-impact screen (Wealthsimple requires a proof-of-impact artifact; Shopify reviews your GitHub): shipped, in-the-world results beat credentials",
+        "Keep the most relevant GitHub-linked project prominent — these screeners actually open the repo",
+        "Ownership language: shipped, owned, made better — founder-energy without inflated scope",
+        "Name real AI/LLM work plainly — 'AI-native' is a stated plus (Wealthsimple); buzzwords without artifacts read as noise",
+        "GPA and formality carry ~zero weight here — spend the space on what you built",
+      ];
+    case "institutional-grad":
+      return [
+        "Rotational/graduate-program screen: 'demonstrated leadership potential' is a written requirement (TELUS GTLP) — led/organized/mentored evidence must be visible, campus-ops mentoring counts",
+        "Eligibility gates are hard: graduation window and prior co-op (TELUS wants 4-12 months) should be unmistakable",
+        "SuccessFactors/Workday keyword parse before any human — mirror posting nouns in skills",
+        "Communication is screened via video interviews; clean plain-English bullets double as evidence",
+        "Adaptability across rotations: show range (analysis + build + people) rather than one repeated shape",
+      ];
+    case "econ-consulting":
+      return [
+        "Economic-consulting screen (Cornerstone/CRA/FTI): quantitative rigor first — name real methods (regression, Python/SQL analysis, reconciliation) truthfully",
+        "Transcripts are submitted with the application — academic signals (scholarship, coursework) carry unusual weight; the Achievements section matters",
+        "Research experience and written communication are screened explicitly — a brief or writeup artifact beats a tool list",
+        "Never invent Stata/R/Matlab — map JD mentions to Python/Excel analysis the candidate can defend",
+      ];
+    case "big4":
+      return [
+        "Big 4 screen: ATS keyword match matters more than at MBB — mirror the posting's tools and certifications language in skills",
+        "Client-facing delivery evidence beats pedigree: workshops, handoffs, deliverables someone used",
+        "Deloitte publishes a 3.0 GPA floor — academics are a checkbox, not the differentiator; delivery stories are",
+        "Tools lines carry real weight here (Excel, SQL, PowerPoint, dashboards) — unlike MBB, name them when the posting does",
+      ];
+    case "mbb-tier2":
+      return [
+        "30-second screen: the strongest brand, award, and leadership line must sit in the top third of the page",
+        "XYZ/CAR bullets — what you did, how, and the resulting change; responsibility-shaped bullets are the #1 rejection cause",
+        "Quantify every expanded entry; vague quantification ('improved efficiency significantly') reads as no evidence",
+        "Leadership progression and entrepreneurial drive are explicit McKinsey/BCG screens — founded/created/organized counts (hackathon finals, projects with users)",
+        "One page, no filler skills (never Word-level), awards/selectivity markers visible (the scholarship is one)",
+      ];
+    default:
+      return [];
+  }
+}
+
+/** Short lens line appended to lens_directive — what to foreground for this employer. */
+export function archetypeLensLine(archetype: EmployerArchetype): string {
+  switch (archetype) {
+    case "bank-campus":
+      return "EMPLOYER LENS (bank campus): foreground reliability, data integrity, reconciliation/quality work, and teamwork evidence; banks read carefulness as competence. One page, plain ATS-parseable nouns.";
+    case "fintech-scaleup":
+      return "EMPLOYER LENS (fintech/product tech): foreground shipped product impact and end-to-end ownership; the best project repo link is evidence, not decoration.";
+    case "institutional-grad":
+      return "EMPLOYER LENS (rotational/graduate program): foreground leadership-of-people evidence (mentoring, organizing, front-desk ownership) alongside the technical work; range beats depth.";
+    case "econ-consulting":
+      return "EMPLOYER LENS (economic consulting): foreground quantitative method and written deliverables; precision of method names matters more than tool breadth.";
+    case "big4":
+      return "EMPLOYER LENS (Big 4): foreground client delivery and the posting's exact tool vocabulary; practical over impressive.";
+    case "mbb-tier2":
+      return "EMPLOYER LENS (MBB/Tier-2): foreground diagnosis, leadership progression, and quantified outcomes; top-third strength decides the screen.";
+    default:
+      return "";
+  }
+}
+
+/** Dedupe-merge extra screen lines into a base list, preserving order. */
+export function mergeScreenLines(base: string[], extra: string[], cap = 12): string[] {
+  const out = base.map((s) => s.trim()).filter(Boolean);
+  const seen = new Set(out.map((s) => s.toLowerCase()));
+  for (const line of extra) {
+    const t = line.trim();
+    if (!t || seen.has(t.toLowerCase()) || out.length >= cap) continue;
+    out.push(t);
+    seen.add(t.toLowerCase());
+  }
+  return out;
+}

@@ -691,5 +691,76 @@ check(
   messages(ciFraming.filter((i) => i.severity === "high"))
 );
 
+// --------------------------------------- per-entry magnitude rule
+// Every expanded entry needs at least one number suited to its scenario.
+const noNumbers = auditExperienceBullets(
+  [
+    {
+      company: "INNWIL",
+      title: "Software Engineer Intern (Co-op)",
+      bullets: [
+        "Built a Python refresh for the weekly export so partners stopped re-running it by hand.",
+        "Fixed a slow SQL report by filtering before the join, then documented the change.",
+        "Walked the ops lead through the new export format at sprint review.",
+      ],
+    },
+    {
+      company: "Project Human City",
+      title: "Software Developer (Freelance)",
+      bullets: [
+        "Mapped 4 inconsistent source feeds into shared definitions for comparable reports.",
+        "Fixed recurring mismatches before the weekly review, then flagged them for the team.",
+        "Reconciled client feedback with constraints before release.",
+      ],
+    },
+  ],
+  { expandedCount: 2 }
+);
+check(
+  "entry with no number anywhere is flagged",
+  noNumbers.some((i) => i.company === "INNWIL" && i.severity === "high" && /no bullet in this entry carries a number/.test(i.message)),
+  messages(noNumbers)
+);
+check(
+  "entry with one number is not flagged",
+  !noNumbers.some((i) => i.company === "Project Human City" && /no bullet in this entry carries a number/.test(i.message)),
+  messages(noNumbers)
+);
+// The verbatim-true anchor is exempt: SWE expanded set is the first two entries.
+const anchorExempt = auditExperienceBullets(
+  [
+    {
+      company: "A",
+      bullets: [
+        "Built a Python refresh that cut the weekly export from 40 minutes to under 5.",
+        "Fixed a slow SQL report by filtering before the join, then documented it in the runbook.",
+        "Walked the ops lead through the new export format at sprint review.",
+      ],
+    },
+    {
+      company: "B",
+      bullets: [
+        "Shipped 3 internal dashboards for the support team after repeated ticket requests.",
+        "Traced a flaky test to a timezone bug and pinned the fixture clock in CI.",
+        "Split the export work with another developer behind a feature flag.",
+      ],
+    },
+    {
+      company: "C",
+      bullets: [
+        "Added a retry around the partner feed so imports stopped dropping partial files.",
+        "Documented the deploy checklist after a release missed a migration step.",
+        "Reviewed pull requests for the reporting service.",
+      ],
+    },
+  ],
+  { expandedCount: 2 }
+);
+check(
+  "anchor entry (not expanded) keeps no-number exemption",
+  !anchorExempt.some((i) => i.company === "C" && /no bullet in this entry carries a number/.test(i.message)),
+  messages(anchorExempt)
+);
+
 console.log(failures === 0 ? "all bullet-quality checks passed" : `${failures} check(s) failed`);
 process.exitCode = failures === 0 ? 0 : 1;

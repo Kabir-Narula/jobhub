@@ -240,14 +240,40 @@ export async function POST(request: Request) {
   const { detectRoleFamily, isBusinessFamily, selectExperienceEntries, SKILL_SEEDS } = await import("@/lib/tailor/role-family");
   const family = detectRoleFamily(jobInput.title, jobInput.company, jobInput.description);
   const business = isBusinessFamily(family);
-  if (research && business) {
-    const { ensureHiringScreen } = await import("@/lib/tailor/hiring-screen");
-    const screen = ensureHiringScreen(research.hiringScreen, family, jobInput.title, jobInput.description);
+  const {
+    detectPostingFlavor,
+    detectEmployerArchetype,
+    ensureHiringScreen,
+    archetypeScreen,
+    archetypeLensLine,
+    mergeScreenLines,
+  } = await import("@/lib/tailor/hiring-screen");
+  // Employer screen culture applies to EVERY family — a bank-campus SWE role
+  // (Workday keyword screen, STAR behavioral rounds) and a fintech SWE role
+  // (proof-of-impact, GitHub) pass different screens even with identical JDs.
+  const employerArchetype = detectEmployerArchetype(jobInput.company, jobInput.title, jobInput.description);
+  const archScreen = archetypeScreen(employerArchetype);
+  if (research) {
+    const base = business
+      ? ensureHiringScreen(research.hiringScreen, family, jobInput.title, jobInput.description)
+      : (research.hiringScreen ?? []);
+    const screen = mergeScreenLines(base, archScreen);
     if (screen.length) research = { ...research, hiringScreen: screen };
+  } else if (archScreen.length) {
+    // Research failed but the employer archetype is known — don't generate blind.
+    research = {
+      mission: "",
+      product: "",
+      stack: [],
+      news: [],
+      summary: "",
+      homepageUsed: null,
+      hiringScreen: archScreen,
+      generatedAt: new Date().toISOString(),
+    };
   }
   const lens = detectLens(jobInput.title, jobInput.description, jobInput.company);
-  const lensNote = lensInstruction(lens);
-  const { detectPostingFlavor } = await import("@/lib/tailor/hiring-screen");
+  const lensNote = [lensInstruction(lens), archetypeLensLine(employerArchetype)].filter(Boolean).join("\n");
   const postingFlavor = detectPostingFlavor(jobInput.title, jobInput.description, family);
   // Flavor-specific skill bans — model otherwise ranks Competitive Intelligence onto ZS SIP.
   const flavorSuppress =
