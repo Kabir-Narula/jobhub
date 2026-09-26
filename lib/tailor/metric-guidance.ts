@@ -69,26 +69,28 @@ const GUIDANCE: Record<string, Omit<MetricGuidance, "family" | "bannedShapes">> 
   },
   consulting: {
     allowedShapes: [
-      "hours saved per week on a manual process (single digits)",
+      "hours saved per week on a manual process (single digits) — only when the work was process ops",
       "report or review cycle time before/after",
-      "count of reports, dashboards, or stakeholders supported",
-      "percentage of a manual step automated or removed (15-60%)",
-      "rows or records reconciled per review cycle",
+      "count of briefs, sources reviewed, stakeholders walked through, or sites compared (single to low double digits)",
+      "a qualitative state change with no number (chase stopped, decision made, report went out clean)",
+      "rows or records reconciled per review cycle when the work was reconciliation",
     ],
     ceilings: [
       "no deal sizes, no revenue, no client counts above a handful",
+      "do not invent automation percentages on tool-silent MBB postings",
     ],
   },
   analyst: {
     allowedShapes: [
-      "hours saved per week on a manual process (single digits)",
+      "hours saved per week on a manual process (single digits) — only when real",
       "report or review cycle time before/after",
-      "count of reports, dashboards, or stakeholders supported",
-      "percentage of a manual step automated or removed (15-60%)",
-      "rows or records reconciled per review cycle",
+      "count of sources monitored, briefs delivered, segments cut, or stakeholders supported",
+      "a qualitative state change with no number (brief used in a decision, chase stopped)",
+      "rows or records reconciled per review cycle when the work was reconciliation",
     ],
     ceilings: [
       "no deal sizes, no revenue, no client counts above a handful",
+      "do not invent Tableau/IQVIA scale metrics",
     ],
   },
   product: {

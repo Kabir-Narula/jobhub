@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { stripHtml } from "@/lib/sources/http";
+import { ensureHiringScreen } from "./hiring-screen";
 
 export interface CompanyResearch {
   mission: string;
@@ -12,8 +13,13 @@ export interface CompanyResearch {
   /** Register of the company's public voice, for tone matching. */
   tone?: "casual" | "formal";
   homepageUsed: string | null;
-  /** Condensed Reddit digest: real candidate experiences at this company. */
+  /** Condensed Reddit digest: real candidate experiences at this company + role-family resume advice. */
   redditIntel?: string;
+  /**
+   * Distilled hiring-screen rules for THIS role from Reddit + JD — what HR /
+   * recruiters actually score. First-class input to resume generation.
+   */
+  hiringScreen?: string[];
   generatedAt: string;
 }
 
@@ -124,24 +130,33 @@ export async function researchCompany(input: {
     `\nReturn JSON with keys:`,
     `- "mission": one sentence on what the company does / why it exists`,
     `- "product": one sentence on the main product(s) and who uses them`,
-    `- "stack": array of up to 8 tools this team actually uses. Infer from the JD and your knowledge — do not dump Pivot Tables / INDEX/MATCH / Power Query onto every consulting team. For BA/insights, never invent engineering frameworks. Tableau/Alteryx/Qualtrics/SPSS/Nielsen only if the JD or a reliable source names them.`,
-    `- "news": array of up to 4 recent/relevant facts (funding, launches, scale, engineering culture) — only things you are confident about`,
+    `- "stack": array of up to 8 tools this team actually uses. Infer from the JD and reliable sources only — do not dump Pivot Tables / INDEX/MATCH / Power Query onto every consulting team. For BA/insights, never invent engineering frameworks. Tableau/Alteryx/Qualtrics/SPSS/Nielsen only if the JD or a reliable source names them.`,
+    `- "news": array of up to 4 recent/relevant facts (funding, launches, scale, culture) — only things you are confident about`,
     `- "hookFact": ONE specific, current, verifiable fact about the company that a candidate could open a cover letter with — a real metric, a concrete product detail, or a recent move. Prefer something found in the provided site content over general knowledge. Empty string if nothing solid exists.`,
     `- "tone": "casual" if their public voice is startup/engineering-blog informal, "formal" if it's corporate/enterprise formal`,
-    `- "summary": ${input.deep ? "5-6 sentences of deep insight a candidate could use to sound genuinely informed in a cover letter or interview: what the company is betting on, what their engineering culture values, and exactly which candidate strengths would resonate with this team" : "3-4 sentences a candidate could use to sound informed in a cover letter or interview"}`,
+    `- "hiringScreen": array of 4-8 short strings. Distill STRICTLY from the Reddit digest + this JD what recruiters/HR for THIS role screen for. Cover: mandatory vs preferred asks, core responsibilities, domain expectations, differentiating signals vs low-value wording, and what evidence (outcomes, collaboration, problem-solving) wins a first screen. Prefer concrete Reddit guidance when present. If Reddit is empty, still fill from the JD analysis — never return an empty array for analyst/consulting roles.`,
+    `- "summary": ${input.deep ? "5-6 sentences of deep insight a candidate could use to sound genuinely informed in a cover letter or interview: what the company is betting on, what this team's hiring bar values, and which candidate strengths would resonate" : "3-4 sentences a candidate could use to sound informed in a cover letter or interview"}`,
     `Be factual. If unsure about a fact, omit it rather than guess.`,
   ].join("\n");
 
   const res = await openai().chat.completions.create({
     model: model("quality"),
     messages: [
-      { role: "system", content: "You are a meticulous company researcher. Output valid JSON only." },
+      {
+        role: "system",
+        content:
+          "You are a meticulous company and hiring-screen researcher. Deeply analyze the JD for what the employer cares about (mandatory vs preferred, core responsibilities, domain expectations, differentiating signals) — not word frequency. Distill Reddit + JD into actionable resume guidance. Output valid JSON only.",
+      },
       { role: "user", content: prompt },
     ],
     response_format: { type: "json_object" },
   });
 
   const parsed = parseJson(res.choices[0]?.message?.content ?? "{}");
+  const hiringFromModel = Array.isArray(parsed.hiringScreen)
+    ? parsed.hiringScreen.map(String).map((s: string) => s.trim()).filter(Boolean).slice(0, 8)
+    : [];
+  const hiringScreen = ensureHiringScreen(hiringFromModel, family, input.jobTitle, input.jobDescription);
   return {
     mission: String(parsed.mission ?? ""),
     product: String(parsed.product ?? ""),
@@ -152,6 +167,7 @@ export async function researchCompany(input: {
     tone: parsed.tone === "formal" ? "formal" : "casual",
     homepageUsed: homepage?.url ?? null,
     redditIntel: redditIntel || undefined,
+    hiringScreen: hiringScreen.length ? hiringScreen : undefined,
     generatedAt: new Date().toISOString(),
   };
 }

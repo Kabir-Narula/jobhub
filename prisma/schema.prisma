@@ -94,6 +94,10 @@ model Job {
   mergedIntoId          String?
   companyResearch       Json?
   researchedAt          DateTime?
+  /// Structured JD read (lib/tailor/jd-analysis.ts): must/nice-to-have terms,
+  /// domain, work types, posting seniority. Cached; recomputed when the JD changes.
+  jdAnalysis            Json?
+  jdAnalyzedAt          DateTime?
   contacts              Json?
   contactsAt            DateTime?
   applications          Application[]

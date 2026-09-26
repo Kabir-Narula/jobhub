@@ -8,8 +8,9 @@ import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { JobCard } from "./job-card";
 import { JobsHeader, type FilterState } from "./jobs-header";
+import { AddJobDialog } from "./add-job-dialog";
 import { ReturnPrompt } from "./return-prompt";
-import { Inbox, RefreshCw, CheckCircle2, ChevronDown, Sparkles } from "lucide-react";
+import { Inbox, RefreshCw, CheckCircle2, ChevronDown, Plus, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface RunInfo {
@@ -248,6 +249,7 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
 
   const failedSources = lastRun?.results.filter((r) => !r.ok).length ?? 0;
   const [showApplied, setShowApplied] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-end justify-between">
@@ -270,6 +272,15 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setAddOpen(true)}
+            className="border-[#e6e3db] bg-white text-[#4a473f] shadow-none hover:border-[#c2410c]/40 hover:text-[#c2410c]"
+          >
+            <Plus className="size-3.5" />
+            Add job
+          </Button>
           {filters.savedOnly && visibleJobs.length > 0 && (
             <Button
               size="sm"
@@ -368,6 +379,7 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
       )}
 
       <ReturnPrompt />
+      <AddJobDialog open={addOpen} onClose={() => setAddOpen(false)} />
     </div>
   );
 }

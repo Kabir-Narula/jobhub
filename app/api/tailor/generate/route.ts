@@ -17,18 +17,20 @@ import {
   type ResumeUpdate,
   type ProjectEntry,
 } from "@/lib/tailor/latex";
-import { ACHIEVEMENTS } from "@/lib/tailor/achievements";
+import { ACHIEVEMENTS, jdSignalsAchievements } from "@/lib/tailor/achievements";
 import { generateContent, findNewNumbers, type GeneratedContent } from "@/lib/tailor/generate";
 import {
   auditExperienceBullets,
   auditProjectBullets,
   bannedNumberShapes,
+  coverageIssues,
   highSeverityCount,
   qualityFeedback,
 } from "@/lib/tailor/bullet-quality";
 import { researchCompany, type CompanyResearch } from "@/lib/tailor/research";
 import { compileLatex } from "@/lib/tailor/compile";
-import { matchScore, missingTerms, claimableJdTerms, isTechTerm, placementGaps } from "@/lib/tailor/match";
+import { matchScore, missingTerms, claimableJdTerms, isTechTerm, placementGaps, uncoveredTerms, hasWord } from "@/lib/tailor/match";
+import { getJdAnalysis } from "@/lib/tailor/jd-analysis";
 import { pageFill } from "@/lib/tailor/fill";
 import { PROJECTS, projectById, projectSlots, rankProjects } from "@/lib/tailor/projects";
 import { ensureBucket, uploadPdf } from "@/lib/supabase";
@@ -43,13 +45,16 @@ const FILL_TARGET = 0.9; // below this, run one auto-expand pass (no empty botto
 
 async function getResearch(jobId: string, refresh = false): Promise<CompanyResearch | null> {
   const job = await prisma.job.findUniqueOrThrow({ where: { id: jobId } });
-  if (job.companyResearch && !refresh) return job.companyResearch as unknown as CompanyResearch;
+  const cached = job.companyResearch as unknown as CompanyResearch | null;
+  // Stale caches from before hiringScreen existed silently starved the model.
+  const thin = Boolean(cached && !(cached.hiringScreen && cached.hiringScreen.length >= 3));
+  if (cached && !refresh && !thin) return cached;
   try {
     const research = await researchCompany({
       company: job.company,
       jobTitle: job.title,
       jobDescription: job.description,
-      deep: refresh,
+      deep: refresh || Boolean(thin),
     });
     await prisma.job.update({
       where: { id: job.id },
@@ -57,7 +62,26 @@ async function getResearch(jobId: string, refresh = false): Promise<CompanyResea
     });
     return research;
   } catch {
-    return null; // research is an enhancement, not a blocker
+    // Still return JD-derived hiring screen so business gens are not blind.
+    try {
+      const { detectRoleFamily } = await import("@/lib/tailor/role-family");
+      const { ensureHiringScreen } = await import("@/lib/tailor/hiring-screen");
+      const family = detectRoleFamily(job.title, job.company, job.description);
+      const hiringScreen = ensureHiringScreen(undefined, family, job.title, job.description);
+      if (!hiringScreen.length) return null;
+      return {
+        mission: "",
+        product: "",
+        stack: [],
+        news: [],
+        summary: "",
+        homepageUsed: null,
+        hiringScreen,
+        generatedAt: new Date().toISOString(),
+      };
+    } catch {
+      return null;
+    }
   }
 }
 
@@ -162,17 +186,28 @@ export async function POST(request: Request) {
   const requestStart = Date.now();
   try {
 
-  // Jobs without a stored JD (Simplify rows, LinkedIn cards) get hydrated
-  // on demand — without it the tailor and ATS score have nothing to work from.
-  if (job.description.trim().length < 200) {
+  // Thin JDs (Simplify cards, Workday shells) hydrate from the live posting so
+  // family detection, ATS, and the model all read the same page text.
+  let hydratedNow = false;
+  if (job.description.trim().length < 400 && (job.applyUrl || job.sourceUrl)) {
     const { hydrateJobDescription } = await import("@/lib/sources/hydrate");
     const hydrated = await hydrateJobDescription(job).catch(() => "");
-    if (hydrated) {
+    if (hydrated && hydrated.length > job.description.trim().length) {
       job.description = hydrated;
+      hydratedNow = true;
       await prisma.job.update({ where: { id: job.id }, data: { description: hydrated } });
-    } else {
+    } else if (job.description.trim().length < 200) {
       warnings.push("Job description couldn't be fetched (JS-rendered page) — tailored from the title only; ATS score unavailable.");
     }
+  }
+
+  // Structured read of the posting (must/nice requirements, domain, work types,
+  // seniority) — cached on the Job row, recomputed when the JD changed.
+  const jdAnalysis = await getJdAnalysis(job, { stale: hydratedNow });
+  if (jdAnalysis.seniority === "senior") {
+    warnings.push(
+      "This posting reads senior-level (5+ years) — generated at honest junior scope; expect the years-of-experience screen to be the real filter, not the resume."
+    );
   }
 
   const [resumeMaster, coverMaster] = await Promise.all([
@@ -186,29 +221,56 @@ export async function POST(request: Request) {
   const masterTex = resumeMaster.texContent;
   const parsedResume = parseResume(masterTex);
   const skillsSection = parseSkillsSection(masterTex);
-  const research = await getResearch(job.id, deepResearch || Boolean(body?.force));
+  let research = await getResearch(job.id, deepResearch || Boolean(body?.force));
   if (!research) {
     warnings.push("Company research failed — generated without company intel (no hook fact or tone match). Retry for a stronger cover letter.");
+  } else if (!(research.redditIntel && research.redditIntel.length > 100)) {
+    warnings.push("Reddit intel was thin — used JD-derived hiring-screen rules; force-refresh research if the resume feels generic.");
   }
 
-  const jobInput = { title: job.title, company: job.company, locationRaw: job.locationRaw, description: job.description };
+  const jobInput = {
+    title: job.title,
+    company: job.company,
+    locationRaw: job.locationRaw,
+    description: job.description,
+    postingUrl: job.applyUrl || job.sourceUrl || undefined,
+  };
   const { detectLens, lensInstruction } = await import("@/lib/tailor/lens");
   const { softSkillsFor } = await import("@/lib/tailor/soft-skills");
   const { detectRoleFamily, isBusinessFamily, selectExperienceEntries, SKILL_SEEDS } = await import("@/lib/tailor/role-family");
-  const family = detectRoleFamily(job.title, job.company, job.description);
+  const family = detectRoleFamily(jobInput.title, jobInput.company, jobInput.description);
   const business = isBusinessFamily(family);
-  const lens = detectLens(job.title, job.description, job.company);
+  if (research && business) {
+    const { ensureHiringScreen } = await import("@/lib/tailor/hiring-screen");
+    const screen = ensureHiringScreen(research.hiringScreen, family, jobInput.title, jobInput.description);
+    if (screen.length) research = { ...research, hiringScreen: screen };
+  }
+  const lens = detectLens(jobInput.title, jobInput.description, jobInput.company);
   const lensNote = lensInstruction(lens);
-  const lensSuppress = lens?.suppress ?? [];
+  const { detectPostingFlavor } = await import("@/lib/tailor/hiring-screen");
+  const postingFlavor = detectPostingFlavor(jobInput.title, jobInput.description, family);
+  // Flavor-specific skill bans — model otherwise ranks Competitive Intelligence onto ZS SIP.
+  const flavorSuppress =
+    postingFlavor === "zs-sip"
+      ? ["Competitive Intelligence", "KPI Tracking", "Dashboard Reporting"]
+      : postingFlavor === "zs-da"
+        ? ["Competitive Intelligence", "Desk Research"]
+        : [];
+  const lensSuppress = [...(lens?.suppress ?? []), ...flavorSuppress];
+  const jdLower = jobInput.description.toLowerCase();
   const allowedByLens = (term: string) => {
     const k = term.toLowerCase();
+    // A term the posting itself names is never suppressed on engineering
+    // resumes — the lens governs emphasis, never ATS coverage. (Business
+    // families keep strict suppression: vendors map to methods, not skills.)
+    if (!business && hasWord(k, jdLower)) return true;
     return !lensSuppress.some((s) => {
       const sk = s.toLowerCase();
       return Boolean(sk) && (k.includes(sk) || sk.includes(k));
     });
   };
   const softSkills = softSkillsFor(
-    job.description,
+    jobInput.description,
     family === "consulting" || family === "analyst" || family === "product" ? family : undefined
   );
 
@@ -222,15 +284,19 @@ export async function POST(request: Request) {
   const parsedForJob = { ...parsedResume, entries: entriesToUse };
   const projectCount = projectSlots(parsedForJob.entries.length, { business });
 
-  const companyTokens = job.company.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
-  const targetKeywords = claimableJdTerms(job.description, 25, companyTokens, job.title);
-  for (const t of SKILL_SEEDS[family] ?? []) {
-    if (!targetKeywords.includes(t)) targetKeywords.unshift(t);
+  const companyTokens = jobInput.company.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  // Must-have requirements (from the posting's own requirements section) lead
+  // the target list; the frequency-ranked claimable terms fill in behind them.
+  // Business families: keywords come from the JD only. Do not seed Excel/Pivot
+  // or inject technique-mapped skills into the model target list — that was
+  // steering every analyst resume toward INDEX-MATCH.
+  const targetKeywords = [...jdAnalysis.mustHaves];
+  for (const t of claimableJdTerms(jobInput.description, 25, companyTokens, jobInput.title)) {
+    if (!targetKeywords.includes(t)) targetKeywords.push(t);
   }
-  if (business) {
-    for (const item of claimableBusinessSkillItems(job.description, family)) {
-      const k = item.toLowerCase();
-      if (!targetKeywords.includes(k)) targetKeywords.push(k);
+  if (!business) {
+    for (const t of SKILL_SEEDS[family] ?? []) {
+      if (!targetKeywords.includes(t)) targetKeywords.unshift(t);
     }
   }
 
@@ -248,6 +314,7 @@ export async function POST(request: Request) {
     targetKeywords,
     projectCount,
     metricGuidance: metricGuidanceFor(family),
+    jdAnalysis,
     ...(family !== "swe" ? { roleFamily: family } : {}),
   };
 
@@ -361,14 +428,18 @@ export async function POST(request: Request) {
     tex = assembleSkillsSection(parseSkillsSection(tex), gen.skills ?? null, clamps.compactSkills ?? 0, lensSuppress, allowedExtra);
     if (business) {
       // Keep the model's ranking. Only strip SWE leaks and invented vendors.
+      // Backfill only JD-matched intern-defensible items the model omitted —
+      // never raw placementGaps (those re-injected Excel-function noise).
       tex = pinBusinessSkills(tex, clamps.compactSkills ?? 0, {
         professional: softSkills,
       });
-      tex = ensureSkillsTerms(
-        tex,
-        placementGaps(job!.description, tex, 6, job!.company).filter(allowedByLens),
-        clamps.compactSkills || 7
-      );
+      const businessBackfill = claimableBusinessSkillItems(job!.description, family)
+        .filter(allowedByLens)
+        .filter((t) => !tex.toLowerCase().includes(t.toLowerCase()))
+        .slice(0, 4);
+      if (businessBackfill.length) {
+        tex = ensureSkillsTerms(tex, businessBackfill, clamps.compactSkills || 7);
+      }
     } else {
       // Deterministic backfill: homed JD technologies that are still absent
       // from the skills block are placed by line affinity (cap 6, JD frequency
@@ -401,6 +472,9 @@ export async function POST(request: Request) {
   // Escalating compression ladder over ONE shortened generation: skills clamp
   // → bullet clamps → drop achievements (user: removable when space is tight)
   // → hardest clamps.
+  // When the JD itself asks for hackathon / academic / self-directed evidence,
+  // keep Achievements until last resort (drop projects/skills first).
+  const keepAchievements = jdSignalsAchievements(job!.description);
   const LADDER: {
     compactSkills?: number;
     maxExpBullets?: number;
@@ -408,15 +482,23 @@ export async function POST(request: Request) {
     maxProjects?: number;
     achievements?: number;
   }[] = business
-    ? [
-        {},
-        { compactSkills: 7 },
-        { compactSkills: 6, maxProjects: 2 },
-        { compactSkills: 6, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
-        // Never drop consulting entries to 2 bullets — that is the McKinsey stub.
-        // Never compact below PowerPoint/Excel — those are the ATS home.
-        { compactSkills: 6, maxExpBullets: 3, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
-      ]
+    ? keepAchievements
+      ? [
+          { compactSkills: 6 },
+          { compactSkills: 5, maxProjects: 2, maxProjBullets: 2 },
+          { compactSkills: 5, maxExpBullets: 3, maxProjects: 2, maxProjBullets: 2 },
+          { compactSkills: 5, maxExpBullets: 3, maxProjects: 1, maxProjBullets: 2 },
+          { compactSkills: 5, maxExpBullets: 3, maxProjects: 1, maxProjBullets: 2, achievements: 2 },
+          { compactSkills: 5, maxExpBullets: 3, maxProjects: 1, maxProjBullets: 2, achievements: 0 },
+        ]
+      : [
+          // Analyst keeps 4 jobs × 3 CAR bullets. The only real levers are skills,
+          // achievements, and (last) dropping a project — never 2-bullet stubs.
+          { compactSkills: 6, achievements: 0 },
+          { compactSkills: 5, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
+          { compactSkills: 5, maxExpBullets: 3, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
+          { compactSkills: 5, maxExpBullets: 3, maxProjects: 1, maxProjBullets: 2, achievements: 0 },
+        ]
     : [
         {},
         { compactSkills: 5 },
@@ -435,7 +517,11 @@ export async function POST(request: Request) {
     // One shorten call, reused across clamp steps — the task text is identical
     // for every step, so regenerating per clamp just burns tokens.
     if (!shortenedGen) {
-      shortenedGen = await generateContent({ ...baseInput, shorten: true, projectCount: 2 });
+      shortenedGen = await generateContent({
+        ...baseInput,
+        shorten: true,
+        projectCount: business ? 1 : 2,
+      });
     }
     resumeTex = buildTex(shortenedGen, clamps);
     resumeResult = await compileLatex(resumeTex);
@@ -454,9 +540,34 @@ export async function POST(request: Request) {
   }
 
   // --- ATS optimization loop: score, weave claimable missing terms, re-score ---
-  let score = matchScore(job.description, resumeTex, job.company, job.title);
-  if (score !== null && score < 70) {
-    const missing = missingTerms(job.description, resumeTex, 25, job.company, job.title).filter(allowedByLens);
+  // Fires on aggregate <70 OR any uncovered must-have — a 75 that skips the
+  // posting's #1 requirement is worse than a 68 that covers it, and the old
+  // aggregate-only trigger never repaired it.
+  let score = matchScore(job.description, resumeTex, job.company, job.title, jdAnalysis);
+  const missingMusts = () => uncoveredTerms(jdAnalysis.mustHaves, resumeTex).filter(allowedByLens);
+  if ((score !== null && score < 70) || missingMusts().length > 0) {
+    let missing = [
+      ...new Set([
+        ...missingMusts(),
+        ...missingTerms(job.description, resumeTex, 25, job.company, job.title, jdAnalysis).filter(allowedByLens),
+      ]),
+    ].slice(0, 25);
+    // Business: only boost terms that are claimable intern-defensible skills for THIS JD —
+    // raw missingTerms re-injected Excel/VLOOKUP pressure and fought method freedom.
+    if (business) {
+      const allowed = new Set(
+        claimableBusinessSkillItems(job.description, family).map((s) => s.toLowerCase())
+      );
+      // Also allow real JD tech that consulting lenses keep (Python, REST API, JS, SQL, Jira)
+      // so boost isn't a no-op when claimableBusinessSkillItems is thin.
+      for (const t of claimableJdTerms(job.description, 40, companyTokens, job.title)) {
+        if (!allowedByLens(t)) continue;
+        if (!isTechTerm(t) && !/rest|python|javascript|sql|jira|requirements|workshop|process|uat/i.test(t)) continue;
+        allowed.add(t.toLowerCase());
+        allowed.add(t.toLowerCase().replace(/\s+/g, ""));
+      }
+      missing = missing.filter((t) => allowed.has(t.toLowerCase()) || allowed.has(t.toLowerCase().replace(/\s+/g, "")));
+    }
     if (missing.length > 0) {
       const boosted = await generateContent({
         ...baseInput,
@@ -466,7 +577,7 @@ export async function POST(request: Request) {
       const boostedTex = buildTex(boosted, activeClamps);
       const boostedResult = await compileLatex(boostedTex);
       if (boostedResult.pageCount === 1) {
-        const boostedScore = matchScore(job.description, boostedTex, job.company, job.title);
+        const boostedScore = matchScore(job.description, boostedTex, job.company, job.title, jdAnalysis);
         if (boostedScore !== null && (score === null || boostedScore > score)) {
           resumeTex = boostedTex;
           resumeResult = boostedResult;
@@ -508,17 +619,30 @@ export async function POST(request: Request) {
     // Consulting: every entry is CAR, including campus-ops. SWE: last software
     // entry stays the verbatim-true anchor.
     expandedCount: business ? parsedForJob.entries.length : Math.min(2, parsedForJob.entries.length - 1),
-    ...(business ? { family: "consulting" as const } : {}),
+    ...(business
+      ? {
+          family: "consulting" as const,
+          jobDescription: jobInput.description,
+          jobTitle: jobInput.title,
+        }
+      : {}),
   };
-  const auditAll = (gen: typeof generated) => [
+  // Requirement coverage is part of the gate: a resume can pass every style
+  // check while skipping the posting's #1 must-have. Coverage issues feed the
+  // same repair pass as style failures.
+  const coverageFor = (tex: string) =>
+    coverageIssues(uncoveredTerms(jdAnalysis.mustHaves, tex).filter(allowedByLens), job.company);
+  const auditAll = (gen: typeof generated, tex: string) => [
+    ...coverageFor(tex),
     ...auditExperienceBullets(gen.experience, auditOpts),
     ...auditProjectBullets(gen.projects ?? [], business ? { family: "consulting" } : {}),
   ];
-  let bulletIssues = auditAll(generated);
+  let bulletIssues = auditAll(generated, resumeTex);
   // A repair costs one quality-tier call plus a compile. Skipping it when the
   // request is already close to maxDuration is better than being killed after
   // the work is done but before anything is saved.
-  const timeForRepair = Date.now() - requestStart < 200_000;
+  // maxDuration is 300s; leave ~45s for compile + save after a quality repair call.
+  const timeForRepair = Date.now() - requestStart < 255_000;
   if (highSeverityCount(bulletIssues) > 0 && timeForRepair) {
     const repaired = await generateContent({
       ...baseInput,
@@ -527,7 +651,8 @@ export async function POST(request: Request) {
       // gets discarded for a reason that has nothing to do with bullet quality.
       ...(wasCompressed ? { shorten: true, projectCount: 2 } : {}),
     });
-    const repairedIssues = auditAll(repaired);
+    const repairedTex = buildTex(repaired, activeClamps);
+    const repairedIssues = auditAll(repaired, repairedTex);
     if (
       highSeverityCount(repairedIssues) < highSeverityCount(bulletIssues) &&
       bannedNumberShapes([
@@ -535,9 +660,8 @@ export async function POST(request: Request) {
         ...(repaired.projects ?? []).flatMap((p) => p.bullets ?? []),
       ]).length === 0
     ) {
-      const repairedTex = buildTex(repaired, activeClamps);
       const repairedResult = await compileLatex(repairedTex);
-      const repairedScore = matchScore(job.description, repairedTex, job.company, job.title);
+      const repairedScore = matchScore(job.description, repairedTex, job.company, job.title, jdAnalysis);
       // Better prose is not worth falling out of the keyword ranking, and it is
       // never worth a second page.
       if (
@@ -594,7 +718,7 @@ export async function POST(request: Request) {
   // --- diffs + score ---
   const resumeDiff = createTwoFilesPatch("master.tex", "tailored.tex", masterTex, resumeTex, "", "", { context: 2 });
   const coverDiff = createTwoFilesPatch("master.tex", "tailored.tex", coverMaster.texContent, coverTex, "", "", { context: 2 });
-  const missing = missingTerms(job.description, resumeTex, 12, job.company, job.title);
+  const missing = missingTerms(job.description, resumeTex, 12, job.company, job.title, jdAnalysis);
 
   // --- persist + upload ---
   await ensureBucket();

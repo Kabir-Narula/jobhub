@@ -6,7 +6,7 @@ const STOPWORDS = new Set(
 );
 
 /** Normalize a token for matching: lowercase, edge-trim, singular-ish. */
-const NO_DEPLURAL = new Set(["kubernetes"]); // ends in 's' but isn't a plural
+const NO_DEPLURAL = new Set(["kubernetes", "analysis", "series", "bias", "basis"]); // ends in 's' but isn't a plural
 function norm(w: string): string {
   const lower = w.toLowerCase();
   // Check the lexicon BEFORE edge-trimming. Trimming "+" and "#" first turned
@@ -31,13 +31,13 @@ const PHRASE_NOISE = new Set(
 const SYNONYMS: [RegExp, string][] = [
   [/^postgres(ql)?$/, "postgresql"],
   [/^k8s$/, "kubernetes"],
-  [/^(js|javascript)$/, "javascript"],
+  [/^(js|javascript|java script)$/, "javascript"],
   [/^(ts|typescript)$/, "typescript"],
   [/^ml$/, "machinelearning"],
   [/^machine learning$/, "machinelearning"],
   [/^ai$/, "artificialintelligence"],
   [/^(ci\/?cd|ci cd|cicd)$/, "cicd"],
-  [/^(rest|restful|rest api|rest apis)$/, "restapi"],
+  [/^(rest|restful|rest api|rest apis|apis?|hr apis?)$/, "restapi"],
   [/^(sql server|microsoft sql server|mssql)$/, "sqlserver"],
   [/^(gcp|google cloud|google cloud platform)$/, "googlecloud"],
   [/^(aws|amazon web services)$/, "aws"],
@@ -139,8 +139,36 @@ export function jdTerms(jobDescription: string, cap = 40, excludeTokens: string[
     .map(([t]) => t);
 }
 
+/**
+ * Remove \hypersetup{...} before scoring: injectPdfMeta() embeds the job title
+ * in the PDF metadata, and its text otherwise survives LaTeX stripping — every
+ * JD term appearing in the job title was auto-covered, inflating the score on
+ * exactly the terms that matter most. Brace-aware: the block nests one level
+ * (pdftitle={...},pdfauthor={...}).
+ */
+function stripPdfMeta(tex: string): string {
+  let out = tex;
+  for (;;) {
+    const i = out.indexOf("\\hypersetup{");
+    if (i < 0) return out;
+    let depth = 0;
+    let j = i + "\\hypersetup".length;
+    for (; j < out.length; j++) {
+      if (out[j] === "{") depth++;
+      else if (out[j] === "}") {
+        depth--;
+        if (depth === 0) {
+          j++;
+          break;
+        }
+      }
+    }
+    out = out.slice(0, i) + " " + out.slice(j);
+  }
+}
+
 function plainTex(tex: string): string {
-  return tex
+  return stripPdfMeta(tex)
     .replace(/\\[a-zA-Z]+\*?(\[[^\]]*\])?/g, " ")
     .replace(/[{}$]/g, " ")
     .replace(/[-/]+/g, " ")
@@ -175,21 +203,73 @@ const IMPLIES: Record<string, string[]> = {
   nosql: ["mongodb", "mongo", "dynamodb", "cassandra", "redis"],
   spark: ["pyspark", "sparksql"],
   machinelearning: ["pytorch", "tensorflow", "keras", "sklearn", "xgboost", "lightgbm"],
+  statistics: ["statistical"],
+  econometrics: ["statistical", "regression"],
 };
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 /** Word-ish boundary: LaTeX-stripped text has no reliable \b behaviour around symbols. */
-const hasWord = (needle: string, hay: string) =>
+export const hasWord = (needle: string, hay: string) =>
   new RegExp(`(^|[^a-z0-9])${esc(needle)}([^a-z0-9]|$)`, "i").test(hay);
 
-/** A term is covered when: exact phrase, squashed phrase, or every word present (ATS-style proximity). */
-function covered(term: string, plain: string, plainSquash: string): boolean {
+/** Sentence/clause segments of the resume — the unit within which words must co-occur. */
+function segmentsOf(plain: string): string[] {
+  return plain
+    .split(/[.\n;:!?•·|]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * A term is covered when: exact phrase, squashed phrase, or every word present
+ * in the SAME segment (ATS-style proximity). The word-level fallback used to
+ * scan the whole document, so "data" in the education line plus "pipeline" in
+ * a project bullet covered "data pipeline" — inflating the score and hiding
+ * real gaps from the boost pass.
+ */
+/**
+ * Natural multi-word surfaces of squashed canonical tokens. canon() folds
+ * "REST APIs" → "restapi" and "CI/CD" → "cicd" on the JD side, but the resume
+ * plain text keeps the two-word surface — a single-token word match could
+ * never cover them, silently deflating the score.
+ */
+const CANON_SURFACE: Record<string, string[]> = {
+  restapi: ["rest api", "rest apis"],
+  cicd: ["ci cd"],
+  googlecloud: ["google cloud"],
+  sqlserver: ["sql server", "microsoft sql server"],
+  machinelearning: ["machine learning"],
+  artificialintelligence: ["artificial intelligence"],
+  businessintelligence: ["business intelligence"],
+  marketresearch: ["market research"],
+  powerbi: ["power bi"],
+  powerquery: ["power query"],
+  indexmatch: ["index match", "index/match"],
+};
+
+/**
+ * A term is covered when: exact phrase, squashed phrase, or every word present
+ * in the SAME segment (ATS-style proximity). The word-level fallback used to
+ * scan the whole document, so "data" in the education line plus "pipeline" in
+ * a project bullet covered "data pipeline" — inflating the score and hiding
+ * real gaps from the boost pass.
+ *
+ * Never-invent vendors (SuccessFactors, Tableau, SAS, …) are NOT mapped here:
+ * they are dropped from claimable terms on business postings
+ * (BUSINESS_VENDOR_DROP) so the score only measures what the candidate can
+ * truthfully claim — mapping them to generic words ("excel" covers "tableau")
+ * granted free coverage and hid real gaps from the boost pass.
+ */
+function covered(term: string, plain: string, plainSquash: string, segments: string[]): boolean {
   const words = term.split(" ").filter(Boolean);
 
   // Single tokens must match as words. `plain.includes("java")` was true for a
   // resume that only said JavaScript, crediting a requirement it did not meet.
   if (words.length === 1) {
     if (hasWord(term, plain)) return true;
+    for (const surface of CANON_SURFACE[term] ?? []) {
+      if (hasWord(surface, plain)) return true;
+    }
     return (IMPLIES[term] ?? []).some((specific) => hasWord(specific, plain));
   }
 
@@ -197,10 +277,55 @@ function covered(term: string, plain: string, plainSquash: string): boolean {
   if (plainSquash.includes(term.replace(/\s+/g, ""))) return true;
   const parts = words.filter((w) => w.length > 2);
   if (parts.length === 0) return false;
-  return parts.every((w) => hasWord(w, plain));
+  return segments.some((seg) => parts.every((w) => hasWord(w, seg)));
 }
 
-export function matchScore(jobDescription: string, resumeTex: string, companyName = "", jobTitle = ""): number | null {
+/**
+ * Structured read of the posting, produced by lib/tailor/jd-analysis.ts.
+ * Scoring weights must-haves over everything else; generation targets them first.
+ */
+export interface JdAnalysis {
+  /** Claimable terms from the posting's requirements/qualifications section (top global terms when no such section exists). */
+  mustHaves: string[];
+  /** Claimable terms from a nice-to-have/preferred/bonus section, minus must-haves. */
+  niceToHaves: string[];
+  /** Business domain vocabulary ("fintech", "healthtech", …) — null when unknown. */
+  domain: string | null;
+  /** The posting's dominant kinds of work ("data pipelines", "REST services", …). */
+  workTypes: string[];
+  /** Seniority the posting actually seeks, from title + years-of-experience signals. */
+  seniority: "junior" | "mid" | "senior" | null;
+  analyzedAt: string;
+  /** "sections" = deterministic parse only; "sections+llm" = semantic labels enriched. */
+  source: string;
+}
+
+const MUST_WEIGHT = 3;
+const NICE_WEIGHT = 0.75;
+
+/** Scoring weight of a JD term under a structured analysis (flat 1 without one). */
+export function termWeight(term: string, analysis?: JdAnalysis | null): number {
+  if (!analysis) return 1;
+  if (analysis.mustHaves.includes(term)) return MUST_WEIGHT;
+  if (analysis.niceToHaves.includes(term)) return NICE_WEIGHT;
+  return 1;
+}
+
+/** Terms from `terms` not covered in the resume — the shared missing-check. */
+export function uncoveredTerms(terms: string[], resumeTex: string): string[] {
+  const plain = plainTex(resumeTex);
+  const plainSquash = plain.replace(/\s+/g, "");
+  const segments = segmentsOf(plain);
+  return terms.filter((t) => !covered(t, plain, plainSquash, segments));
+}
+
+export function matchScore(
+  jobDescription: string,
+  resumeTex: string,
+  companyName = "",
+  jobTitle = "",
+  analysis?: JdAnalysis | null
+): number | null {
   if (!jobDescription.trim()) return null; // no JD to score against — display as "—", not 0%
   const terms = claimableJdTerms(
     jobDescription,
@@ -211,8 +336,15 @@ export function matchScore(jobDescription: string, resumeTex: string, companyNam
   if (terms.length === 0) return null;
   const plain = plainTex(resumeTex);
   const plainSquash = plain.replace(/\s+/g, "");
-  const hits = terms.filter((t) => covered(t, plain, plainSquash)).length;
-  return Math.round((hits / terms.length) * 100);
+  const segments = segmentsOf(plain);
+  let coveredW = 0;
+  let totalW = 0;
+  for (const t of terms) {
+    const w = termWeight(t, analysis);
+    totalW += w;
+    if (covered(t, plain, plainSquash, segments)) coveredW += w;
+  }
+  return Math.round((coveredW / totalW) * 100);
 }
 
 /**
@@ -228,7 +360,8 @@ const TECH_LEXICON = new Set(
    langgraph langsmith autogen crewai spacy nltk xgboost lightgbm onnx tensorrt jax
    powerbi tableau looker dagster prefect kinesis pubsub
    excel powerpoint vlookup xlookup powerquery indexmatch sumifs countifs alteryx qualtrics
-   dashboard kpi kpis marketresearch
+   dashboard kpi kpis marketresearch restapi
+   successfactors workday hris
    sas spss stata alteryx knime qlik jupyter anaconda dask polars duckdb
    regression classification clustering forecasting segmentation statistics statistical
    econometrics bayesian anova pca randomforest catboost timeseries arima
@@ -264,7 +397,18 @@ export function isTechTerm(term: string): boolean {
 
 /** Canonical single-token forms produced by SYNONYMS above — all tech terms. */
 /** JD phrases that shape-match a skill but are not skills — never claimable. */
-const CLAIM_BLOCKLIST = new Set(["tech stack", "full stack", "best practices", "problem solving", "problem solver"]);
+const CLAIM_BLOCKLIST = new Set([
+  "tech stack",
+  "full stack",
+  "best practices",
+  "problem solving",
+  "problem solver",
+  // IBM Consulting marketing boilerplate — never a real ATS skill for associate screens.
+  "hybrid cloud",
+  "software development",
+  // ZS program name, not a skill — the resume can never literally contain it.
+  "strategy insights",
+]);
 
 const CANON_TECH = new Set(
   "postgresql kubernetes javascript typescript machinelearning artificialintelligence cicd restapi sqlserver googlecloud aws llm etl database businessintelligence dashboard kpi marketresearch".split(" ")
@@ -302,6 +446,21 @@ const BUSINESS_DROP = new Set(
   "spark pyspark hadoop kafka kubernetes docker fastapi databricks terraform redis kotlin".split(" ")
 );
 
+/**
+ * Vendors the candidate must never claim (the doctrine maps them to
+ * intern-defensible methods — see BUSINESS_NEVER_INVENT in
+ * analyst-techniques.ts). On business postings these are JD vocabulary to map,
+ * never requirements the score or the boost pass may demand — otherwise the
+ * repair loop pressures the model to invent SuccessFactors/Tableau experience,
+ * which is exactly what the bullet audit bans.
+ */
+const BUSINESS_VENDOR_DROP = new Set(
+  "successfactors workday hris confirmit sas vba tableau powerbi alteryx qualtrics nielsen iqvia spss salesforce crm pitchbook".split(" ")
+);
+
+const BUSINESS_SIGNAL =
+  /successfactors|hr technology|hris|techno-?functional|associate consultant|strategy insights|decision analytics|competitive intelligence|business analyst|insights associate/i;
+
 export function claimableJdTerms(
   jobDescription: string,
   cap = 40,
@@ -309,19 +468,38 @@ export function claimableJdTerms(
   jobTitle = ""
 ): string[] {
   let terms = jdTerms(jobDescription, Math.max(cap * 3, 120), excludeTokens).filter(isClaimableTerm);
-  if (jobTitle && !/\b(engineer|developer|software|data engineer|ml engineer)\b/i.test(jobTitle)) {
+  const nonEngineeringTitle = Boolean(jobTitle) && !/\b(engineer|developer|software|data engineer|ml engineer)\b/i.test(jobTitle);
+  const businessPosting = nonEngineeringTitle || BUSINESS_SIGNAL.test(`${jobTitle}\n${jobDescription.slice(0, 2500)}`);
+  if (nonEngineeringTitle) {
     terms = terms.filter((t) => !t.split(/\s+/).some((w) => BUSINESS_DROP.has(w)));
+  }
+  if (businessPosting) {
+    terms = terms.filter((t) => !t.split(/\s+/).some((w) => BUSINESS_VENDOR_DROP.has(w)));
+  }
+  // "Java Script" written as two words means the poster meant JavaScript (IBM
+  // HR-tech). \s+ not \s*: a JD listing real Java alongside "JavaScript" keeps java.
+  if (/java\s+script/i.test(jobDescription) || /successfactors|hr technology|associate consultant/i.test(`${jobTitle}\n${jobDescription}`)) {
+    terms = terms.filter((t) => t.toLowerCase() !== "java");
   }
   return terms.slice(0, cap);
 }
 
-/** Missing terms for display (what the resume doesn't cover) — claimable only. */
-export function missingTerms(jobDescription: string, resumeTex: string, cap = 12, companyName = "", jobTitle = ""): string[] {
-  const plain = plainTex(resumeTex);
-  const plainSquash = plain.replace(/\s+/g, "");
-  return claimableJdTerms(jobDescription, 60, companyName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean), jobTitle)
-    .filter((t) => !covered(t, plain, plainSquash))
-    .slice(0, cap);
+/** Missing terms for display (what the resume doesn't cover) — claimable only, must-haves first. */
+export function missingTerms(
+  jobDescription: string,
+  resumeTex: string,
+  cap = 12,
+  companyName = "",
+  jobTitle = "",
+  analysis?: JdAnalysis | null
+): string[] {
+  const terms = claimableJdTerms(jobDescription, 60, companyName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean), jobTitle);
+  const missing = uncoveredTerms(terms, resumeTex);
+  if (analysis) {
+    const rank = (t: string) => (analysis.mustHaves.includes(t) ? 0 : analysis.niceToHaves.includes(t) ? 2 : 1);
+    missing.sort((a, b) => rank(a) - rank(b));
+  }
+  return missing.slice(0, cap);
 }
 
 /**
@@ -335,10 +513,12 @@ export function placementGaps(jobDescription: string, resumeTex: string, cap = 6
   if (!m) return [];
   const skillsPlain = plainTex(m[1]);
   const skillsSquash = skillsPlain.replace(/\s+/g, "");
+  const skillsSegments = segmentsOf(skillsPlain);
   const full = plainTex(resumeTex);
   const fullSquash = full.replace(/\s+/g, "");
+  const fullSegments = segmentsOf(full);
   return jdTerms(jobDescription, 40, companyName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean))
-    .filter((t) => covered(t, full, fullSquash) && !covered(t, skillsPlain, skillsSquash))
+    .filter((t) => covered(t, full, fullSquash, fullSegments) && !covered(t, skillsPlain, skillsSquash, skillsSegments))
     .filter(isTechTerm) // only skill-shaped terms belong in a skills block
     .slice(0, cap);
 }

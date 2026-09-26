@@ -18,9 +18,9 @@ const NEW = {
   title: "Student Office Assistant \\& Peer Mentor",
   dates: "08/2024 -- 10/2024",
   bullets: [
-    "Built Excel trackers for open departmental requests after the paper log kept dropping follow-ups, so the desk stopped losing items.",
-    "Standardized faculty notices in Word when students kept asking the same process questions, and the front desk reused the one-pager.",
-    "Walked incoming students through onboarding and time-management in one-on-ones, then passed recurring concerns to campus staff so orientation notes got updated.",
+    "Built Excel trackers covering 20+ open departmental requests after the paper log kept dropping follow-ups, so the desk stopped losing items.",
+    "Standardized the top 5 recurring process questions into a one-page faculty notice in Word, and the front desk reused it during advising.",
+    "Led groups of 8--12 incoming students through onboarding and time-management sessions, then passed recurring concerns to campus staff so orientation notes got updated.",
   ],
 };
 

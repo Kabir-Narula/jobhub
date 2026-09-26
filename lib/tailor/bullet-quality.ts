@@ -19,6 +19,13 @@ export interface BulletIssue {
 const FILLER =
   /\b(?:worked on|helped (?:with|to)|assisted (?:with|in)|was responsible for|responsible for|involved in|participated in|contributed to|various|multiple|successfully|utiliz\w+|leverag\w+|as needed|among others|etc\.)\b/i;
 
+/** Empty professional-sounding tails that avoid naming an artifact or outcome. */
+const VAGUE_EVIDENCE =
+  /\b(?:helping (?:technical and non-technical )?partners?|repeatable intelligence inputs|intelligence inputs|choose a path|findings reached stakeholders|supported (?:the )?(?:team|analysis|insights)|drove improvements?|improved (?:processes?|efficiency|communication))\b/i;
+/** Arabic digits or small written counts (model often writes "eight sources"). */
+const HAS_MAGNITUDE =
+  /\d|\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|twenty|thirty)\b/i;
+
 /** Scope a junior engineer cannot claim without a staff engineer noticing. */
 const INFLATED_SCOPE =
   /\b(?:architected|architecting|spearhead\w*|re-?platform\w*|owned the|drove the|led the (?:team|design|architecture)|single-handedly|from the ground up)\b/i;
@@ -54,11 +61,19 @@ const ARTIFACT =
 
 /** Consulting CAR artifacts — a model/deck/recommendation OR a real classroom/lab restore. */
 const CONSULTING_ARTIFACT =
-  /\b(?:model|models|spreadsheet|workbook|deck|slide|slides|briefing|memo|recommendation|recommendations|workstream|analysis|analyzed|forecast|sizing|cohort|interview|interviews|kpi|kpis|hypothesis|variance|walkthrough|stakeholder|stakeholders|excel|sql|powerpoint|microsoft word|\bword\b|tracker|notices?|guides?|pivot|vlookup|xlookup|index\s*\/\s*match|power query|sumifs?|countifs?|classroom|classrooms|projector|audio|camera|lab|labs|hyflex|peripheral|display|login|advising|onboarding|orientation|secondary|dashboard|insights?|market)\b/i;
+  /\b(?:model|models|spreadsheet|workbook|deck|slide|slides|briefing|brief|memo|recommendation|recommendations|recommended|workstream|analysis|analyzed|forecast|sizing|cohort|interview|interviews|kpi|kpis|hypothesis|variance|walkthrough|stakeholder|stakeholders|excel|sql|powerpoint|microsoft word|\bword\b|tracker|notices?|guides?|pivot|vlookup|xlookup|index\s*\/\s*match|power query|sumifs?|countifs?|classroom|classrooms|projector|audio|camera|lab|labs|hyflex|peripheral|display|login|advising|onboarding|orientation|secondary|dashboard|insights?|market|competitor|landscape|synthesis|sources?|python|pipeline|refresh|automat\w*|workshop|discovery|requirements?|uat|test scripts?|acceptance|process(?:es|[- ]gap| map| mapping| notes?)?|handoff|cutover|sso|identity|desk research|market research|deliverable|presentation|incident(?:s)?|diagnostic notes?|restore steps?|faculty|escalat\w*|queues?|correction plan|implementation recommendation|timing tests?|processing options|acceptance criteria)\b/i;
 
-/** Software internals a BCG/McKinsey partner cannot use as a case story. */
+/** Software internals a consulting/CI screener cannot use as a case story. */
 const SWE_INTERNALS =
-  /\b(?:payloads?|authentication|error-handling|execution plans?|deployment checklist|api fields?|processing logs?|backend workflows?|extraction workflows?|mobile and web|third-party (?:data|service)|shared backend|user-facing requests|feature behaviour|backend defects?|backend rules?)\b/i;
+  /\b(?:payloads?|authentication|error-handling|execution plans?|deployment checklist|api fields?|processing logs?|backend workflows?|extraction workflows?|mobile and web|third-party data|shared backend|user-facing requests|feature behaviour|backend defects?|backend rules?|release defects?|community-facing|infrastructure tradeoffs?|confluence|operating approach|lower-risk operating)\b/i;
+
+/** Extra SWE phrasing banned on HR-tech / techno-functional consulting resumes. */
+const HR_TECH_SWE_INTERNALS =
+  /\b(?:rest api data|api (?:fields?|handoffs?)|data handoffs?|release regressions?|third-party integration|backend workflows?|extraction workflows?)\b/i;
+
+/** Workspace/vendor tools this candidate has not verified — inventing them is a tell. */
+const BUSINESS_INVENTED_TOOLS =
+  /\b(?:confluence|notion|airtable|miro|asana|monday\.com|pitchbook|cb insights|tableau|power bi|powerbi|qualtrics|iqvia|salesforce|alteryx|looker|spss|successfactors|workday|confirmit|\bSAS\b|\bVBA\b|visual basic|microsoft access|\bhadoop\b)\b/i;
 
 /** A result is a state change: something stopped, dropped, or went away. */
 const RESULT_SIGNAL =
@@ -66,7 +81,7 @@ const RESULT_SIGNAL =
 
 /** Evidence other humans existed: the slot that makes an entry read like a job. */
 const TEAM_SIGNAL =
-  /\b(?:code review|reviewed?|review ?gate|pair\w*|sprint|standup|stand-up|demo|retro|design doc|runbook|documented|documentation|handed off|handoff|onboard\w*|stakeholder|ops lead|product manager|senior (?:engineer|developer)|teammate|another developer|on-?call|support ticket|walked .* through|confluence|jira|staff|faculty|professors?|instructors?|front desk|partners?|reviewers?|ITS)\b/i;
+  /\b(?:code review|reviewed?|review ?gate|pair\w*|sprint|standup|stand-up|demo|retro|design doc|runbook|documented|documentation|handed off|handoff|onboard\w*|stakeholder|ops lead|product manager|senior (?:engineer|developer)|teammate|another developer|on-?call|support ticket|walked .* through|jira|staff|faculty|professors?|instructors?|front desk|partners?|reviewers?|ITS|brief(?:ing)?)\b/i;
 
 /**
  * Work that is not greenfield building. Includes the language engineers use for
@@ -120,17 +135,39 @@ export interface AuditOptions {
   expandedCount?: number;
   /** Consulting/BA/insights: CAR bullets, not SWE mechanism quotas. */
   family?: "consulting";
+  /** Full JD — enables posting-flavor gates (e.g. competitive-intel framing). */
+  jobDescription?: string;
+  jobTitle?: string;
 }
 
 export function auditExperienceBullets(
-  entries: { company: string; bullets: string[] }[],
+  entries: { company: string; title?: string; bullets: string[] }[],
   opts: AuditOptions = {}
 ): BulletIssue[] {
-  const { minWords = 14, maxWords = 28, expandedCount = 2, family } = opts;
+  const { minWords = 14, maxWords = 28, expandedCount = 2, family, jobDescription = "", jobTitle = "" } = opts;
   const consulting = family === "consulting";
   const issues: BulletIssue[] = [];
   const add = (company: string, severity: BulletIssue["severity"], message: string) =>
     issues.push({ company, severity, message });
+
+  const CS_TITLE =
+    /\b(software|developer|engineer|automation|programmer|full[- ]?stack|back[- ]?end|data automation)\b/i;
+  const ANALYST_ONLY = /\banalyst\b/i;
+  const postingHead = `${jobTitle}\n${jobDescription}`;
+  const isCI =
+    consulting &&
+    /competitive intelligence|market(?:ing)? intelligence|\bcompetitive landscape\b|source monitor/i.test(postingHead);
+  const isHrTech =
+    consulting &&
+    /successfactors|hr technology|hris|\bhcm\b|techno-?functional|\bworkday\b|client workshop|test scripts?|\buat\b|hr apis?|hr systems?/i.test(
+      postingHead
+    );
+  const isZsSip =
+    consulting &&
+    /strategy insights|insights\s*&\s*planning|desk research|confirmit|market research and\/or desk research/i.test(postingHead);
+  const isZsDa =
+    consulting &&
+    /decision analytics|statistical models?|\bSAS\b|\bVBA\b|visual basic|hadoop eco|design custom analyses in R/i.test(postingHead);
 
   entries.forEach((entry, entryIdx) => {
     const { company, bullets } = entry;
@@ -142,6 +179,15 @@ export function auditExperienceBullets(
 
       const filler = FILLER.exec(b);
       if (filler) add(company, "high", `"${short}" uses filler "${filler[0]}" — state the actual work instead`);
+
+      const vague = VAGUE_EVIDENCE.exec(b);
+      if (vague) {
+        add(
+          company,
+          "high",
+          `"${short}" is vague evidence ("${vague[0]}") — name the artifact, problem, method, and observable outcome a screener for THIS role would probe`
+        );
+      }
 
       const scope = INFLATED_SCOPE.exec(b);
       if (scope) {
@@ -158,12 +204,22 @@ export function auditExperienceBullets(
         add(company, "high", `"${short}" names ${techNames.length} technologies (${techNames.join(", ")}) — max 2 per bullet, or it reads as a keyword list`);
       }
       if (consulting) {
-        const leak = SWE_INTERNALS.exec(b);
+        const leak = SWE_INTERNALS.exec(b) || (isHrTech ? HR_TECH_SWE_INTERNALS.exec(b) : null);
         if (leak) {
           add(
             company,
             "high",
-            `"${short}" is software-implementation language ("${leak[0]}") — a consulting screener cannot see the business problem; rewrite as diagnosis, analysis, recommendation`
+            isHrTech
+              ? `"${short}" is SWE/integration implementation language ("${leak[0]}") — rewrite as workshop, requirements, process clarification, or UAT/acceptance`
+              : `"${short}" is software-implementation language ("${leak[0]}") — a consulting/CI screener cannot see the business problem; rewrite as diagnosis, analysis, recommendation`
+          );
+        }
+        const invented = BUSINESS_INVENTED_TOOLS.exec(b);
+        if (invented) {
+          add(
+            company,
+            "high",
+            `"${short}" invents "${invented[0]}" — not in the verified tool pool; map to an intern-defensible method or drop the product name`
           );
         }
       }
@@ -188,7 +244,7 @@ export function auditExperienceBullets(
           company,
           "high",
           consulting
-            ? `"${short}" names no concrete analysis artifact (Excel model, SQL pull, deck, recommendation, variance) — nothing a partner can ask about`
+            ? `"${short}" names no concrete analysis artifact (Excel model, deck, recommendation, workshop, requirements note, UAT script, process map) — nothing a partner can ask about`
             : `"${short}" names no concrete artifact (endpoint, job, schema, migration, test, report) — nothing here a recruiter can ask about`
         );
       }
@@ -214,7 +270,7 @@ export function auditExperienceBullets(
 
     // ---- entry-level composition: does this read like a job? ----
     if (expanded && bullets.length >= 2) {
-      if (!bullets.some((b) => RESULT_SIGNAL.test(b) || /\d/.test(b))) {
+      if (!bullets.some((b) => RESULT_SIGNAL.test(b) || HAS_MAGNITUDE.test(b))) {
         add(company, "high", `no bullet in this entry states what changed — at least one needs a concrete result (a step removed, an error that stopped, a duration that dropped)`);
       }
       if (!bullets.some((b) => TEAM_SIGNAL.test(b))) {
@@ -287,7 +343,7 @@ export function auditExperienceBullets(
   // At least one magnitude somewhere. Qualitative results satisfy the per-entry
   // rule, and a resume can end up with zero numbers on the whole page — which is
   // the weakest possible showing on a 10-second scan and to an exec reader.
-  if (expandedBullets.length > 0 && !expandedBullets.some((b) => /\d/.test(b))) {
+  if (expandedBullets.length > 0 && !expandedBullets.some((b) => HAS_MAGNITUDE.test(b))) {
     add(
       expanded[0].company,
       "high",
@@ -329,21 +385,89 @@ export function auditExperienceBullets(
   }
 
   if (consulting) {
+    // Business resumes need TWO magnitudes; HyFlex's 30+ rooms is only one of them.
+    // Count written numbers ("eight sources") — the model often avoids digits.
+    const withNum = allBullets.filter((b) => HAS_MAGNITUDE.test(b));
+    const nonHyflexNum = withNum.filter(
+      (b) => !(/30\+|thirty/i.test(b) && /room|hyflex|faculty|classroom|instruction/i.test(b))
+    );
+    if (withNum.length < 2 || nonHyflexNum.length < 1) {
+      add(
+        entries[0].company,
+        "high",
+        `consulting/analyst needs at least TWO magnitudes on the page — HyFlex's 30+ rooms counts as only one; add a second on a software or analysis entry (sources, briefs, sites, hours, cycle time)`
+      );
+    }
+
+    if (isCI) {
+      const ciSignal =
+        /\b(?:source|sources|landscape|competitor|competitive|synthesis|synthesiz\w*|brief|monitor\w*|incomplete|fragment\w*|secondary|market signal|intelligence input)\b/i;
+      const ciHits = allBullets.filter((b) => ciSignal.test(b)).length;
+      if (ciHits < 2) {
+        add(
+          entries[0].company,
+          "high",
+          `competitive-intelligence posting needs at least two bullets with source monitoring / landscape / synthesis / brief framing mapped from real work`
+        );
+      }
+    }
+
+    if (isHrTech) {
+      const hrSignal =
+        /\b(?:workshop|discovery|requirements?|process(?:es| gap| gaps| map| mapping| notes?)?|test scripts?|uat|acceptance|handoff|walkthrough|sso|identity|stakeholder|onboarding|hr process)\b/i;
+      const hrHits = allBullets.filter((b) => hrSignal.test(b)).length;
+      if (hrHits < 2) {
+        add(
+          entries[0].company,
+          "high",
+          `HR-tech / techno-functional posting needs at least two bullets with workshop / requirements / process / UAT / acceptance / handoff framing`
+        );
+      }
+    }
+
+    if (isZsSip) {
+      const sipSignal =
+        /\b(?:desk research|market research|secondary|insight|insights|synthesis|synthesiz\w*|recommendation|brief|framework|client|stakeholder|excel|sources?)\b/i;
+      const sipHits = allBullets.filter((b) => sipSignal.test(b)).length;
+      if (sipHits < 2) {
+        add(
+          entries[0].company,
+          "high",
+          `ZS Strategy Insights posting needs at least two bullets with desk/market research / insight synthesis / client recommendation framing`
+        );
+      }
+    }
+
+    if (isZsDa) {
+      const daSignal =
+        /\b(?:analysis|analyses|model|excel|sql|python|dashboard|recommendation|brief|presentation|client|stakeholder|quantitativ\w*|decision)\b/i;
+      const daHits = allBullets.filter((b) => daSignal.test(b)).length;
+      if (daHits < 2) {
+        add(
+          entries[0].company,
+          "high",
+          `ZS Decision Analytics posting needs at least two bullets with quantitative analysis / Excel-SQL-Python method / client decision framing`
+        );
+      }
+    }
+
     const TEMPLATES: { re: RegExp; name: string }[] = [
       { re: /faculty notices/i, name: "faculty notices" },
       { re: /paper logs? dropped follow-ups/i, name: "paper logs dropped follow-ups" },
       { re: /reusable (?:answers?|guide|one-page)/i, name: "reusable answers/guide" },
       { re: /internal extraction workflows/i, name: "internal extraction workflows" },
       { re: /mobile and web/i, name: "mobile and web" },
-      { re: /third-party (?:data|service)/i, name: "third-party data/service" },
+      { re: /third-party data/i, name: "third-party data" },
     ];
     for (const t of TEMPLATES) {
       const hits = allBullets.filter((b) => t.re.test(b)).length;
-      if (hits >= 2) {
+      if (hits >= 2 || (hits >= 1 && (t.name === "mobile and web" || t.name === "third-party data"))) {
         add(
           entries[0].company,
           "high",
-          `the phrase "${t.name}" is reused on ${hits} bullets — HyFlex, Office Assistant, and internships must tell different stories`
+          hits >= 2
+            ? `the phrase "${t.name}" is reused on ${hits} bullets — HyFlex, Office Assistant, and internships must tell different stories`
+            : `"${t.name}" is product/SWE template language on a consulting/CI resume — rewrite as source synthesis or stakeholder analysis`
         );
       }
     }
@@ -356,6 +480,49 @@ export function auditExperienceBullets(
         "high",
         `Excel/Word/PowerPoint is stamped on ${stamped} experience bullets — put product names in skills and write the actual work instead`
       );
+    }
+    // Exactly one engineer/CS title when titles are present (generate path).
+    // Bullet-only unit fixtures omit titles and skip this gate.
+    const titled = entries.some((e) => typeof e.title === "string" && e.title.trim().length > 0);
+    if (titled) {
+      const engineerTitled = entries.filter(
+        (e) => e.title && CS_TITLE.test(e.title) && !ANALYST_ONLY.test(e.title)
+      );
+      if (engineerTitled.length === 0) {
+        add(
+          entries[0].company,
+          "high",
+          "no engineer/CS-titled software entry — keep exactly one CS bridge (Software Engineer Intern / Data Automation Engineer) with JD-balanced automation + stakeholder bullets"
+        );
+      } else if (engineerTitled.length > 1) {
+        add(
+          engineerTitled[1].company,
+          "high",
+          `${engineerTitled.length} engineer/CS titles on the page — keep exactly one CS bridge; reword the others to Analyst / Insights Analyst`
+        );
+      } else {
+        const bridge = engineerTitled[0];
+        const techish = bridge.bullets.filter((b) =>
+          /\b(?:python|sql|pipeline|automat\w*|refresh|script|query|join|dashboard)\b/i.test(b)
+        ).length;
+        const businessish = bridge.bullets.filter((b) =>
+          /\b(?:stakeholder|recommend|brief|synthesis|decision|insight|landscape|competitor|walkthrough|handoff)\b/i.test(
+            b
+          )
+        ).length;
+        // Tool-silent MBB: stakeholder/judgment is enough. Technical JD / CI: need both.
+        const wantsTech =
+          /\b(?:python|sql|pipeline|automat|workflow|source monitor|refresh)\b/i.test(postingHead) || isCI;
+        if (businessish === 0 || (wantsTech && techish === 0)) {
+          add(
+            bridge.company,
+            "high",
+            wantsTech
+              ? `CS bridge "${bridge.title}" is unbalanced — need at least one automation/data bullet AND one stakeholder/synthesis bullet weighted to THIS posting`
+              : `CS bridge "${bridge.title}" needs stakeholder/synthesis evidence — on a tool-silent posting do not force Python/SQL filler`
+          );
+        }
+      }
     }
   }
 
@@ -441,8 +608,8 @@ export function qualityFeedback(issues: BulletIssue[], family?: "consulting"): s
   const lines = [...high, ...low].map((i) => `- [${i.company}] ${i.message}`);
   const compose =
     family === "consulting"
-      ? "Do not simply reword the flagged bullets. Recompose affected experience as consulting CAR bullets from the source facts and THIS posting — diagnosis, how you worked it, what changed. THREE bullets per entry. Do not paste a Pivot/INDEX-MATCH/Power Query template. HyFlex is classroom/lab troubleshooting for professors, never an Excel/Word job. Office Assistant is request tracking + advising. Human City and INNWIL are mismatch/report stories, never authentication or extraction workflows. Never invent IQVIA/Tableau/Qualtrics/CRM. Do NOT repair by adding FastAPI, indexes, Node, Stripe, or CI. For projects: bullet 1 is the business problem; bullet 2 is how it produces an insight — not React/Express."
-      : "Do not simply reword the flagged bullets. Recompose affected experience entries so each one reads like a real few months on a real team: one build, one fix, one piece of work involving other people, each with a concrete artifact and at most two named technologies. For projects: bullet 1 is what the product is (plain English, at most one technology); bullet 2 is distinctive features + tech + technique, framed to this posting.";
+      ? "Do not simply reword the flagged bullets. Recompose from source facts + THIS posting + hiring_screen/reddit intel + posting_flavor + jd_deep_analysis_protocol. Analyze mandatory vs preferred and core responsibilities before writing. CAR, THREE bullets per entry. Keep exactly ONE engineer/CS-titled software entry (cs_bridge) with JD-balanced automation + stakeholder judgment; other software rows stay Analyst language (HR Technology Analyst / Systems Analyst when hr-tech; Insights Analyst / Strategy Analyst when zs-sip; Analytics Analyst when zs-da). Invent methods that fit the posting — do not paste a Pivot/INDEX-MATCH template. Competitive-intel needs source monitoring / synthesis / executive brief framing on at least two bullets. HR-tech needs workshop / requirements / process / UAT / acceptance framing on at least two bullets — never invent SuccessFactors/Workday use. ZS SIP needs desk/market research → insight → client recommendation; never invent Confirmit/Access. ZS DA needs quantitative Excel/SQL/Python analysis → client decision; never invent Tableau/SAS/R/VBA. Never invent IQVIA/Tableau/Qualtrics/PitchBook/CRM/Confluence. Ban vague tails (giving partners, intelligence inputs, choose a path). Campus-ops from source facts. At least TWO magnitudes (HyFlex 30+ counts as only one). Do NOT repair by adding FastAPI, indexes, Node, Stripe, mobile-and-web, release-defect, or REST-handoff language. For projects: bullet 1 is the business problem; bullet 2 is how it produces an insight — not React/Express."
+      : "Do not simply reword the flagged bullets. Recompose affected experience entries so each one reads like a real few months on a real team: one build, one fix, one piece of work involving other people, each with a concrete artifact and at most two named technologies. For projects: bullet 1 is what the product is (plain English, at most one technology); bullet 2 is distinctive features + tech + technique, framed to this posting. Rewrite vague or generic lines into artifact + method + outcome.";
   return [
     "QUALITY REPAIR PASS. Your previous draft failed these specific checks. Rewrite the flagged experience and project bullets from scratch to fix every one of them while following all original rules (bullet_count_rule still governs experience count and length; projects stay at exactly 2 bullets — purpose, then implementation):",
     ...lines,
@@ -472,4 +639,18 @@ export function bannedNumberShapes(texts: string[]): string[] {
     }
   }
   return [...found];
+}
+
+/**
+ * Requirement-coverage issues: the posting's must-have requirements that the
+ * assembled resume never addresses. The style audit above cannot see these —
+ * a resume can pass every doctrine check while silently skipping the posting's
+ * #1 requirement. Fed into the same repair pass as style failures.
+ */
+export function coverageIssues(uncoveredMustHaves: string[], company: string): BulletIssue[] {
+  return uncoveredMustHaves.slice(0, 5).map((t) => ({
+    company,
+    severity: "high" as const,
+    message: `the posting's must-have requirement "${t}" is not addressed anywhere — put it in the skills section and, if genuinely claimable, echo it in exactly one experience or project bullet`,
+  }));
 }

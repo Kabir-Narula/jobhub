@@ -80,8 +80,9 @@ export interface DocMeta {
 }
 
 interface GenerateResult {
+  reused?: boolean;
   resume: { id: string; version: number; pageCount: number; matchScore: number; fillPct?: number; missingKeywords?: string[]; diff: string };
-  cover: { id: string; version: number; pageCount: number; diff: string };
+  cover: { id: string; version: number; pageCount: number; diff: string } | null;
   warnings: string[];
   appliedTitleChanges?: { company: string; from: string; to: string }[];
   pendingTitleChanges: { company: string; from: string; to: string }[];
@@ -167,7 +168,12 @@ export function TailorClient({
       if (!res.ok) {
         toast.error(data.error ?? "Generation failed", { id: "gen" });
       } else {
-        toast.success("Draft documents generated", { id: "gen" });
+        toast.success(
+          data.reused
+            ? "Reused the draft generated less than 24h ago — “Regenerate with deeper research” forces a fresh run"
+            : "Draft documents generated",
+          { id: "gen" }
+        );
         setResult(data);
         setFinalized(false);
         const now = new Date().toISOString();
@@ -182,16 +188,20 @@ export function TailorClient({
             createdAt: now,
             titleChangeNote: "",
           },
-          {
-            id: data.cover.id,
-            kind: "COVER",
-            version: data.cover.version,
-            status: "DRAFT",
-            pageCount: data.cover.pageCount,
-            matchScore: null,
-            createdAt: now,
-            titleChangeNote: "",
-          },
+          ...(data.cover
+            ? [
+                {
+                  id: data.cover.id as string,
+                  kind: "COVER" as const,
+                  version: data.cover.version as number,
+                  status: "DRAFT",
+                  pageCount: data.cover.pageCount as number,
+                  matchScore: null,
+                  createdAt: now,
+                  titleChangeNote: "",
+                },
+              ]
+            : []),
           ...ds,
         ]);
         if (data.research) setResearch(data.research);
@@ -207,12 +217,12 @@ export function TailorClient({
     const res = await fetch("/api/tailor/finalize", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jobId: job.id, resumeId: result.resume.id, coverId: result.cover.id }),
+      body: JSON.stringify({ jobId: job.id, resumeId: result.resume.id, coverId: result.cover?.id }),
     });
     const data = await res.json();
     if (res.ok) {
       setFinalized(true);
-      setDocuments((ds) => ds.map((d) => (d.id === result.resume.id || d.id === result.cover.id ? { ...d, status: "FINAL" } : d)));
+      setDocuments((ds) => ds.map((d) => (d.id === result.resume.id || d.id === result.cover?.id ? { ...d, status: "FINAL" } : d)));
       toast.success(
         data.linkedToApplication
           ? "Finalized and attached to your tracked application."
@@ -224,10 +234,10 @@ export function TailorClient({
   }
 
   async function viewDiffForDoc(doc: DocMeta) {
-    if (result && (doc.id === result.resume.id || doc.id === result.cover.id)) {
+    if (result && (doc.id === result.resume.id || doc.id === result.cover?.id)) {
       setDiffFor({
         label: `${doc.kind === "RESUME" ? "Resume" : "Cover letter"} v${doc.version}`,
-        diff: doc.id === result.resume.id ? result.resume.diff : result.cover.diff,
+        diff: doc.id === result.resume.id ? result.resume.diff : (result.cover?.diff ?? ""),
       });
       return;
     }
@@ -594,7 +604,9 @@ export function TailorClient({
           )}
           {[
             { label: "Resume", id: result.resume.id, version: result.resume.version, pages: result.resume.pageCount, score: result.resume.matchScore, fillPct: result.resume.fillPct, diff: result.resume.diff },
-            { label: "Cover letter", id: result.cover.id, version: result.cover.version, pages: result.cover.pageCount, score: null, fillPct: undefined, diff: result.cover.diff },
+            ...(result.cover
+              ? [{ label: "Cover letter", id: result.cover.id, version: result.cover.version, pages: result.cover.pageCount, score: null, fillPct: undefined, diff: result.cover.diff }]
+              : []),
           ].map((d) => (
             <div key={d.id} className="rounded-lg border border-[#e6e3db] bg-white p-4">
               <div className="flex items-center justify-between">

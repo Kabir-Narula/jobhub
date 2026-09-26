@@ -190,9 +190,17 @@ check(
   line(regrouped, "Cloud \\& Data").includes("Machine Learning"),
   regrouped
 );
-// JD-allowed extra with no canonical home stays where the model put it
+// JD extra WITH a declared JD_TECH_HOME home is re-homed to its canonical line
+// (Kubernetes → Infra & Tools, now that the master uses the canonical labels).
 const withExtra = assembleSkillsSection(section, [{ label: "Cloud & Data", items: ["PostgreSQL", "Kubernetes"] }], 0, [], ["Kubernetes"]);
-check("JD extra (no home) stays on chosen line", line(withExtra, "Cloud \\& Data").includes("Kubernetes"), withExtra);
+check(
+  "JD extra with a declared home is re-homed (Kubernetes → Infra & Tools)",
+  line(withExtra, "Infra \\& Tools").includes("Kubernetes") && !line(withExtra, "Cloud \\& Data").includes("Kubernetes"),
+  withExtra
+);
+// JD-allowed extra with NO canonical home stays where the model put it
+const withHomeless = assembleSkillsSection(section, [{ label: "Cloud & Data", items: ["PostgreSQL", "Communication"] }], 0, [], ["Communication"]);
+check("JD extra (no home) stays on chosen line", line(withHomeless, "Cloud \\& Data").includes("Communication"), withHomeless);
 }
 
 if (failed) {

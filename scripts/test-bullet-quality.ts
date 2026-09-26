@@ -12,7 +12,7 @@ import {
   highSeverityCount,
   bannedNumberShapes,
 } from "../lib/tailor/bullet-quality";
-import { polishBullet, alignByCompany, keepTitleQualifier, clampConsultingTitle } from "../lib/tailor/generate";
+import { polishBullet, alignByCompany, keepTitleQualifier, clampConsultingTitle, finalizeBusinessTitle } from "../lib/tailor/generate";
 
 let failures = 0;
 function check(name: string, cond: boolean, detail = "") {
@@ -319,6 +319,68 @@ check(
   "Senior is not invented on a co-op title",
   clampConsultingTitle("Software Engineer (Co-op)", "Senior Business Analyst (Co-op)") === "Software Engineer (Co-op)"
 );
+check(
+  "CS bridge keeps an engineer title when the model proposes Data Automation Engineer",
+  finalizeBusinessTitle("Software Engineer Intern (Co-op)", "Data Automation Engineer (Co-op)", true) ===
+    "Data Automation Engineer (Co-op)"
+);
+check(
+  "CS bridge restores original engineer title if the model over-corrects to Business Analyst",
+  finalizeBusinessTitle("Software Engineer Intern (Co-op)", "Business Analyst (Co-op)", true) ===
+    "Software Engineer Intern (Co-op)"
+);
+check(
+  "non-bridge software row is forced to Business Analyst",
+  finalizeBusinessTitle("Software Engineer (Co-op)", "Software Engineer (Co-op)", false) === "Business Analyst (Co-op)"
+);
+
+const bridgeBalanced = auditExperienceBullets(
+  [
+    {
+      company: "Seneca Polytechnic — INNWIL Lab | VYBE Platform",
+      title: "Software Engineer Intern (Co-op)",
+      bullets: [
+        "Built a Python refresh that joined 3 incomplete source files so the weekly occupancy SQL stayed trustworthy.",
+        "Found occupancy mismatches across sites, synthesized the gap into a short brief, and the ops lead used it to set follow-ups.",
+        "Walked stakeholders through the recommendation so the chase on Friday files stopped.",
+      ],
+    },
+    {
+      company: "Project Human City",
+      title: "Business Analyst (Co-op)",
+      bullets: [
+        "Found a mismatch in the weekly report file, reconciled the source in Excel, and the report went out without a chase.",
+        "Sized the variance across 4 sites after the Friday file kept arriving late, then documented the gap.",
+        "Walked the ops lead through the occupancy recommendation so they stopped chasing the weekly spreadsheet.",
+      ],
+    },
+  ],
+  { expandedCount: 2, family: "consulting" }
+);
+check(
+  "balanced CS bridge with one engineer title passes consulting audit",
+  highSeverityCount(bridgeBalanced) === 0,
+  messages(bridgeBalanced.filter((i) => i.severity === "high"))
+);
+const bridgeMissing = auditExperienceBullets(
+  [
+    {
+      company: "Seneca Polytechnic — INNWIL Lab | VYBE Platform",
+      title: "Business Analyst (Co-op)",
+      bullets: [
+        "Found a mismatch in the weekly occupancy file, reconciled the source in Excel, and the report went out without a chase.",
+        "Built an Excel occupancy model after the Friday file kept arriving late, then sized the gap across 3 sites.",
+        "Walked the ops lead through the occupancy recommendation so they stopped chasing the weekly spreadsheet.",
+      ],
+    },
+  ],
+  { expandedCount: 1, family: "consulting" }
+);
+check(
+  "all-Analyst titles with no CS bridge is high severity",
+  bridgeMissing.some((i) => i.severity === "high" && /CS bridge|engineer\/CS/i.test(i.message)),
+  messages(bridgeMissing)
+);
 
 // --------------------------------------- cover-letter company facts are exempt
 // TD's research mentions a "$1,790 in value" package; quoting it in the cover
@@ -376,8 +438,16 @@ const CONSULTING_ENTRY = [
       "Walked the ops lead through the occupancy recommendation so they stopped chasing the weekly spreadsheet.",
     ],
   },
+  {
+    company: "Project Human City",
+    bullets: [
+      "Compared 4 incomplete source files into one brief so the ops lead stopped reconciling by hand each Friday.",
+      "Sized the variance after late files arrived, then documented the gap for the next planning review.",
+      "Walked stakeholders through the recommendation so the chase on Friday files stopped.",
+    ],
+  },
 ];
-const consultingIssues = auditExperienceBullets(CONSULTING_ENTRY, { expandedCount: 1, family: "consulting" });
+const consultingIssues = auditExperienceBullets(CONSULTING_ENTRY, { expandedCount: 2, family: "consulting" });
 check(
   "consulting CAR bullets pass the consulting auditor",
   highSeverityCount(consultingIssues) === 0,
@@ -472,8 +542,16 @@ const hyflexGood = auditExperienceBullets(
         "Showed faculty the projector recovery steps after the third restore so they could get the room back without waiting.",
       ],
     },
+    {
+      company: "Seneca Polytechnic — Student Services",
+      bullets: [
+        "Matched open request IDs in the tracker after 6 follow-ups were dropped, and the desk stopped losing items.",
+        "Walked incoming students through onboarding in one-on-ones, then passed recurring concerns to campus staff.",
+        "Found a mismatch in the weekly log, reconciled the source, and the report went out without a chase.",
+      ],
+    },
   ],
-  { expandedCount: 1, family: "consulting" }
+  { expandedCount: 2, family: "consulting" }
 );
 check(
   "HyFlex troubleshooting bullets pass without Excel/Word stamps",
@@ -523,7 +601,7 @@ const vlookupEntry = auditExperienceBullets(
       bullets: [
         "Matched open request IDs with VLOOKUP after 6 follow-ups were dropped, and the desk stopped losing items.",
         "Walked incoming students through onboarding in one-on-ones, then passed recurring concerns to campus staff.",
-        "Found a mismatch in weekly occupancy, reconciled the source, and the report went out without a chase.",
+        "Found a mismatch across 2 weekly logs, reconciled the source, and the report went out without a chase.",
       ],
     },
   ],
@@ -539,6 +617,78 @@ check(
   "the same CAR bullets fail the SWE mechanism quota",
   consultingAsSwe.some((i) => /mechanism|greenfield|artifact/i.test(i.message)),
   messages(consultingAsSwe)
+);
+
+const confluenceInvent = auditExperienceBullets(
+  [
+    {
+      company: "Seneca Polytechnic — INNWIL Lab | VYBE Platform",
+      bullets: [
+        "Compared infrastructure tradeoffs and summarized recommendations in Confluence for 2 partner teams.",
+        "Found a mismatch in weekly occupancy, reconciled it in Excel, and the report went out.",
+        "Walked the ops lead through the occupancy recommendation so they stopped chasing the spreadsheet.",
+      ],
+    },
+  ],
+  { expandedCount: 1, family: "consulting" }
+);
+check(
+  "invented Confluence on a consulting resume is high severity",
+  confluenceInvent.some((i) => i.severity === "high" && /confluence/i.test(i.message)),
+  messages(confluenceInvent)
+);
+
+const vagueIntel = auditExperienceBullets(
+  [
+    {
+      company: "Seneca Polytechnic — INNWIL Lab | VYBE Platform",
+      bullets: [
+        "Built Python workflows that separated heavy extraction from live requests, giving partners repeatable intelligence inputs.",
+        "Found a mismatch in weekly occupancy, reconciled it in Excel across 3 sites, and the report went out.",
+        "Walked the ops lead through the occupancy recommendation so they stopped chasing the spreadsheet.",
+      ],
+    },
+  ],
+  { expandedCount: 1, family: "consulting" }
+);
+check(
+  "vague 'intelligence inputs' / giving-partners tails are high severity",
+  vagueIntel.some((i) => i.severity === "high" && /vague evidence/i.test(i.message)),
+  messages(vagueIntel)
+);
+
+const ciFraming = auditExperienceBullets(
+  [
+    {
+      company: "Seneca Polytechnic — INNWIL Lab | VYBE Platform",
+      title: "Software Engineer Intern (Co-op)",
+      bullets: [
+        "Built a Python refresh that joined 3 incomplete source files so the weekly source refresh stayed trustworthy.",
+        "Found fragmented occupancy signals, synthesized them into a short competitive-landscape brief the ops lead used.",
+        "Walked stakeholders through the recommendation so the Friday chase stopped.",
+      ],
+    },
+    {
+      company: "Project Human City",
+      title: "Insights Analyst (Co-op)",
+      bullets: [
+        "Mapped inconsistent third-party source fields into shared definitions across 4 feeds for comparable briefs.",
+        "Found recurring gaps in incomplete market signals before the weekly stakeholder review, then flagged them.",
+        "Reconciled client feedback with constraints, helping the team prioritize feasible changes before release.",
+      ],
+    },
+  ],
+  {
+    expandedCount: 2,
+    family: "consulting",
+    jobTitle: "AI Market and Competitive Intelligence Analyst",
+    jobDescription: "competitive intelligence source monitoring competitive landscape executive briefs",
+  }
+);
+check(
+  "CI-framed bullets with magnitudes pass the CI posting gate",
+  highSeverityCount(ciFraming) === 0,
+  messages(ciFraming.filter((i) => i.severity === "high"))
 );
 
 console.log(failures === 0 ? "all bullet-quality checks passed" : `${failures} check(s) failed`);

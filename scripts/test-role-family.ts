@@ -7,6 +7,7 @@ import {
   isCampusOpsEntry,
   selectExperienceEntries,
   keepCampusOps,
+  csBridgeEntryIndex,
 } from "../lib/tailor/role-family";
 import { detectLens } from "../lib/tailor/lens";
 import { isTechTerm } from "../lib/tailor/match";
@@ -39,6 +40,11 @@ check(
 check(
   "Data Analyst is analyst",
   detectRoleFamily("Data Analyst", "Shopify", "Excel SQL Tableau") === "analyst"
+);
+check(
+  "Autodesk Market and Competitive Intelligence Analyst is analyst, not SWE",
+  detectRoleFamily("AI Market and Competitive Intelligence Analyst", "Autodesk", "PitchBook competitive landscape") ===
+    "analyst"
 );
 check(
   "Data Engineer is data-ml",
@@ -75,6 +81,32 @@ check(
   "Associate Software Engineer is SWE, not consulting",
   detectRoleFamily("Associate Software Engineer", "Boston Consulting Group", "") === "swe"
 );
+check(
+  "IBM HR Technology Developer Associate is consulting, not SWE",
+  detectRoleFamily(
+    "HR Technology Developer Associate / Consultant associé développeur en technologies RH",
+    "IBM",
+    "As an HR Technology Associate Consultant, you will support IBM Consulting HR systems projects. SuccessFactors and techno-functional integration."
+  ) === "consulting"
+);
+check(
+  "IBM Enterprise Strategy Consultant Associate is consulting",
+  detectRoleFamily("Enterprise Strategy Consultant Associate", "IBM", "IBM Consulting strategy associate consultant client engagement") ===
+    "consulting"
+);
+check(
+  "Software Engineer at IBM stays SWE",
+  detectRoleFamily("Software Engineer", "IBM", "Java Python Kubernetes microservices") === "swe"
+);
+check(
+  "ZS Strategy Insights & Planning Associate is consulting",
+  detectRoleFamily("Strategy Insights & Planning Associate", "ZS", "desk research Excel Confirmit client-first") ===
+    "consulting"
+);
+check(
+  "ZS Decision Analytics Associate is consulting",
+  detectRoleFamily("Decision Analytics Associate", "ZS", "statistical models Python R Tableau Excel") === "consulting"
+);
 check("Excel is a claimable analyst tool", isTechTerm("excel"));
 check("VLOOKUP is a claimable analyst tool", isTechTerm("vlookup"));
 check("Power Query is a claimable analyst tool", isTechTerm("powerquery"));
@@ -108,6 +140,13 @@ check(
   selectExperienceEntries(masterish, "swe").some((e) => /three of cups/i.test(e.company))
 );
 check("analyst resumes drop a project to make room", projectSlots(4, { business: true }) === 2);
+check(
+  "CS bridge is the first non-campus-ops entry (most recent software internship)",
+  (() => {
+    const picked = selectExperienceEntries(masterish, "analyst");
+    return csBridgeEntryIndex(picked) === 0 && /INNWIL/i.test(picked[0].company);
+  })()
+);
 
 console.log(failures === 0 ? "\nall role-family checks passed" : `\n${failures} check(s) FAILED`);
 if (failures > 0) process.exit(1);

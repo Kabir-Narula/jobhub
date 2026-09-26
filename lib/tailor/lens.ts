@@ -44,6 +44,13 @@ export const BUSINESS_SKILL_SUPPRESS = [
   "Spaced Repetition",
   "GLB",
   "Database Design",
+  "Distributed Systems",
+  "CI/CD",
+  "Docker",
+  "BullMQ",
+  "Redis",
+  "ML Inference",
+  "GitHub Actions",
 ];
 
 const CONSULTING_LENS: Lens = {
@@ -52,6 +59,9 @@ const CONSULTING_LENS: Lens = {
     "diagnosis that changed a decision or removed a manual chase",
     "analysis using intern-defensible methods that fit THIS posting — not a Pivot/INDEX-MATCH template",
     "stakeholder walkthroughs and recommendations",
+    "HR-tech / techno-functional: workshops, requirements notes, UAT/test scripts, integration clarification — never invent SuccessFactors/Workday use",
+    "ZS SIP: desk/market research → Excel analysis → synthesized insight → client recommendation — never invent Confirmit/Access",
+    "ZS DA: business question → Excel/SQL/Python analysis → client decision — never invent Tableau/SAS/R/VBA",
     "HyFlex: restore classroom and lab tech for professors, then document only if needed",
     "campus ops: office request tracker + mentoring, not a second documentation job",
   ],
@@ -62,8 +72,8 @@ const ANALYST_LENS: Lens = {
   id: "analyst",
   foreground: [
     "question → method that fits THIS posting → what a stakeholder did with it",
+    "competitive-intel: source monitoring, incomplete signals, landscape synthesis, executive-ready briefs",
     "SQL / spreadsheet / synthesis only when the work and the posting make them real",
-    "synthesizing messy inputs for a stakeholder",
     "HyFlex classroom/lab troubleshooting for faculty",
     "campus ops mentoring and request tracking when it shows process + people",
   ],
@@ -72,7 +82,7 @@ const ANALYST_LENS: Lens = {
 
 const PRODUCT_LENS: Lens = {
   id: "product",
-  foreground: ["user problem", "tradeoff", "stakeholder alignment", "Excel/Jira", "plain-language outcome"],
+  foreground: ["user problem", "tradeoff", "stakeholder alignment", "plain-language outcome"],
   suppress: ["Kotlin", "Blender", "FastAPI", "tRPC"],
 };
 
@@ -175,21 +185,22 @@ export function lensInstruction(lens: Lens | null): string {
 
 Foreground ONLY: ${lens.foreground.join("; ")}.
 Do NOT mention these in experience or lead skills with them: ${lens.suppress.join(", ")}.
-YOU choose skills and bullets for THIS posting from the verified pool + intern-defensible palette. Do not stamp Pivot Tables, INDEX/MATCH, Power Query, or a Professional line onto every consulting resume. Silent MBB postings stay lighter. Insights/KPI postings can be richer. Never list Tableau, Power BI, Alteryx, Qualtrics, Nielsen, IQVIA, SPSS, Salesforce, CRM, Word, Node, Stripe, Fastify, OpenAI, or Git-as-the-whole-Frameworks-line.
-Experience titles: software internships become Analyst / Business Analyst / Insights Analyst, keeping (Co-op)/(Freelance)/(Contract, Part-time). NEVER retitle Student Office Assistant, Peer Mentor, or HyFlex. Never Consultant. Never write Academic WIL.
-Bullets: Context-Analysis-Result, exactly 3 per entry. Write original bullets from the source facts. BANNED as the story: payloads, authentication, execution plans, deployment checklists, API fields, extraction workflows, mobile-and-web clients, backend defects.
-HyFlex: restore classroom/lab tech for professors (audio, display, camera, login, peripherals, 30+ rooms). Office Assistant: request tracking + advising from the source — you decide whether a lookup function belongs. Four experience entries max.`;
+Read the full job.description (from job.posting_url) before writing. FOLLOW hiring_screen_from_research and reddit_intel when present. YOU invent methods for THIS posting — do not stamp Pivot/INDEX-MATCH/Power Query.
+Titles: keep EXACTLY ONE software/CS-titled internship (cs_bridge_company); reword other software rows to Analyst / Business Analyst / Insights Analyst. NEVER retitle campus-ops. Never Consultant. Never Academic WIL.
+Bullets: Context-Analysis-Result, exactly 3 per entry. CS bridge balances automation with stakeholder judgment when the posting asks for technical work. BANNED as the story: payloads, authentication, execution plans, deployment checklists, API fields.
+Campus-ops: write from source facts (HyFlex = classroom/lab restore; Office Assistant = request tracking + advising). At least TWO magnitudes on the page (HyFlex 30+ counts as only one).`;
   }
   if (lens.id === "analyst") {
-    return `ANALYST / INSIGHTS ROLE FAMILY — beats every SWE rule. ${ANALYST_RESUME_NORMS}
+    return `ANALYST / INSIGHTS / COMPETITIVE-INTELLIGENCE ROLE FAMILY — beats every SWE rule. ${ANALYST_RESUME_NORMS}
 
 Foreground ONLY: ${lens.foreground.join("; ")}.
 Suppress in experience: ${lens.suppress.join(", ")}.
-YOU rank skills for THIS posting. Insights/KPI/dashboard language belongs when the posting and the candidate make it real — never as a template. Never invent Tableau, Qualtrics, Nielsen, IQVIA, SPSS. Never Fastify, OpenAI, Node, Stripe. Python only as analysis.
-Keep Student Office Assistant & Peer Mentor and ITS HyFlex. HyFlex = restore classroom/lab tech. Office Assistant = request tracker + advising from the source. Do not retitle them. Prefer those over a third project. Software internships become analysis + stakeholder bullets, not endpoints.`;
+Read job.description (live posting at job.posting_url) first. FOLLOW hiring_screen_from_research and reddit_intel strictly. Competitive intelligence / market research → source monitoring, synthesis, executive-ready briefs. Insights/KPI → question → method → stakeholder use. Never invent Tableau, Qualtrics, Nielsen, IQVIA, PitchBook, SPSS.
+Titles: keep EXACTLY ONE engineer/CS-titled software internship (cs_bridge_company) with JD-balanced automation + analysis when the posting asks for technical work. Other software rows → Analyst / Insights Analyst. Campus ops titles frozen.
+Prefer campus ops over a third project. Invent methods from the posting — do not stamp Excel-function templates. At least TWO magnitudes (HyFlex 30+ = one).`;
   }
   if (lens.id === "product") {
-    return `PRODUCT ROLE FAMILY. ${PRODUCT_RESUME_NORMS} Foreground: ${lens.foreground.join("; ")}. Suppress: ${lens.suppress.join(", ")}.`;
+    return `PRODUCT ROLE FAMILY. ${PRODUCT_RESUME_NORMS} Foreground: ${lens.foreground.join("; ")}. Suppress: ${lens.suppress.join(", ")}. Tools only when the JD makes them real — do not stamp Excel.`;
   }
   return `DOMINANT LENS for this posting (${lens.id}): foreground ONLY these real aspects of the candidate: ${lens.foreground.join(", ")}. Do NOT mention these at all (they are real but irrelevant here): ${lens.suppress.join(", ")}. Product names (FastAPI, Django, Flask, Next.js) only if the posting names them; otherwise use portable terms (REST API, Python service, pipeline). The lens is a work theme, not a brand to repeat in every bullet.`;
 }

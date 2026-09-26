@@ -34,6 +34,7 @@ export const EXTRA_SKILLS: { item: string; provenance: string; label: SkillsLabe
   { item: "SUMIFS", provenance: "coursework", label: "Infra & Tools" },
   { item: "Agile/Scrum", provenance: "repo", label: "Frameworks" },
   { item: "Secondary Research", provenance: "coursework", label: "Frameworks" },
+  { item: "Competitive Intelligence", provenance: "coursework", label: "Frameworks" },
   { item: "Segmentation", provenance: "coursework", label: "Frameworks" },
   { item: "Dashboard Reporting", provenance: "repo", label: "Cloud & Data" },
   { item: "KPI Tracking", provenance: "coursework", label: "Cloud & Data" },

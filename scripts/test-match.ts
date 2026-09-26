@@ -2,7 +2,7 @@
  * Deterministic checks for the ATS scoring engine. No LLM, no database, no cost.
  * Run: npx tsx scripts/test-match.ts
  */
-import { claimableJdTerms, isTechTerm, matchScore } from "../lib/tailor/match";
+import { claimableJdTerms, isTechTerm, matchScore, uncoveredTerms, type JdAnalysis } from "../lib/tailor/match";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = "") {
@@ -77,6 +77,66 @@ check(
   "spark is not required on a BCG Associate posting",
   !claimableJdTerms(JD_SPARK_CHROME, 25, [], "Associate, Western Canadian Universities").some((t) => t.includes("spark")),
   claimableJdTerms(JD_SPARK_CHROME, 25, [], "Associate, Western Canadian Universities").join(", ")
+);
+
+console.log("\n7) PDF metadata never counts toward the score");
+// injectPdfMeta embeds the job title in \hypersetup — its text used to survive
+// plainTex and auto-cover every title term.
+const JD_K8S = `Requirements: Kubernetes. Kubernetes is required. We run Kubernetes.`;
+const RESUME_META_ONLY = String.raw`\hypersetup{pdftitle={Kabir Narula — Resume — Kubernetes Developer @ Acme},pdfauthor={Kabir Narula}}
+\begin{document}\section{Skills}
+\begin{itemize}\item \textbf{Languages}{: Python \\}\end{itemize}
+\section{Experience}\resumeItem{Built a Python service.}\end{document}`;
+check(
+  "job title inside \\hypersetup does not cover the requirement",
+  matchScore(JD_K8S, RESUME_META_ONLY) === 0,
+  `score=${matchScore(JD_K8S, RESUME_META_ONLY)}`
+);
+
+console.log("\n8) multi-word terms need their words in one sentence");
+const RESUME_SPLIT = String.raw`\section{Education}\resumeItem{Coursework in data structures.}
+\section{Experience}\resumeItem{Built a pipeline for nightly exports.}`;
+check(
+  "'data' and 'pipeline' in different sentences do not cover 'data pipeline'",
+  uncoveredTerms(["data pipeline"], RESUME_SPLIT).includes("data pipeline")
+);
+const RESUME_TOGETHER = String.raw`\section{Experience}\resumeItem{Built a data pipeline for nightly exports.}`;
+check(
+  "same-sentence words cover 'data pipeline'",
+  !uncoveredTerms(["data pipeline"], RESUME_TOGETHER).includes("data pipeline")
+);
+
+console.log("\n9) must-have requirements outweigh other terms in the score");
+const JD_TWO = `Requirements: Python. Docker. Python and Docker required.`;
+const TEST_ANALYSIS: JdAnalysis = {
+  mustHaves: ["python"],
+  niceToHaves: [],
+  domain: null,
+  workTypes: [],
+  seniority: null,
+  analyzedAt: "",
+  source: "test",
+};
+const RESUME_PY = String.raw`\section{Skills}\begin{itemize}\item \textbf{Languages}{: Python \\}\end{itemize}\resumeItem{Built a Python tool.}`;
+const RESUME_DOCKER = String.raw`\section{Skills}\begin{itemize}\item \textbf{Infra \& Tools}{: Docker \\}\end{itemize}\resumeItem{Wrote Docker configs.}`;
+check(
+  "covering the must-have beats covering the other term",
+  (matchScore(JD_TWO, RESUME_PY, "", "", TEST_ANALYSIS) ?? 0) > (matchScore(JD_TWO, RESUME_DOCKER, "", "", TEST_ANALYSIS) ?? 0),
+  `py=${matchScore(JD_TWO, RESUME_PY, "", "", TEST_ANALYSIS)} docker=${matchScore(JD_TWO, RESUME_DOCKER, "", "", TEST_ANALYSIS)}`
+);
+
+console.log("\n10) business postings never demand never-invent vendors");
+const JD_IBM_M = `Your role and responsibilities
+Learn HR Technology Platforms such as SAP SuccessFactors.
+Required: Java Script or Python, knowledge of APIs. SuccessFactors SuccessFactors.`;
+const ibmTerms = claimableJdTerms(JD_IBM_M, 40, ["ibm"], "HR Technology Developer Associate");
+check("successfactors is not a claimable term", !ibmTerms.some((t) => /successfactors/i.test(t)), ibmTerms.join(", "));
+check("two-word 'Java Script' does not extract java", !ibmTerms.includes("java"), ibmTerms.join(", "));
+const JD_JAVA_BOTH = `Requirements: Java and JavaScript. Java is required. JavaScript is required.`;
+check(
+  "a real Java + JavaScript JD keeps java",
+  claimableJdTerms(JD_JAVA_BOTH, 25, [], "Software Engineer").includes("java"),
+  claimableJdTerms(JD_JAVA_BOTH, 25, [], "Software Engineer").join(", ")
 );
 
 console.log(failures === 0 ? "\nall match checks passed" : `\n${failures} check(s) FAILED`);

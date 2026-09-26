@@ -72,21 +72,26 @@ const CAREER_SUBS = ["cscareerquestions", "cscareerquestionsCAD", "EngineeringRe
 
 const FAMILY_REDDIT: Record<RoleFamily, { subs: string[]; resumeQueries: string[] }> = {
   consulting: {
-    subs: ["McKinsey_BCG_Bain", "consulting", "MBA", "FinancialCareers"],
+    subs: ["McKinsey_BCG_Bain", "consulting", "MBA", "FinancialCareers", "zs_associates"],
     resumeQueries: [
-      "resume Excel stakeholder",
-      "resume bullets impact CAR",
-      "business analyst resume PowerPoint",
-      "skills consulting resume",
+      "consulting resume CAR bullets what partners look for",
+      "MBB resume screen recruiter",
+      "business analyst resume diagnosis impact stakeholder",
+      "associate resume skills consulting interview",
+      "ZS Associates resume EBI interview what they look for",
+      "ZS SIP Strategy Insights resume skills",
+      "ZS Decision Analytics Associate resume Python Excel",
     ],
   },
   analyst: {
-    subs: ["analytics", "datascience", "BusinessIntelligence", "consulting", "excel"],
+    subs: ["analytics", "datascience", "BusinessIntelligence", "consulting", "marketresearch", "zs_associates"],
     resumeQueries: [
-      "data analyst resume Excel SQL",
-      "business analyst resume bullets",
-      "insights resume skills",
-      "analyst resume stakeholder",
+      "competitive intelligence resume what hiring managers want",
+      "market research analyst resume bullets synthesis",
+      "insights associate resume skills recruiters",
+      "business analyst resume stakeholder recommendations",
+      "data analyst resume impact not tools",
+      "ZS Decision Analytics resume interview guesstimates",
     ],
   },
   swe: {

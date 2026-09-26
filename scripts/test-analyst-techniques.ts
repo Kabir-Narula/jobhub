@@ -31,6 +31,17 @@ check("a SQL-heavy JD picks a SQL join", sqlJd.includes("sql-join"), sqlJd.join(
 const vlookupJd = matchJdTechniques("Must know VLOOKUP. VLOOKUP VLOOKUP in Excel.", "consulting").map((t) => t.id);
 check("VLOOKUP is selected only when the JD names it", vlookupJd.includes("vlookup"), vlookupJd.join(", "));
 
+const bareExcel = matchJdTechniques("Must be strong in Excel and comfortable with data.", "consulting").map((t) => t.id);
+check(
+  "bare Excel in a JD does not force Pivot or INDEX/MATCH techniques",
+  !bareExcel.includes("pivot") && !bareExcel.includes("index-match"),
+  bareExcel.join(", ")
+);
+check(
+  "bare Excel still allows Excel as a claimable skill item",
+  claimableBusinessSkillItems("Must be strong in Excel and comfortable with data.", "consulting").includes("Excel")
+);
+
 const insights = matchJdTechniques(
   "Insights Associate. Secondary data, market research, consumer segmentation, Qualtrics surveys, Nielsen panels.",
   "analyst"
@@ -45,6 +56,23 @@ const lillySkills = claimableBusinessSkillItems(
 );
 check("Lilly JD claimable skills include Dashboard Reporting and KPI Tracking", lillySkills.includes("Dashboard Reporting") && lillySkills.includes("KPI Tracking"), lillySkills.join(", "));
 check("Lilly JD claimable skills never list IQVIA or Tableau", !lillySkills.includes("IQVIA") && !lillySkills.includes("Tableau") && !lillySkills.includes("Qualtrics"), lillySkills.join(", "));
+check(
+  "CI JD picks competitive-intel technique",
+  matchJdTechniques(
+    "AI Market and Competitive Intelligence Analyst. Monitor competitive landscape. Executive briefs. PitchBook.",
+    "analyst"
+  ).some((t) => t.id === "competitive-intel" || t.id === "secondary"),
+);
+check(
+  "CI JD claimable skills include Competitive Intelligence or Market Research",
+  (() => {
+    const s = claimableBusinessSkillItems(
+      "AI Market and Competitive Intelligence Analyst. Competitive landscape. Market research. PitchBook.",
+      "analyst"
+    );
+    return s.includes("Competitive Intelligence") || s.includes("Market Research") || s.includes("Secondary Research");
+  })()
+);
 const bcgSkills = claimableBusinessSkillItems("Drive, creativity, intelligence, lead and persuade.");
 check(
   "silent BCG JD claimable pool is empty — no Excel-function dump",
