@@ -143,6 +143,10 @@ const PROPER_CASE: Record<string, string> = {
   postman: "Postman",
   gitlab: "GitLab",
   github: "GitHub",
+  dynamodb: "DynamoDB",
+  "rest api": "REST API",
+  "rest apis": "REST APIs",
+  "github actions": "GitHub Actions",
 };
 
 const ACRONYMS = new Set(["aws", "gcp", "api", "apis", "sql", "ci", "cd", "dbt", "php", "go"]);

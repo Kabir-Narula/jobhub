@@ -214,6 +214,30 @@ export function techniqueBrief(jobDescription: string, family: RoleFamily): stri
 
 export type BusinessSkillBucket = "languages" | "infra" | "frameworks" | "cloud";
 
+/** Master skills-line label for each bucket (canonical labels from skills-extra). */
+const BUCKET_LABEL: Record<BusinessSkillBucket, import("./skills-extra").SkillsLabel> = {
+  languages: "Languages",
+  infra: "Infra & Tools",
+  frameworks: "Frameworks",
+  cloud: "Cloud & Data",
+};
+
+/**
+ * Declared master-line home for an intern-defensible business skill item.
+ * assembleSkillsSection consults this when the model mis-homes an item
+ * ("Requirements Gathering" under Languages) — same enforcement as JD_TECH_HOME.
+ */
+export function businessSkillHome(item: string): import("./skills-extra").SkillsLabel | undefined {
+  const t = item.toLowerCase().trim();
+  for (const v of Object.values(TECHNIQUE_SKILL)) {
+    if (v.item.toLowerCase() === t) return BUCKET_LABEL[v.bucket];
+  }
+  for (const e of BUSINESS_JD_EXTRAS) {
+    if (e.item.toLowerCase() === t) return BUCKET_LABEL[e.bucket];
+  }
+  return undefined;
+}
+
 /**
  * Always-on skills are intentionally empty. The model ranks from the verified
  * pool. We only strip SWE leaks and invented vendors.

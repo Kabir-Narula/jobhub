@@ -201,6 +201,21 @@ check(
 // JD-allowed extra with NO canonical home stays where the model put it
 const withHomeless = assembleSkillsSection(section, [{ label: "Cloud & Data", items: ["PostgreSQL", "Communication"] }], 0, [], ["Communication"]);
 check("JD extra (no home) stays on chosen line", line(withHomeless, "Cloud \\& Data").includes("Communication"), withHomeless);
+// Business skill item with a declared bucket home is re-homed
+// ("Requirements Gathering" belongs to Frameworks via its analyst-techniques bucket)
+const withBiz = assembleSkillsSection(section, [{ label: "Languages", items: ["Python", "Requirements Gathering"] }], 0, [], ["Requirements Gathering"]);
+check(
+  "business skill re-homed to its bucket line (Requirements Gathering → Frameworks)",
+  line(withBiz, "Frameworks").includes("Requirements Gathering") && !line(withBiz, "Languages").includes("Requirements Gathering"),
+  withBiz
+);
+// JD-chosen tech terms are display-cased (model/JD casing never leaks)
+const withCasing = assembleSkillsSection(section, [{ label: "Languages", items: ["Python", "javascript"] }], 0, [], ["javascript"]);
+check(
+  "JD-chosen term is display-cased (javascript → JavaScript)",
+  line(withCasing, "Languages").includes("JavaScript") && !line(withCasing, "Languages").includes(" javascript"),
+  withCasing
+);
 }
 
 if (failed) {

@@ -10,8 +10,8 @@
  */
 
 import { EXTRA_SKILLS, extraSkillsPool } from "./skills-extra";
-import { JD_TECH_HOME } from "./metric-guidance";
-import { clampBusinessSkillLine, BUSINESS_NEVER_INVENT } from "./analyst-techniques";
+import { JD_TECH_HOME, displayTech } from "./metric-guidance";
+import { clampBusinessSkillLine, BUSINESS_NEVER_INVENT, businessSkillHome } from "./analyst-techniques";
 import { BUSINESS_SKILL_SUPPRESS } from "./lens";
 
 // ---------- engine compatibility ----------
@@ -422,9 +422,10 @@ export function assembleSkillsSection(
   for (const i of extraSkillsPool()) {
     if (!canon.has(i.toLowerCase())) canon.set(i.toLowerCase(), escapeLatex(i));
   }
-  // JD-allowed extras (soft skills + hard keywords already used in bullets)
+  // JD-allowed extras (soft skills + hard keywords already used in bullets) —
+  // displayTech normalizes JD casing ("javascript" → "JavaScript")
   for (const i of allowedExtra) {
-    if (!canon.has(i.toLowerCase())) canon.set(i.toLowerCase(), escapeLatex(i));
+    if (!canon.has(i.toLowerCase())) canon.set(i.toLowerCase(), escapeLatex(displayTech(i)));
   }
   const suppressSet = new Set(suppress.map((s) => s.toLowerCase()));
 
@@ -456,8 +457,10 @@ export function assembleSkillsSection(
       const key = unescapeItem(validated).toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
-      // unknown-home items (JD-allowed extras) stay where the model put them
-      const label = home.get(key) ?? targetLine?.label;
+      // unknown-home items (JD-allowed extras) stay where the model put them —
+      // unless a business-skill bucket declares a home (same enforcement as
+      // JD_TECH_HOME: "Requirements Gathering" under Languages was the bug)
+      const label = home.get(key) ?? businessSkillHome(key) ?? targetLine?.label;
       if (!label) continue;
       const arr = buckets.get(label) ?? [];
       arr.push(validated);
