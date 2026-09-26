@@ -3,7 +3,7 @@ import type { ExperienceEntry, SkillsSection } from "./latex";
 import { projectBriefs } from "./projects";
 import { extraSkillsPool } from "./skills-extra";
 import { verifiedNumbersBrief } from "./verified-numbers";
-import { resumeNormsFor, type RoleFamily, isCampusOpsEntry, csBridgeEntryIndex } from "./role-family";
+import { resumeNormsFor, type RoleFamily, isCampusOpsEntry, csBridgeEntryIndex, jdWantsProgramming } from "./role-family";
 import { techniqueBrief } from "./analyst-techniques";
 import type { MetricGuidance } from "./metric-guidance";
 import type { JdAnalysis } from "./match";
@@ -63,11 +63,11 @@ When role_family is "consulting", "analyst", or "product", this block BEATS ever
 - You are the strategist. Invent methods that fit THIS posting from source facts + hiring screen. Do not stamp Pivot / INDEX-MATCH / Power Query on every consulting job.
 - Follow resume_taste_principles as fallback taste only when live Reddit/hiring_screen is thin.
 - consulting/analyst: Context-Analysis-Result. A partner must see a business problem, how you worked it, and what changed. Tools in skills when they belong; at most TWO experience bullets name Excel/Word/PowerPoint on the whole page.
-- CS BRIDGE (mandatory): mark exactly ONE software entry (see cs_bridge_company) with an engineer/CS title (Software Engineer Intern, Software Developer, Data Automation Engineer, etc., keeping Co-op/Freelance). That entry's THREE bullets balance technical work AND business judgment, weighted by the posting:
+- CS BRIDGE (conditional on the posting's technical ask): when cs_bridge_company is set, that ONE software entry keeps an engineer/CS title (Software Engineer Intern, Software Developer, Data Automation Engineer, etc., keeping Co-op/Freelance). That entry's THREE bullets balance technical work AND business judgment, weighted by the posting:
   - JD asks for Python/SQL/pipelines/automation: up to two technical bullets ending in a decision/stakeholder use; one synthesis/recommendation.
-  - JD silent on tools (classic MBB): one light technical bullet max; lead with diagnosis and recommendation.
   - When posting_flavor is hr-tech: at most ONE light Python/API/automation bullet ending in stakeholder or process use; the other two = requirements clarification, workshop/handoff, or UAT/test scripts.
   - Never payloads, authentication, deployment checklists, or API field dumps — even on the bridge.
+- WHEN cs_bridge_company IS NULL — the posting names no programming, coding, or automation requirement (e.g. a classic Bain/McKinsey strategy Associate posting) — keep ZERO engineering titles on the page. Reword EVERY software entry toward Analyst-family titles that fit THIS posting (Business Analyst / Strategy Analyst / Insights Analyst / Operations Analyst / Research Analyst — choose what matches the role's actual work), with diagnosis, analysis, and stakeholder bullets only. An engineering title on a no-coding posting reads as a mismatch, not a strength.
 - All OTHER software entries: Analyst / Business Analyst / Insights Analyst titles and analysis+stakeholder bullets (no SWE internals). When posting_flavor is hr-tech: use HR Technology Analyst or Systems Analyst titles; lead with process/requirements/workshop/UAT — never REST handoffs or release regressions as the story.
 - product: users, tradeoffs, stakeholders. Still keep the one CS bridge title.
 - FOUR experience entries, THREE CAR bullets each.
@@ -150,7 +150,7 @@ VOCABULARY TRANSLATION (software postings only — skip entirely when role_famil
 
 JOB TITLES — the 2-of-3 rule for software postings; consulting/analyst keeps a CS bridge:
 - Software postings: for the TWO most relevant experience entries, reword the title toward the posting's family when it describes the same work: e.g. "Software Engineer (Freelance)" becomes "Backend Software Developer (Freelance)". Keep ONE entry's title completely original.
-- Consulting/analyst/product: KEEP EXACTLY ONE software entry with an engineer/CS title (Software Engineer Intern, Software Developer, Data Automation Engineer — pick the phrasing that best matches THIS posting's technical ask). That company is named in cs_bridge_company. Reword every OTHER software entry toward Analyst / Business Analyst / Insights Analyst — or HR Technology Analyst / Systems Analyst when posting_flavor is hr-tech; Insights Analyst / Strategy Analyst when zs-sip; Analytics Analyst / Decision Analytics Analyst when zs-da. Campus-ops titles stay verbatim, including (Contract, Part-time). Keep (Co-op)/(Freelance). Never write Academic WIL. Never Consultant. Never leave the whole page as Analyst-only with zero engineering signal.
+- Consulting/analyst/product: keep AT MOST ONE software entry with an engineer/CS title — only when cs_bridge_company is set, i.e. the posting asks for programming (Python/SQL/coding/automation). When cs_bridge_company is null, use ZERO engineering titles. Reword every non-bridge software entry toward Analyst / Business Analyst / Insights Analyst — or HR Technology Analyst / Systems Analyst when posting_flavor is hr-tech; Insights Analyst / Strategy Analyst when zs-sip; Analytics Analyst / Decision Analytics Analyst when zs-da. Campus-ops titles stay verbatim, including (Contract, Part-time). Keep (Co-op)/(Freelance). Never write Academic WIL. Never Consultant. Never force an engineering title onto a no-coding posting.
 - Intern titles keep their intern or co-op marker.
 - Hard rules still apply: never upgrade seniority (no Senior/Staff/Lead/Principal). Do not invent "data scientist".
 - Set "titleChanged": true whenever you reword.
@@ -216,9 +216,15 @@ interface GenerateInput {
 }
 
 export async function generateContent(input: GenerateInput): Promise<GeneratedContent> {
-  const bridgeIdx = csBridgeEntryIndex(input.entries);
   const family = input.roleFamily ?? "swe";
   const flavor: PostingFlavor = detectPostingFlavor(input.job.title, input.job.description, family);
+  const businessFamily = family === "consulting" || family === "analyst" || family === "product";
+  // CS bridge only when the posting asks for programming — a strategy posting
+  // with no coding requirement gets ZERO engineering titles (all-Analyst page).
+  const bridgeIdx =
+    businessFamily && jdWantsProgramming(input.job.description, input.job.title)
+      ? csBridgeEntryIndex(input.entries)
+      : -1;
   const experience = input.entries.map((e, i) => ({
     company: e.company,
     location: e.location,

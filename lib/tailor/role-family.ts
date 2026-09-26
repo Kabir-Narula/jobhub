@@ -91,6 +91,20 @@ export function csBridgeEntryIndex(entries: { company: string; title: string }[]
   return entries.findIndex((e) => !isCampusOpsEntry(e));
 }
 
+/**
+ * Does this posting actually ask for programming work? The CS bridge (one
+ * engineer/CS-titled entry on business resumes) is justified ONLY when it
+ * does — a strategy/consulting posting with no coding requirement (e.g. a
+ * classic Bain Associate Consultant JD) gets an all-Analyst page, because an
+ * engineering title on it reads as a mismatch, not a bridge.
+ */
+const PROGRAMMING_ASK =
+  /\b(python|javascript|typescript|java(?!script)|\bsql\b|c\+\+|c#|scala|kotlin|golang|rust|\br\b|coding|programming|software (?:engineer|develop\w*)|automation|apis?\b|machine learning|data pipelines?|algorithms?|debugging|scripts?|statistical (?:models?|analysis)|vba|macros?)\b/i;
+
+export function jdWantsProgramming(jobDescription: string, jobTitle = ""): boolean {
+  return PROGRAMMING_ASK.test(`${jobTitle}\n${jobDescription}`);
+}
+
 /** Optional ATS seeds — empty for business families so silent JDs stay silent. */
 export const SKILL_SEEDS: Partial<Record<RoleFamily, string[]>> = {
   consulting: [],
@@ -104,19 +118,19 @@ export const CONSULTING_RESUME_NORMS = `Taste principles from r/McKinsey_BCG_Bai
 - "Would a partner understand why it mattered?" If no, rewrite.
 - Experience is analysis, stakeholders, recommendations — not FastAPI/CI. Skills hold tools; you choose which intern-defensible tools THIS posting makes relevant. Do NOT list Word.
 - Method > product name. Map Tableau/Alteryx JD words onto intern-defensible techniques; never invent those products. Map SuccessFactors/Workday onto process/requirements/UAT language — never invent HRIS product use.
-- BCG: tailor headlines so recruiters can compare you to the role. Keep exactly ONE engineer/CS-titled software entry (cs_bridge); other software rows → Analyst language (HR Technology Analyst / Systems Analyst on hr-tech).
+- BCG: tailor headlines so recruiters can compare you to the role. Keep AT MOST ONE engineer/CS-titled software entry (cs_bridge) — only when the posting asks for programming; a tool-silent strategy posting gets an all-Analyst page. Other software rows → Analyst language (HR Technology Analyst / Systems Analyst on hr-tech).
 - Campus-ops titles stay frozen (HyFlex = classroom/lab restore from source facts; Office Assistant = request tracking + advising). Never Academic WIL. Never Consultant.`;
 
 export const ANALYST_RESUME_NORMS = `Taste principles from r/analytics / insights screens — principles, not a script. Live Reddit + hiring_screen in the payload override these when they conflict:
 
 - Rank skills for THIS posting. Excel/SQL/Python/PowerPoint only when they fit; CI / market research / segmentation / KPI language when the posting makes them real. Never FastAPI, Next.js, Fastify, OpenAI, Node, Word-as-flex.
 - Read the full JD first. Competitive intelligence → source monitoring, synthesis of incomplete information, executive-ready briefs. Insights/KPI → question → method → stakeholder use.
-- Keep exactly ONE engineer/CS-titled software internship (cs_bridge) with JD-balanced automation + judgment. Other software co-ops → Analyst / Insights language. Campus ops titles frozen.
+- Keep AT MOST ONE engineer/CS-titled software internship (cs_bridge) — only when the posting asks for programming; zero engineering titles when it doesn't. Other software co-ops → Analyst / Insights language. Campus ops titles frozen.
 - Bullets: question → method YOU choose → what a stakeholder did with it. Never default to VLOOKUP/INDEX-MATCH on every resume.
 - JD may name Qualtrics/SPSS/Nielsen/PitchBook — map to synthesis / secondary research; do not invent those products.
 - Prefer campus ops over a third GitHub project. HyFlex is faculty tech restore, not a docs job.`;
 
-export const PRODUCT_RESUME_NORMS = `Product resumes (r/ProductManagement): users, decisions, tradeoffs, stakeholders — not stack dumps. Skills from the JD. Campus ops mentoring/front-desk is evidence you worked with non-engineers. Keep one CS bridge title.`;
+export const PRODUCT_RESUME_NORMS = `Product resumes (r/ProductManagement): users, decisions, tradeoffs, stakeholders — not stack dumps. Skills from the JD. Campus ops mentoring/front-desk is evidence you worked with non-engineers. CS bridge title only when the JD asks for programming.`;
 
 export function resumeNormsFor(family: RoleFamily): string | null {
   if (family === "consulting") return CONSULTING_RESUME_NORMS;

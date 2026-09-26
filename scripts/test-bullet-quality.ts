@@ -382,6 +382,49 @@ check(
   messages(bridgeMissing)
 );
 
+// --------------------------------------- conditional CS bridge (no-coding JD)
+// A Bain-style strategy posting with no programming requirement gets ZERO
+// engineering titles; an engineer title on it is the high-severity failure.
+const BAIN_STYLE_JD = `What you'll do: work with client teams on their hardest problems, structure ambiguous questions, build fact-based recommendations, present to senior executives. What you'll bring: strong academic record, leadership, teamwork, communication.`;
+const engineerOnNoCoding = auditExperienceBullets(
+  [
+    {
+      company: "INNWIL",
+      title: "Software Engineer Intern (Co-op)",
+      bullets: [
+        "Found a mismatch in the weekly report file, reconciled the source in Excel, and the report went out without a chase.",
+        "Sized the variance across 4 sites after the Friday file kept arriving late, then documented the gap.",
+        "Walked the ops lead through the occupancy recommendation so they stopped chasing the weekly spreadsheet.",
+      ],
+    },
+  ],
+  { expandedCount: 1, family: "consulting", jobTitle: "Associate Consultant", jobDescription: BAIN_STYLE_JD }
+);
+check(
+  "engineer title on a no-coding posting is high severity",
+  engineerOnNoCoding.some((i) => i.severity === "high" && /no programming\/coding requirement/i.test(i.message)),
+  messages(engineerOnNoCoding)
+);
+const analystOnNoCoding = auditExperienceBullets(
+  [
+    {
+      company: "INNWIL",
+      title: "Business Analyst (Co-op)",
+      bullets: [
+        "Found a mismatch in the weekly report file, reconciled the source in Excel, and the report went out without a chase.",
+        "Sized the variance across 4 sites after the Friday file kept arriving late, then documented the gap.",
+        "Walked the ops lead through the occupancy recommendation so they stopped chasing the weekly spreadsheet.",
+      ],
+    },
+  ],
+  { expandedCount: 1, family: "consulting", jobTitle: "Associate Consultant", jobDescription: BAIN_STYLE_JD }
+);
+check(
+  "all-Analyst page on a no-coding posting is not flagged for titles",
+  !analystOnNoCoding.some((i) => /CS bridge|engineer\/CS|no programming/i.test(i.message)),
+  messages(analystOnNoCoding)
+);
+
 // --------------------------------------- cover-letter company facts are exempt
 // TD's research mentions a "$1,790 in value" package; quoting it in the cover
 // letter is correct, and the money-figure ban must not apply outside the resume.
@@ -682,7 +725,7 @@ const ciFraming = auditExperienceBullets(
     expandedCount: 2,
     family: "consulting",
     jobTitle: "AI Market and Competitive Intelligence Analyst",
-    jobDescription: "competitive intelligence source monitoring competitive landscape executive briefs",
+    jobDescription: "competitive intelligence source monitoring competitive landscape executive briefs Python SQL automation",
   }
 );
 check(

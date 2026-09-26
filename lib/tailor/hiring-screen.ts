@@ -143,7 +143,7 @@ export function hiringScreenFallback(
     return [
       "CAR bullets: diagnose → analyze → a decision or chase that stopped — partners screen for judgment, not tools",
       "Do not fill a tool-silent posting with Pivot Tables, INDEX/MATCH, or Power Query",
-      "Keep exactly one engineer/CS title; other software rows → Business Analyst language",
+      "ZERO engineering titles on a no-coding posting — every software row becomes an Analyst-family title that fits the role; a CS bridge exists only if the JD names Python/SQL/automation",
       "Campus ops stay real (HyFlex restore, office tracker) — never rewrite as Excel jobs",
       "At least two magnitudes; prefer hours saved / cycle time / stakeholder counts over automation %",
       "Mandatory vs preferred: only mirror tools the JD actually requires; judgment beats keyword density",
@@ -181,7 +181,7 @@ export function flavorDirective(flavor: PostingFlavor): string {
     case "insights":
       return `POSTING FLAVOR = insights/KPI. Question → method → stakeholder use. CS bridge only as technical as the JD. No product-QA language on Analyst rows. No vague "supported insights" lines.`;
     case "silent-mbb":
-      return `POSTING FLAVOR = tool-silent consulting. Diagnosis and recommendation over tools. Do not invent Excel function names. One light technical bullet on the CS bridge max.`;
+      return `POSTING FLAVOR = tool-silent consulting. Diagnosis and recommendation over tools. Do not invent Excel function names. ZERO engineering titles unless the JD names programming tools — all-Analyst page.`;
     case "consulting-general":
       return `POSTING FLAVOR = consulting. CAR bullets; tools only when the JD makes them relevant.`;
     case "analyst-general":

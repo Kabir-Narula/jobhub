@@ -8,6 +8,7 @@ import {
   selectExperienceEntries,
   keepCampusOps,
   csBridgeEntryIndex,
+  jdWantsProgramming,
 } from "../lib/tailor/role-family";
 import { detectLens } from "../lib/tailor/lens";
 import { isTechTerm } from "../lib/tailor/match";
@@ -146,6 +147,26 @@ check(
     const picked = selectExperienceEntries(masterish, "analyst");
     return csBridgeEntryIndex(picked) === 0 && /INNWIL/i.test(picked[0].company);
   })()
+);
+
+check(
+  "Bain-style no-coding JD does not want programming",
+  !jdWantsProgramming(
+    "Work with client teams on their hardest problems, structure ambiguous questions, build fact-based recommendations, present to senior executives. Strong academic record, leadership, teamwork.",
+    "Associate Consultant"
+  )
+);
+check(
+  "Python-mentioning consulting JD wants programming",
+  jdWantsProgramming("Design custom analyses. Knowledge of programming (e.g., Java/Python/R) is a plus.", "Decision Analytics Associate")
+);
+check(
+  "IBM 'Java Script' typo JD still wants programming",
+  jdWantsProgramming("Required: Java Script or Python, knowledge of APIs.", "HR Technology Developer Associate")
+);
+check(
+  "SWE posting wants programming",
+  jdWantsProgramming("Build REST services and write automated tests.", "Software Engineer")
 );
 
 console.log(failures === 0 ? "\nall role-family checks passed" : `\n${failures} check(s) FAILED`);

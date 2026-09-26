@@ -9,6 +9,8 @@
  * quality-tier LLM call, so cosmetic drift never doubles the request.
  */
 
+import { jdWantsProgramming } from "./role-family";
+
 export interface BulletIssue {
   company: string;
   severity: "high" | "low";
@@ -509,14 +511,27 @@ export function auditExperienceBullets(
         `Excel/Word/PowerPoint is stamped on ${stamped} experience bullets — put product names in skills and write the actual work instead`
       );
     }
-    // Exactly one engineer/CS title when titles are present (generate path).
+    // Engineer/CS title gate, when titles are present (generate path).
     // Bullet-only unit fixtures omit titles and skip this gate.
+    // The CS bridge is conditional: it belongs on the page ONLY when the
+    // posting asks for programming. A no-coding posting (classic Bain/McKinsey
+    // strategy Associate) gets an all-Analyst page. Fixtures without a JD keep
+    // the legacy bridge-required behavior.
     const titled = entries.some((e) => typeof e.title === "string" && e.title.trim().length > 0);
+    const wantsProgramming = jobDescription ? jdWantsProgramming(jobDescription, jobTitle) : true;
     if (titled) {
       const engineerTitled = entries.filter(
         (e) => e.title && CS_TITLE.test(e.title) && !ANALYST_ONLY.test(e.title)
       );
-      if (engineerTitled.length === 0) {
+      if (!wantsProgramming) {
+        if (engineerTitled.length > 0) {
+          add(
+            engineerTitled[0].company,
+            "high",
+            `posting names no programming/coding requirement — keep ZERO engineering titles; reword "${engineerTitled[0].title}" toward an Analyst-family title that fits this posting (an engineer title on a no-coding posting reads as a mismatch)`
+          );
+        }
+      } else if (engineerTitled.length === 0) {
         add(
           entries[0].company,
           "high",
@@ -636,7 +651,7 @@ export function qualityFeedback(issues: BulletIssue[], family?: "consulting"): s
   const lines = [...high, ...low].map((i) => `- [${i.company}] ${i.message}`);
   const compose =
     family === "consulting"
-      ? "Do not simply reword the flagged bullets. Recompose from source facts + THIS posting + hiring_screen/reddit intel + posting_flavor + jd_deep_analysis_protocol. Analyze mandatory vs preferred and core responsibilities before writing. CAR, THREE bullets per entry. Keep exactly ONE engineer/CS-titled software entry (cs_bridge) with JD-balanced automation + stakeholder judgment; other software rows stay Analyst language (HR Technology Analyst / Systems Analyst when hr-tech; Insights Analyst / Strategy Analyst when zs-sip; Analytics Analyst when zs-da). Invent methods that fit the posting — do not paste a Pivot/INDEX-MATCH template. Competitive-intel needs source monitoring / synthesis / executive brief framing on at least two bullets. HR-tech needs workshop / requirements / process / UAT / acceptance framing on at least two bullets — never invent SuccessFactors/Workday use. ZS SIP needs desk/market research → insight → client recommendation; never invent Confirmit/Access. ZS DA needs quantitative Excel/SQL/Python analysis → client decision; never invent Tableau/SAS/R/VBA. Never invent IQVIA/Tableau/Qualtrics/PitchBook/CRM/Confluence. Ban vague tails (giving partners, intelligence inputs, choose a path). Campus-ops from source facts. EVERY entry carries at least one number that fits its scenario; at least TWO magnitudes on the page (HyFlex 30+ counts as only one). Do NOT repair by adding FastAPI, indexes, Node, Stripe, mobile-and-web, release-defect, or REST-handoff language. For projects: bullet 1 is the business problem; bullet 2 is how it produces an insight — not React/Express."
+      ? "Do not simply reword the flagged bullets. Recompose from source facts + THIS posting + hiring_screen/reddit intel + posting_flavor + jd_deep_analysis_protocol. Analyze mandatory vs preferred and core responsibilities before writing. CAR, THREE bullets per entry. Keep AT MOST ONE engineer/CS-titled software entry — only when the posting asks for programming; a no-coding posting gets ZERO engineering titles (all Analyst). Other software rows stay Analyst language (HR Technology Analyst / Systems Analyst when hr-tech; Insights Analyst / Strategy Analyst when zs-sip; Analytics Analyst when zs-da). Invent methods that fit the posting — do not paste a Pivot/INDEX-MATCH template. Competitive-intel needs source monitoring / synthesis / executive brief framing on at least two bullets. HR-tech needs workshop / requirements / process / UAT / acceptance framing on at least two bullets — never invent SuccessFactors/Workday use. ZS SIP needs desk/market research → insight → client recommendation; never invent Confirmit/Access. ZS DA needs quantitative Excel/SQL/Python analysis → client decision; never invent Tableau/SAS/R/VBA. Never invent IQVIA/Tableau/Qualtrics/PitchBook/CRM/Confluence. Ban vague tails (giving partners, intelligence inputs, choose a path). Campus-ops from source facts. EVERY entry carries at least one number that fits its scenario; at least TWO magnitudes on the page (HyFlex 30+ counts as only one). Do NOT repair by adding FastAPI, indexes, Node, Stripe, mobile-and-web, release-defect, or REST-handoff language. For projects: bullet 1 is the business problem; bullet 2 is how it produces an insight — not React/Express."
       : "Do not simply reword the flagged bullets. Recompose affected experience entries so each one reads like a real few months on a real team: one build, one fix, one piece of work involving other people, each with a concrete artifact, at most two named technologies, and at least one number that fits the entry's scenario (a duration, a count, rows per run, hours saved). For projects: bullet 1 is what the product is (plain English, at most one technology); bullet 2 is distinctive features + tech + technique, framed to this posting. Rewrite vague or generic lines into artifact + method + outcome.";
   return [
     "QUALITY REPAIR PASS. Your previous draft failed these specific checks. Rewrite the flagged experience and project bullets from scratch to fix every one of them while following all original rules (bullet_count_rule still governs experience count and length; projects stay at exactly 2 bullets — purpose, then implementation):",
