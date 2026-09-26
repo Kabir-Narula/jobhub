@@ -304,7 +304,7 @@ const MUST_WEIGHT = 3;
 const NICE_WEIGHT = 0.75;
 
 /** Scoring weight of a JD term under a structured analysis (flat 1 without one). */
-export function termWeight(term: string, analysis?: JdAnalysis | null): number {
+function termWeight(term: string, analysis?: JdAnalysis | null): number {
   if (!analysis) return 1;
   if (analysis.mustHaves.includes(term)) return MUST_WEIGHT;
   if (analysis.niceToHaves.includes(term)) return NICE_WEIGHT;
@@ -449,7 +449,8 @@ const BUSINESS_DROP = new Set(
 /**
  * Vendors the candidate must never claim (the doctrine maps them to
  * intern-defensible methods — see BUSINESS_NEVER_INVENT in
- * analyst-techniques.ts). On business postings these are JD vocabulary to map,
+ * analyst-techniques.ts and BUSINESS_INVENTED_TOOLS in bullet-quality.ts;
+ * edit all three lists together). On business postings these are JD vocabulary to map,
  * never requirements the score or the boost pass may demand — otherwise the
  * repair loop pressures the model to invent SuccessFactors/Tableau experience,
  * which is exactly what the bullet audit bans.

@@ -58,7 +58,14 @@ outreach email to go with them.
 - From-scratch, recruiter-tuned bullets (3 per entry, 18–28 words, punchy), skills re-ranked within your
   real vocabulary, **best-2-projects picked from your actual repos** for each role, title optimization
   within honesty rules (same seniority, same function).
-- **Fabrication tripwire**: any number not present in your source material triggers regeneration, then a visible warning.
+- **Structured JD analysis**: every run first parses the posting into must-have vs nice-to-have
+  requirements (from its own sections, not word frequency), domain, work types, and seniority.
+  Must-haves weigh 3× in the ATS score, drive the boost pass, and gate the repair loop.
+- **Employer archetypes**: the screen culture of the company itself (bank campus, fintech,
+  rotational grad program, Big 4, MBB/Tier-2, economic consulting) shapes what gets foregrounded —
+  an RBC Amplify resume and a Wealthsimple resume are not the same document.
+- **Fabrication tripwire**: indefensible number shapes (percentages, multipliers, money, scale)
+  trigger regeneration; any other invented figure shows as a visible you-must-defend-this warning.
 - **Objective page metrics**: must compile to exactly 1 page *and* fill it (measured from the PDF's text geometry).
 - Every version stores its `.tex`, PDF, diff vs master, page count, fill %, ATS keyword coverage, and timestamp.
 

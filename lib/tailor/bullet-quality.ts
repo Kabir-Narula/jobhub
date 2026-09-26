@@ -71,7 +71,13 @@ const SWE_INTERNALS =
 const HR_TECH_SWE_INTERNALS =
   /\b(?:rest api data|api (?:fields?|handoffs?)|data handoffs?|release regressions?|third-party integration|backend workflows?|extraction workflows?)\b/i;
 
-/** Workspace/vendor tools this candidate has not verified — inventing them is a tell. */
+/**
+ * Workspace/vendor tools this candidate has not verified — inventing them is a tell.
+ * One of three lists that must stay aligned: this one audits generated output,
+ * `BUSINESS_NEVER_INVENT` in analyst-techniques.ts steers the model + assembly,
+ * and `BUSINESS_VENDOR_DROP` in match.ts keeps them out of ATS scoring/boost.
+ * Edit all three together.
+ */
 const BUSINESS_INVENTED_TOOLS =
   /\b(?:confluence|notion|airtable|miro|asana|monday\.com|pitchbook|cb insights|tableau|power bi|powerbi|qualtrics|iqvia|salesforce|alteryx|looker|spss|successfactors|workday|confirmit|\bSAS\b|\bVBA\b|visual basic|microsoft access|\bhadoop\b)\b/i;
 
