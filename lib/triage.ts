@@ -6,7 +6,7 @@ import type { Job } from "@prisma/client";
  * new-grad SWE role in Toronto posted today outranks a 3-week-old
  * remote "OTHER" listing every time.
  */
-export function triageScore(job: Job, now = Date.now()): number {
+function triageScore(job: Job, now = Date.now()): number {
   let score = 0;
 
   // location fit

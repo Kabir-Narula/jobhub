@@ -74,6 +74,10 @@ const ARTIFACT =
 const CONSULTING_ARTIFACT =
   /\b(?:model|models|spreadsheet|workbook|deck|slide|slides|briefing|brief|memo|recommendation|recommendations|recommended|workstream|analysis|analyzed|forecast|sizing|cohort|interview|interviews|kpi|kpis|hypothesis|variance|walkthrough|stakeholder|stakeholders|excel|sql|powerpoint|microsoft word|\bword\b|tracker|notices?|guides?|pivot|vlookup|xlookup|index\s*\/\s*match|power query|sumifs?|countifs?|classroom|classrooms|projector|audio|camera|lab|labs|hyflex|peripheral|display|login|advising|onboarding|orientation|secondary|dashboard|insights?|market|competitor|landscape|synthesis|sources?|python|pipeline|refresh|automat\w*|workshop|discovery|requirements?|uat|test scripts?|acceptance|process(?:es|[- ]gap| map| mapping| notes?)?|handoff|cutover|sso|identity|desk research|market research|deliverable|presentation|incident(?:s)?|diagnostic notes?|restore steps?|faculty|escalat\w*|queues?|correction plan|implementation recommendation|timing tests?|processing options|acceptance criteria)\b/i;
 
+/** Data/ops analyst nouns — the things a bank or ops-team screener actually asks about. */
+const ANALYST_ARTIFACT =
+  /\b(?:records?|fields?|dataset|data set|spreadsheet|validation checks?|checks|reconciliation|entries|database|summary|summaries|identifiers?|mismatch\w*|duplicates?)\b/i;
+
 /** Software internals a consulting/CI screener cannot use as a case story. */
 const SWE_INTERNALS =
   /\b(?:payloads?|authentication|error-handling|execution plans?|deployment checklist|api fields?|processing logs?|backend workflows?|extraction workflows?|mobile and web|third-party data|shared backend|user-facing requests|feature behaviour|backend defects?|backend rules?|release defects?|community-facing|infrastructure tradeoffs?|confluence|operating approach|lower-risk operating)\b/i;
@@ -150,8 +154,8 @@ export interface AuditOptions {
    * allowed to be a plain, unembellished account.
    */
   expandedCount?: number;
-  /** Consulting/BA/insights: CAR bullets, not SWE mechanism quotas. */
-  family?: "consulting";
+  /** consulting = partner-style CAR; analyst = data/ops/insights screens. Neither gets SWE mechanism quotas. */
+  family?: "consulting" | "analyst";
   /** Full JD — enables posting-flavor gates (e.g. competitive-intel framing). */
   jobDescription?: string;
   jobTitle?: string;
@@ -163,6 +167,7 @@ export function auditExperienceBullets(
 ): BulletIssue[] {
   const { minWords = 14, maxWords = 28, expandedCount = 2, family, jobDescription = "", jobTitle = "" } = opts;
   const consulting = family === "consulting";
+  const business = consulting || family === "analyst";
   const issues: BulletIssue[] = [];
   const add = (company: string, severity: BulletIssue["severity"], message: string) =>
     issues.push({ company, severity, message });
@@ -220,8 +225,9 @@ export function auditExperienceBullets(
       if (techNames.length > 2) {
         add(company, "high", `"${short}" names ${techNames.length} technologies (${techNames.join(", ")}) — max 2 per bullet, or it reads as a keyword list`);
       }
-      if (consulting) {
-        const leak = SWE_INTERNALS.exec(b) || (isHrTech ? HR_TECH_SWE_INTERNALS.exec(b) : null);
+      if (business) {
+        // Data/ops analyst screens value real pipeline and validation work; only partner-style consulting bans it.
+        const leak = consulting ? SWE_INTERNALS.exec(b) || (isHrTech ? HR_TECH_SWE_INTERNALS.exec(b) : null) : null;
         if (leak) {
           add(
             company,
@@ -247,7 +253,7 @@ export function auditExperienceBullets(
       // level below; here it is only advisory, because a per-bullet hard rule
       // forces every line into mechanism-speak and stops the entry reading like
       // a real job.
-      if (techNames.length > 0 && !TECHNIQUE_SIGNAL.test(b) && !consulting) {
+      if (techNames.length > 0 && !TECHNIQUE_SIGNAL.test(b) && !business) {
         const excused = RESULT_SIGNAL.test(b) || /\d/.test(b) || TEAM_SIGNAL.test(b);
         add(
           company,
@@ -256,13 +262,15 @@ export function auditExperienceBullets(
         );
       }
 
-      if (!(ARTIFACT.test(b) || (consulting && CONSULTING_ARTIFACT.test(b)))) {
+      if (!(ARTIFACT.test(b) || (business && CONSULTING_ARTIFACT.test(b)) || (family === "analyst" && ANALYST_ARTIFACT.test(b)))) {
         add(
           company,
           "high",
           consulting
             ? `"${short}" names no concrete analysis artifact (Excel model, deck, recommendation, workshop, requirements note, UAT script, process map) — nothing a partner can ask about`
-            : `"${short}" names no concrete artifact (endpoint, job, schema, migration, test, report) — nothing here a recruiter can ask about`
+            : business
+              ? `"${short}" names nothing concrete (the dataset, query, script, validation check, tracker, or report) — nothing a hiring manager can ask about`
+              : `"${short}" names no concrete artifact (endpoint, job, schema, migration, test, report) — nothing here a recruiter can ask about`
         );
       }
 
@@ -281,7 +289,7 @@ export function auditExperienceBullets(
       }
     }
 
-    if (consulting && expanded && bullets.length > 0 && bullets.length < 3) {
+    if (business && expanded && bullets.length > 0 && bullets.length < 3) {
       add(company, "high", `this entry has ${bullets.length} bullets — consulting needs 3 CAR bullets, not a compressed stub`);
     }
 
@@ -307,7 +315,7 @@ export function auditExperienceBullets(
         add(
           company,
           "high",
-          consulting
+          business
             ? `no bullet in this entry shows other people — add a stakeholder walkthrough, a handoff, or a recommendation someone used`
             : `no bullet in this entry shows other people — add one that involves code review, a sprint demo, a runbook someone used, or a stakeholder request`
         );
@@ -317,17 +325,23 @@ export function auditExperienceBullets(
       // keyword-shaped to a staff engineer even when every bullet passes on its
       // own: the technologies are all present, the engineering is not.
       const withTechnique = bullets.filter((b) => TECHNIQUE_SIGNAL.test(b)).length;
-      if (!consulting && bullets.length >= 3 && withTechnique * 2 < bullets.length) {
+      if (!business && bullets.length >= 3 && withTechnique * 2 < bullets.length) {
         add(
           company,
           "high",
           `only ${withTechnique} of ${bullets.length} bullets in this entry show a real mechanism — a technical screener reads the rest as keywords; name the index, partition, grouping key, retry, fixture or contract that made the work work`
         );
       }
-      if (consulting) {
+      if (business) {
         const diagnose = /\b(?:found|mismatch|reconcil\w*|gap|variance|diagnos\w+|traced|investigat\w+|noticed|caught|corrected)\b/i;
         if (!bullets.some((b) => diagnose.test(b) || FIX_SIGNAL.test(b))) {
-          add(company, "high", `no bullet in this entry diagnoses a problem — consulting screens for "did you diagnose something, not just execute"`);
+          add(
+            company,
+            "high",
+            consulting
+              ? `no bullet in this entry diagnoses a problem — consulting screens for "did you diagnose something, not just execute"`
+              : `no bullet in this entry finds a problem — analyst screens want the error, duplicate, mismatch, or slow manual step you caught and what you did about it`
+          );
         }
         const hyflex = /\bITS\b/i.test(company) || /hyflex/i.test(company);
         if (hyflex) {
@@ -414,7 +428,7 @@ export function auditExperienceBullets(
     add(entries[0].company, "low", `phrase reused verbatim across bullets: "${repeated[0]}" — vary the wording`);
   }
 
-  if (consulting) {
+  if (business) {
     // Business resumes need TWO magnitudes; HyFlex's 30+ rooms is only one of them.
     // Count written numbers ("eight sources") — the model often avoids digits.
     const withNum = allBullets.filter((b) => HAS_MAGNITUDE.test(b));
@@ -491,7 +505,7 @@ export function auditExperienceBullets(
     ];
     for (const t of TEMPLATES) {
       const hits = allBullets.filter((b) => t.re.test(b)).length;
-      if (hits >= 2 || (hits >= 1 && (t.name === "mobile and web" || t.name === "third-party data"))) {
+      if (hits >= 2 || (consulting && hits >= 1 && (t.name === "mobile and web" || t.name === "third-party data"))) {
         add(
           entries[0].company,
           "high",
@@ -549,7 +563,7 @@ export function auditExperienceBullets(
           /\b(?:python|sql|pipeline|automat\w*|refresh|script|query|join|dashboard)\b/i.test(b)
         ).length;
         const businessish = bridge.bullets.filter((b) =>
-          /\b(?:stakeholder|recommend|brief|synthesis|decision|insight|landscape|competitor|walkthrough|handoff)\b/i.test(
+          /\b(?:stakeholders?|recommend\w*|brief|synthesis|decision|insight|landscape|competitor|walkthrough|walked|handoff|handed|partners?|operations|reviewers?|team ?lead)\b/i.test(
             b
           )
         ).length;
@@ -578,15 +592,15 @@ export function auditExperienceBullets(
  * mode this exists to catch — a 10-second scanner never learns what was built.
  */
 const PRODUCT_PURPOSE =
-  /\b(?:platform|product|app|application|workspace|tool that|turns |lets |helps |journal|exam[- ]prep|learning|wellness|budget|collaborat\w*|cleanup|aggregat\w*|job[- ]search|3d|spatial|postings?|students?|teams?|files?|users?|companion|practice|flashcards?|mood|expenses?|assets?|viewer|tracker)\b/i;
+  /\b(?:platform|product|app|application|workspace|tool that|turns |lets |helps |journal|exam[- ]prep|learning|wellness|budget\w*|dashboard|collaborat\w*|cleanup|aggregat\w*|job[- ]search|3d|spatial|postings?|students?|teams?|files?|users?|companion|practice|flashcards?|mood|expenses?|assets?|viewer|tracker)\b/i;
 const IMPLEMENTATION_LEAD =
   /^(?:built|engineered|implemented|designed|added|wired|modeled|defined|shipped)\b[\s\S]{0,80}\b(?:pipeline|schema|endpoint|api|service|queue|worker|constraint)\b/i;
 
 export function auditProjectBullets(
   projects: { id?: string; bullets: string[] }[],
-  opts: { family?: "consulting" } = {}
+  opts: { family?: "consulting" | "analyst" } = {}
 ): BulletIssue[] {
-  const consulting = opts.family === "consulting";
+  const consulting = opts.family === "consulting" || opts.family === "analyst";
   const issues: BulletIssue[] = [];
   const add = (name: string, severity: BulletIssue["severity"], message: string) =>
     issues.push({ company: name, severity, message });
@@ -645,12 +659,17 @@ export function auditProjectBullets(
 }
 
 /** Feedback block for the repair pass. Specific failures only — generic scolding changes nothing. */
-export function qualityFeedback(issues: BulletIssue[], family?: "consulting"): string {
+const ANALYST_COMPOSE =
+  "Do not simply reword the flagged bullets. Recompose from source facts + THIS posting + hiring_screen. Analyst screeners (banks, insurers, ops/data teams) want: the data problem you found (errors, duplicates, mismatched fields, slow manual steps, missing follow-ups) -> the method YOU used (a Python script, a SQL query, validation checks, an Excel tracker, an AI-assisted step) -> what changed for the people who relied on it. When the posting asks for technical proficiency, databases, data integrity, or data management, KEEP the real technical substance of software entries and translate it into data-quality language; do NOT invent consulting artifacts (decks, process maps, decision briefs, workshops) that never existed. Three bullets per entry, at least one number per entry, at least two numbers on the page, plain English a non-engineer reads in one pass. For projects: bullet 1 says what it is and who it helps; bullet 2 says how it turns data into something useful.";
+
+export function qualityFeedback(issues: BulletIssue[], family?: "consulting" | "analyst"): string {
   const high = issues.filter((i) => i.severity === "high");
   const low = issues.filter((i) => i.severity === "low");
   const lines = [...high, ...low].map((i) => `- [${i.company}] ${i.message}`);
   const compose =
-    family === "consulting"
+    family === "analyst"
+      ? ANALYST_COMPOSE
+      : family === "consulting"
       ? "Do not simply reword the flagged bullets. Recompose from source facts + THIS posting + hiring_screen/reddit intel + posting_flavor + jd_deep_analysis_protocol. Analyze mandatory vs preferred and core responsibilities before writing. CAR, THREE bullets per entry. Keep AT MOST ONE engineer/CS-titled software entry — only when the posting asks for programming; a no-coding posting gets ZERO engineering titles (all Analyst). Other software rows stay Analyst language (HR Technology Analyst / Systems Analyst when hr-tech; Insights Analyst / Strategy Analyst when zs-sip; Analytics Analyst when zs-da). Invent methods that fit the posting — do not paste a Pivot/INDEX-MATCH template. Competitive-intel needs source monitoring / synthesis / executive brief framing on at least two bullets. HR-tech needs workshop / requirements / process / UAT / acceptance framing on at least two bullets — never invent SuccessFactors/Workday use. ZS SIP needs desk/market research → insight → client recommendation; never invent Confirmit/Access. ZS DA needs quantitative Excel/SQL/Python analysis → client decision; never invent Tableau/SAS/R/VBA. Never invent IQVIA/Tableau/Qualtrics/PitchBook/CRM/Confluence. Ban vague tails (giving partners, intelligence inputs, choose a path). Campus-ops from source facts. EVERY entry carries at least one number that fits its scenario; at least TWO magnitudes on the page (HyFlex 30+ counts as only one). Do NOT repair by adding FastAPI, indexes, Node, Stripe, mobile-and-web, release-defect, or REST-handoff language. For projects: bullet 1 is the business problem; bullet 2 is how it produces an insight — not React/Express."
       : "Do not simply reword the flagged bullets. Recompose affected experience entries so each one reads like a real few months on a real team: one build, one fix, one piece of work involving other people, each with a concrete artifact, at most two named technologies, and at least one number that fits the entry's scenario (a duration, a count, rows per run, hours saved). For projects: bullet 1 is what the product is (plain English, at most one technology); bullet 2 is distinctive features + tech + technique, framed to this posting. Rewrite vague or generic lines into artifact + method + outcome.";
   return [
@@ -694,6 +713,6 @@ export function coverageIssues(uncoveredMustHaves: string[], company: string): B
   return uncoveredMustHaves.slice(0, 5).map((t) => ({
     company,
     severity: "high" as const,
-    message: `the posting's must-have requirement "${t}" is not addressed anywhere — put it in the skills section and, if genuinely claimable, echo it in exactly one experience or project bullet`,
+    message: `the posting's must-have requirement "${t}" is not addressed anywhere — put its standard skill name in the skills section (that is what the ATS reads); mention it in a bullet only if it names real work, in your own words — never paste the posting's phrasing into a bullet`,
   }));
 }

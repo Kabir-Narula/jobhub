@@ -1,4 +1,5 @@
 import { fetchJson, fetchText, stripHtml } from "@/lib/sources/http";
+import { cleanJobDescription } from "./clean-description";
 import { prisma } from "@/lib/db";
 
 /**
@@ -260,7 +261,7 @@ function fromMetaHeuristics(html: string, u: URL): ParsedJobUrl | null {
   const text = stripHtml(html);
   // cut nav chrome: start the description at the title's first occurrence
   const idx = text.indexOf(title);
-  const description = (idx > 0 ? text.slice(idx) : text).slice(0, 12000);
+  const description = cleanJobDescription(idx > 0 ? text.slice(idx) : text).slice(0, 12000);
   const locationRaw = metaContent(html, "description").replace(title, "").replace(/\s{2,}/g, " ").trim();
   return {
     title,

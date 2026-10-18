@@ -123,11 +123,26 @@ export function heuristicAnalysis(jobDescription: string, jobTitle: string, comp
 
 // ---------- semantic labels (cheap-tier LLM, best effort) ----------
 
+/** Things a resume cannot honestly "cover" — the repair pass would invent them. */
+const UNCLAIMABLE =
+  /\b(degree|bachelor|master'?s|diploma|dec\b|years?|french|english|bilingual|spanish|mandarin|citizen|authori[sz]ation|clearance|licen[cs]e|relocat|on-?site|driver)/i;
+
+function cleanPhrases(raw: unknown, cap: number): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const r of raw) {
+    const t = String(r ?? "").trim().toLowerCase().replace(/[.;:]+$/, "");
+    if (!t || t.split(/\s+/).length > 4 || UNCLAIMABLE.test(t)) continue;
+    if (!out.includes(t)) out.push(t);
+  }
+  return out.slice(0, cap);
+}
+
 async function llmLabels(input: {
   title: string;
   company: string;
   description: string;
-}): Promise<Pick<JdAnalysis, "domain" | "workTypes" | "seniority"> | null> {
+}): Promise<(Pick<JdAnalysis, "domain" | "workTypes" | "seniority"> & { mustHaves: string[]; niceToHaves: string[] }) | null> {
   try {
     const res = await openai().chat.completions.create({
       model: model("cheap"),
@@ -148,6 +163,8 @@ async function llmLabels(input: {
             `- "domain": the business domain whose vocabulary this posting speaks — one short lowercase string like "fintech", "healthtech", "e-commerce", "developer tools", "gaming", "telecom", "insurance", "logistics", "education", "advertising". null if unclear.`,
             `- "workTypes": up to 4 dominant KINDS of work this role does, as short lowercase phrases — e.g. "data pipelines", "REST services", "query optimization", "frontend UI", "CI/CD", "ML inference", "ETL", "stakeholder analysis", "reporting dashboards". Kinds of work, never product names.`,
             `- "seniority": the seniority this posting actually seeks: "junior" (0-2 years, new grad, entry), "mid" (3-4 years), or "senior" (5+ years, senior/staff/lead signals). Use the years-of-experience requirement over the title when they disagree.`,
+            `- "mustHaves": up to 8 ATS skill keywords (1-3 words) the posting REQUIRES — skills and tools a recruiter would type into an ATS search, in their standard names: "Microsoft Office" (not "Microsoft Suite" + "O365" separately), "data entry", "data validation", "SQL", "Python", "reporting", "attention to detail". NOT duty phrases ("strategic initiatives", "project implementation", "support operations"), NOT the industry/domain ("capital markets", "banking"), NOT degrees, years, spoken languages, location, or work authorization.`,
+            `- "niceToHaves": up to 6 phrases the posting marks as an asset, preferred, or bonus, same format.`,
           ].join("\n"),
         },
       ],
@@ -158,6 +175,8 @@ async function llmLabels(input: {
       domain: typeof parsed.domain === "string" && parsed.domain.trim() ? parsed.domain.trim().toLowerCase() : null,
       workTypes: Array.isArray(parsed.workTypes) ? parsed.workTypes.map(String).slice(0, 4) : [],
       seniority: ["junior", "mid", "senior"].includes(parsed.seniority) ? parsed.seniority : null,
+      mustHaves: cleanPhrases(parsed.mustHaves, 10),
+      niceToHaves: cleanPhrases(parsed.niceToHaves, 6),
     };
   } catch {
     return null; // analysis is an enhancement, never a blocker
@@ -165,7 +184,7 @@ async function llmLabels(input: {
 }
 
 /** Full analysis: deterministic must/nice + semantic labels when the LLM is reachable. */
-export async function analyzeJobDescription(input: {
+async function analyzeJobDescription(input: {
   title: string;
   company: string;
   description: string;
@@ -173,8 +192,15 @@ export async function analyzeJobDescription(input: {
   const base = heuristicAnalysis(input.description, input.title, input.company);
   const labels = await llmLabels(input);
   if (!labels) return base;
+  // The section parser only knows tech vocabulary; business postings ("Microsoft
+  // Suite", "data integrity") came back with zero must-haves and no ATS target.
+  const notDomain = (t: string) => !labels.domain || (t !== labels.domain && !labels.domain.includes(t));
+  const mustHaves = [...new Set([...labels.mustHaves, ...base.mustHaves])].filter(notDomain).slice(0, 12);
+  const niceToHaves = [...new Set([...labels.niceToHaves, ...base.niceToHaves])].filter((t) => !mustHaves.includes(t)).slice(0, 8);
   return {
     ...base,
+    mustHaves,
+    niceToHaves,
     domain: labels.domain ?? base.domain,
     workTypes: labels.workTypes.length ? labels.workTypes : base.workTypes,
     seniority: labels.seniority ?? base.seniority,
@@ -183,6 +209,9 @@ export async function analyzeJobDescription(input: {
 }
 
 // ---------- cache on the Job row ----------
+
+/** Bump when the analysis shape/meaning changes so cached rows recompute. v2: LLM must-haves. */
+const JD_ANALYSIS_VERSION = 3;
 
 /**
  * Cached analysis for a job. Recomputed only when stale — currently that means
@@ -193,7 +222,8 @@ export async function getJdAnalysis(
   job: { id: string; title: string; company: string; description: string; jdAnalysis?: unknown },
   opts: { stale?: boolean } = {}
 ): Promise<JdAnalysis> {
-  if (job.jdAnalysis && !opts.stale) return job.jdAnalysis as JdAnalysis;
+  const cached = job.jdAnalysis as (JdAnalysis & { version?: number }) | null | undefined;
+  if (cached && !opts.stale && (cached.version ?? 1) >= JD_ANALYSIS_VERSION) return cached;
   try {
     const analysis = await analyzeJobDescription({
       title: job.title,
@@ -202,7 +232,7 @@ export async function getJdAnalysis(
     });
     await prisma.job.update({
       where: { id: job.id },
-      data: { jdAnalysis: analysis as never, jdAnalyzedAt: new Date() },
+      data: { jdAnalysis: { ...analysis, version: JD_ANALYSIS_VERSION } as never, jdAnalyzedAt: new Date() },
     });
     return analysis;
   } catch {

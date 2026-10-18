@@ -66,7 +66,7 @@ function normalizeCity(raw: string): string {
 }
 
 /** Try to extract a known city from a raw location string like "Toronto, ON" or "Remote - Canada". */
-export function extractCity(locationRaw: string): string {
+function extractCity(locationRaw: string): string {
   const raw = locationRaw.toLowerCase();
   // Segment-based exact matching: "New York, NY" -> ["new york", "ny"], neither
   // is a Toronto city. ("york" alone IS one — but only as a full segment.)
@@ -88,7 +88,7 @@ export function extractCity(locationRaw: string): string {
   return segments[0] ?? normalizeCity(locationRaw);
 }
 
-export function detectWorkMode(locationRaw: string, remoteFlag: boolean | null, text = ""): WorkMode {
+function detectWorkMode(locationRaw: string, remoteFlag: boolean | null, text = ""): WorkMode {
   const hay = `${locationRaw}\n${text.slice(0, 2000)}`;
   if (/\bhybrid\b/i.test(hay)) return "HYBRID";
   if (/\bremote\b|work from (home|anywhere)|wfh\b|distributed/i.test(hay)) return "REMOTE";
@@ -104,7 +104,7 @@ export function detectWorkMode(locationRaw: string, remoteFlag: boolean | null, 
  *  - GTA      -> include (commutable)
  *  - anything else -> include ONLY if remote
  */
-export function bucketFor(city: string, workMode: WorkMode, locationRaw: string): LocationBucket | null {
+function bucketFor(city: string, workMode: WorkMode, locationRaw: string): LocationBucket | null {
   if (TORONTO_CITIES.has(city)) return "TORONTO";
   if (GTA_CITIES.has(city)) return "GTA_COMMUTE";
 

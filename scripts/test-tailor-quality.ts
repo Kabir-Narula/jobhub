@@ -94,7 +94,8 @@ const pinned = pinBusinessSkills(
   ])
 );
 check("consulting pin drops Node.js from Frameworks", !miniLine(pinned, "Frameworks").includes("Node"), miniLine(pinned, "Frameworks"));
-check("consulting pin keeps the model's SQL", miniLine(pinned, "Languages").includes("SQL"), miniLine(pinned, "Languages"));
+check("consulting pin keeps the model's SQL", miniLine(pinned, "Programming").includes("SQL"), miniLine(pinned, "Programming"));
+check("consulting pin regroups under business headings", !/textbf\{(Frameworks|Cloud \\& Data|Infra \\& Tools)\}/.test(pinned), pinned);
 check("consulting pin does not stamp Excel onto a Git/Linux infra line", !miniLine(pinned, "Infra \\& Tools").includes("Excel"), miniLine(pinned, "Infra \\& Tools"));
 check("consulting pin does not stamp INDEX/MATCH", !miniLine(pinned, "Infra \\& Tools").includes("INDEX/MATCH"), miniLine(pinned, "Infra \\& Tools"));
 check(

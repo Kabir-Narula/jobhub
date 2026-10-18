@@ -4,7 +4,7 @@
  * or user-supplied facts. The writer may use these; the fabrication
  * tripwire whitelists them.
  */
-export const VERIFIED_NUMBERS: { fact: string; usage: string }[] = [
+const VERIFIED_NUMBERS: { fact: string; usage: string }[] = [
   { fact: "4-service Turborepo architecture (VertexFlow)", usage: "a 4-service Turborepo platform" },
   { fact: "13-table Prisma/PostgreSQL schema (BetterMind)", usage: "a 13-table Prisma/PostgreSQL schema" },
   { fact: "4-developer Agile team (Expense Manager)", usage: "in a 4-developer Agile team" },

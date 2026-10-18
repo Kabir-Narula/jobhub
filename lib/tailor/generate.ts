@@ -68,6 +68,7 @@ When role_family is "consulting", "analyst", or "product", this block BEATS ever
   - JD asks for Python/SQL/pipelines/automation: up to two technical bullets ending in a decision/stakeholder use; one synthesis/recommendation.
   - When posting_flavor is hr-tech: at most ONE light Python/API/automation bullet ending in stakeholder or process use; the other two = requirements clarification, workshop/handoff, or UAT/test scripts.
   - Never payloads, authentication, deployment checklists, or API field dumps — even on the bridge.
+- role_family "analyst" (bank / insurer / ops / data-team analyst postings — data entry, data integrity, databases, reports, Microsoft 365): the reader is a hiring manager on a data or operations team, NOT a consulting partner. Every bullet = the data problem (duplicates, mismatched fields, missing follow-ups, slow manual steps) → the method he used (Python script, SQL query, validation checks, Excel tracker, AI-assisted step) → who relied on the result. Real artifacts only: tracker, query, script, validation check, report, summary. NEVER invent decks, process maps, decision briefs, workshops, or "infrastructure options" comparisons. When the posting values AI tools, his real LLM work (JobHub tailoring pipeline, BetterMind companion) is the evidence — say what the AI step did in plain words.
 - WHEN cs_bridge_company IS NULL — the posting names no programming, coding, or automation requirement (e.g. a classic Bain/McKinsey strategy Associate posting) — keep ZERO engineering titles on the page. Reword EVERY software entry toward Analyst-family titles that fit THIS posting (Business Analyst / Strategy Analyst / Insights Analyst / Operations Analyst / Research Analyst — choose what matches the role's actual work), with diagnosis, analysis, and stakeholder bullets only. An engineering title on a no-coding posting reads as a mismatch, not a strength.
 - All OTHER software entries: Analyst / Business Analyst / Insights Analyst titles and analysis+stakeholder bullets (no SWE internals). When posting_flavor is hr-tech: use HR Technology Analyst or Systems Analyst titles; lead with process/requirements/workshop/UAT — never REST handoffs or release regressions as the story.
 - product: users, tradeoffs, stakeholders. Still keep the one CS bridge title.
@@ -168,15 +169,15 @@ Choose the library projects that best match this posting AND cover DIFFERENT req
 - Both bullets stay inside the library. Do not invent a product the repo is not. Do not paste the summary verbatim into bullet 1 and the first library bullet into bullet 2 — rewrite for this posting, keep the facts.
 
 COVER LETTER v2 (this is where interviews are won or lost — the first line decides if it gets read):
-- PARAGRAPH 1 (the hook): open with the hookFact from the research — a SPECIFIC, current fact about THIS company (their metric, their product detail, their recent move) — and immediately connect it to the matching thing the candidate built. Structure: "When I read that {company} {hookFact}, it caught my attention because {one line connecting to the candidate's real matching work}." Name the exact role somewhere in the first two sentences. Never open with "I am excited", never open with the candidate's name or degree.
+- PARAGRAPH 1 (the hook): name the exact role, then ONE specific reason this team's work fits what the candidate already does — anchored in what THIS team does per the posting (or the research hookFact when it is about this team's work, not corporate finance). Write it the way a sharp new grad would say it out loud: direct, specific, no throat-clearing. Never use the template "When I read that ... it caught my attention" (every AI letter opens that way). Never lead with acquisitions, earnings, deal sizes, or stock moves. Never open with "I am excited", the candidate's name, or his degree.
 - MIDDLE (proof, not biography): map the candidate's REAL experience and chosen projects to the posting's top 2-3 requirements AND the hiring_screen. For software roles, name real technologies and one concrete artifact per requirement. For consulting/analyst/product, map diagnosis, stakeholders, and methods the hiring screen cares about — never FastAPI, CI, Kotlin, or endpoint work. Do not default the middle paragraph to "Excel/SQL/decks".
 - THE RECEIPT: include at most ONE plain-text link to the most relevant chosen project's repo (use the exact URL from the library), woven in naturally — e.g. "the queue code is public at github.com/... if useful". Only if it genuinely strengthens the case. For consulting/analyst/product, skip the GitHub receipt unless you can frame the project as an analysis or decision tool.
-- FINAL PARAGRAPH: one or two sentences — genuine interest in this team + a work-sample offer when it fits ("happy to build a small work sample for the team" — powerful for new grads) + low-friction close. No clichés, no "fast-paced environment".
+- FINAL PARAGRAPH: one or two sentences — genuine interest in this team + a low-friction close. Offer a work sample ONLY for software/engineering roles at startups or product companies; never on bank, insurer, consulting, or analyst letters (it reads odd there). No clichés, no "fast-paced environment", no "I would welcome the opportunity to discuss".
 - TONE: match the company's register from the research (casual = direct, first-name energy, contractions; formal = measured, complete sentences, still human). Same tone in every paragraph.
 - LENGTH: 3-4 paragraphs, skimmable in 20 seconds. Every sentence must earn its place.
 
 HUMAN VOICE / ANTI-AI-DETECTION (2026 recruiters actively screen for AI tells):
-- BANNED words and phrases (instant AI tell): spearheaded, spearhead, leveraged, leverage (as a verb), orchestrated, cutting-edge, robust, dynamic, results-oriented, synergize, transformative, pivotal, utilize, in order to, fast-paced, passionate, proven track record, best-in-class, seamless, seamlessly, state-of-the-art, innovative, world-class, adept at, instrumental in.
+- BANNED words and phrases (instant AI tell): caught my attention, I would welcome the opportunity, I am confident that, aligns with, spearheaded, spearhead, leveraged, leverage (as a verb), orchestrated, cutting-edge, robust, dynamic, results-oriented, synergize, transformative, pivotal, utilize, in order to, fast-paced, passionate, proven track record, best-in-class, seamless, seamlessly, state-of-the-art, innovative, world-class, adept at, instrumental in.
 - Vary sentence shapes naturally (mostly 10-22 words); do NOT make every bullet follow the same identical structure — identical rhythm is a known AI tell.
 - Every product name must appear attached to a concrete artifact — never a bare name-drop. Skills may list tools that are not in a bullet; a bullet that names a tool MUST have that tool in skills.
 - Entry-level must SOUND entry-level: no "architected", no software "led the team/design/architecture", no "architecture" scope claims ("shipped event-driven architecture" reads senior), no mastery/expert framing. Exception: Peer Mentor / campus-ops MAY say led or facilitated a student group — that is people leadership for consulting screens.
@@ -206,6 +207,8 @@ interface GenerateInput {
   boost?: { missingTerms: string[] };
   /** Repair pass: specific bullet-doctrine failures from auditExperienceBullets. */
   qualityIssues?: string;
+  /** Refinement passes reuse this letter instead of paying to rewrite it. */
+  carryCoverLetter?: GeneratedContent["coverLetter"];
   /** 2 when experience already fills the page, 3 when a slot is open. */
   projectCount?: number;
   /** Consulting/BA/insights vs default software doctrine. */
@@ -350,13 +353,18 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
           ],
         },
       ],
-      coverLetter: {
-        addresseeCompany: "company name",
-        addresseeCity: "office city from the posting (e.g. 'Toronto, ON'); if unknown use the posting's location",
-        role: "exact job title from the posting",
-        bodyParagraphs: ["3-4 paragraphs"],
-      },
+      ...(input.carryCoverLetter
+        ? {}
+        : {
+            coverLetter: {
+              addresseeCompany: "company name",
+              addresseeCity: "office city from the posting (e.g. 'Toronto, ON'); if unknown use the posting's location",
+              role: "exact job title from the posting",
+              bodyParagraphs: ["3-4 paragraphs"],
+            },
+          }),
     },
+    ...(input.carryCoverLetter ? { cover_letter: "already written — omit coverLetter from your output" } : {}),
   };
 
   // Every resume pass ships on the quality tier. A cheap retry used to write
@@ -402,6 +410,7 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
       bullets: gen.bullets.map((b) => polishBullet(String(b).trim())).filter(Boolean),
     };
   });
+  if (input.carryCoverLetter) parsed.coverLetter = input.carryCoverLetter;
   if (!parsed.coverLetter || !Array.isArray(parsed.coverLetter.bodyParagraphs)) {
     throw new Error("LLM returned no cover letter body");
   }
@@ -564,7 +573,8 @@ export function finalizeBusinessTitle(
  * anywhere in the candidate's source material. Returns offending tokens.
  */
 export function findNewNumbers(originalText: string, generatedText: string[]): string[] {
-  const strip = (t: string) => t.replace(/^[.,]+|[.,]+$/g, "");
+  // "20+" in the source and "20" in a draft are the same verified fact.
+  const strip = (t: string) => t.replace(/^[.,]+|[.,+]+$/g, "");
   const orig = new Set((originalText.match(/\d[\d,.%x+kKmM]*/g) ?? []).map(strip));
   const found = new Set<string>();
   for (const b of generatedText) {

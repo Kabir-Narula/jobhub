@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { PDFDocument } from "pdf-lib";
 
-export function tectonicPath(): string {
+function tectonicPath(): string {
   const file = process.platform === "win32" ? "tectonic.exe" : "tectonic";
   const p = path.join(process.cwd(), "bin", file);
   if (!existsSync(p)) {
@@ -28,7 +28,7 @@ export interface CompileResult {
  * Insert an invisible box so the line exists — visually identical output
  * (exactly what pdfLaTeX's recovery produced).
  */
-export function fixEmptyLineBreaks(tex: string): string {
+function fixEmptyLineBreaks(tex: string): string {
   return tex.replace(
     /^([ \t]*(?:(?:\\vspace\*?\{[^}]*\}|\\noindent)[ \t]*)*)\\\\/gm,
     "$1\\mbox{}\\\\"

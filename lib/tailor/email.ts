@@ -1,4 +1,4 @@
-import { PROJECTS } from "./projects";
+﻿import { PROJECTS } from "./projects";
 import { model, openai, parseJson, type CompanyResearch } from "./research";
 
 export interface EmailDraft {
@@ -28,6 +28,7 @@ const CANDIDATE = {
   city: "Toronto",
   school: "Seneca Polytechnic",
   program: "Honours Bachelor of Technology, Software Development",
+  degreePhrase: "Honours Bachelor of Technology in Software Development",
   grad: "August 2026",
   standing: "recent graduate, not a student",
   howHeSounds: [
@@ -38,89 +39,53 @@ const CANDIDATE = {
   ],
 };
 
-const SYSTEM_PROMPT = `You write a short email as Kabir Narula, 22, software graduate in Toronto. Write like a real person typing on a phone. Not a sales email. Not a cover letter. Not an apology.
+/**
+ * The model writes ONLY the "why this company" lines. Greeting, intro, and the
+ * ask are assembled in code so every email has the same proven structure.
+ */
+const INTEREST_PROMPT = `You write ONE short paragraph (1-2 sentences, max 45 words) for a cold email from Kabir Narula, a recent software graduate in Toronto. The paragraph says, in his own plain voice, why he genuinely likes THIS company and why this work is his area of interest.
 
-WHAT ACTUALLY GETS READ (recruiters who sat through hundreds of these):
-- 3 to 5 sentences. Two short paragraphs, then one question. Under 90 words.
-- Why you're writing in sentence one (you applied for this exact role).
-- One concrete thing you built, in spoken English. That is the only proof.
-- Close with a yes/no question they can answer in three words. Not a task. Not permission to ignore you.
-- Do not narrate that this is a cold email. Everyone knows.
+The rest of the email is already written:
+  "Hi {name}, I'm Kabir, I recently graduated from Seneca Polytechnic with an Honours Bachelor of Technology in Software Development. I just applied to the {role} role at {company} and I'm really interested in working there."
+  {YOUR PARAGRAPH}
+  {the ask: application review, or coffee chat / referral}
+Do not repeat any of that. No greeting, no intro, no ask, no sign-off.
 
-WHO KABIR IS (do not invent extra biography):
-- Graduated August 2026, Seneca Polytechnic, Software Development, Toronto. NOT a student.
-- Intern: Python/FastAPI + CI/CD at Seneca's INNWIL lab
-- Side products in spoken English: VertexFlow = Git for 3D files, Linux/Blender worker so the site doesn't freeze. BetterMind = journaling app whose companion remembers past entries.
+HOW TO MAKE IT AUTHENTIC:
+- Name ONE concrete, specific thing: a recent move from recent_headlines (prefer the newest one that relates to this team or role), a real product, or what this team actually does per the job description. Specific beats impressive.
+- Then connect it to HIS interest in a few words (data and analytics, building software people use, AI products, etc. - pick what fits this role). Optionally mention one of his projects in half a sentence if it genuinely connects.
+- Sound like a 22-year-old talking to someone he respects: simple, warm, direct. "I saw that...", "What I like about..." and "That's the kind of work I want to be doing" are fine.
+- ONLY use facts present in recent_headlines, company, or role_context. If nothing specific is given, talk about what the role/team works on from role_context. Never invent numbers, launches, awards, or quotes.
+- Don't paste a headline. Paraphrase it naturally. No dates. No source names.
+- Headlines come from a name search, so some are about a different company with a similar name or ticker. Skip any headline that doesn't clearly match company_research.
+- Never mention earnings, profit, quarterly results, share buybacks, or anything about the stock. Talk about what they build, launch, or invest in, or what this team works on.
 
-HARD BANS (all of these read as ChatGPT in 2026):
-- Apology theater: "out of the blue", "you don't know me", "I know you didn't ask", "no need to reply if this isn't useful", "sorry to bother", "I know you're busy", "silent row in the ATS", "put a name to it"
-- Orders: "please glance", "when you have a chance", "a forward is enough", "look at the ATS", "easier than pulling it from the ATS"
-- Cover-letter sludge: passionate, excited to contribute, great fit, leverage, utilize, I hope this finds you well, just reaching out
-- Fake research: company metrics, "when I saw that you", Reddit, Glassdoor
-- Resume bullets, tech lists, em-dashes, markdown, P.S., signing their name
+BANNED: passionate, excited to contribute, great fit, leverage, utilize, innovative, cutting-edge, world-class, industry leader, synergy, align with my values, resonates, deeply, thrilled, journey, em-dashes, markdown, exclamation marks, stock prices, layoffs, lawsuits.
 
-LAYOUT:
-Hi {First},
+GOOD EXAMPLES (style only, facts differ):
+- "I saw that National Bank has been building out its data platform for the capital markets side, and using data to support real trading and risk decisions is exactly the kind of work I want to get into."
+- "What I like about Wealthsimple is how simple they make investing feel for regular people. Building products that people actually use every day is what got me into software in the first place."
+- "I saw ZS is putting a lot into AI tools for pharma commercial teams. I've been building with LLMs on my own projects, so seeing that applied to real business decisions is a big part of why I applied."
 
-{1-2 sentences: I applied for {exact role} at {company}.}
+Return JSON: {"interest":"...","subject":"..."} where subject is "{role} - Kabir Narula".`;
 
-{1-2 sentences: recent Seneca grad + ONE project in spoken English. GitHub URL only for an engineer, offered not pushed.}
-
-{one yes/no question}
-
-Thanks,
-
-Formatter adds the signature. Do not write LinkedIn/phone/email.
-
-THE QUESTION (pick one, keep it boring):
-- "Is this still open?"
-- "Are you the right person for this?"
-Never "15 minutes of your time". Never "I'd love to chat". Never "let me know if you have any questions".
-
-SUBJECT: "{role} - Kabir Narula"  (flat, not clever)
-
-Copy this VOICE (facts can change, the flatness cannot):
-
-Subject: Software Developer - Kabir Narula
-
-Hi Jose,
-
-I applied for the entry-level Software Developer role at Konrad.
-
-I'm a recent Seneca grad in Toronto. I've been building BetterMind, a journaling app where the chat remembers your past entries instead of starting from scratch each time.
-
-Is this still open?
-
-Thanks,
-
----
-
-Subject: Backend Engineer - Kabir Narula
-
-Hi Devon,
-
-Applied for Backend Engineer at Northline.
-
-Just finished at Seneca. Side project is VertexFlow - Git for 3D files, with a Linux worker so the web app doesn't freeze. github.com/Kabir-Narula/Vertex_flow if you want a look.
-
-Are you on that team?
-
-Thanks,
-
-Return JSON: {"subject":"...","body":"..."} with real newlines.`;
-
-const FOLLOWUP_PROMPT = `You write a short follow-up as Kabir Narula (Seneca grad, August 2026, not a student). 3-4 sentences. No guilt. No apology theater.
+const FOLLOWUP_PROMPT = `You write a short follow-up as Kabir Narula (Seneca grad, August 2026, not a student). 2-3 sentences, then the ask from the payload (copy it as given). No guilt. No apology theater.
 
 Hi {First},
 
-Applied {N} days ago for {role} at {company}. Still interested.
+I applied about {N} days ago for the {role} role at {company} and I'm still really interested.
 
-Is this still open?
+{ask from payload}
 
 Thanks,
 
 BANNED: circling back, touching base, gentle reminder, did you get my email, out of the blue, no need to reply, I know you're busy, em-dashes, markdown, P.S.
-Subject: "following up - {role}". Return JSON.`;
+Subject: "following up - {role}". Return JSON {"subject":"...","body":"..."}.`;
+
+export interface NewsHeadline {
+  title: string;
+  date: string | null;
+}
 
 export interface DraftInput {
   job: { title: string; company: string; description: string };
@@ -129,6 +94,7 @@ export interface DraftInput {
   projects: EmailProject[];
   hasFinalDocs: boolean;
   candidateName: string;
+  news?: NewsHeadline[];
 }
 
 export function classifyRecipient(role: string | undefined | null): RecipientKind {
@@ -136,13 +102,13 @@ export function classifyRecipient(role: string | undefined | null): RecipientKin
   if (/university|campus|early[- ]career|new[- ]?grad|student program|emerging talent|graduate program/i.test(t)) {
     return "campus";
   }
+  if (/recruit|talent|sourcer|staffing|people ops|people partner|\bhr\b|human resources|hrbp/i.test(t)) {
+    return "recruiter";
+  }
   if (/engineering manager|hiring manager|director|head of|team lead|tech lead|\bvp\b|vice president|\bcto\b|founder|\bmanager\b/i.test(t)) {
     return "manager";
   }
   if (/software|engineer|developer|swe|programmer|architect/i.test(t)) return "engineer";
-  if (/recruit|talent|sourcer|staffing|people ops|\bhr\b|human resources/i.test(t)) {
-    return "recruiter";
-  }
   return "unknown";
 }
 
@@ -163,22 +129,30 @@ function recipientFirst(contact: DraftInput["contact"]): string | null {
 
 function researchForEmail(research: CompanyResearch | null) {
   if (!research) return null;
-  const product = (research.product || "").trim();
-  const hook = (research.hookFact || "").trim();
   const generic = /leading provider|world-class|cutting-edge|passionate about|innovative solutions/i;
+  const clean = (s: string | undefined) => {
+    const t = (s ?? "").trim();
+    return t && !generic.test(t) ? t : null;
+  };
   return {
-    product: product && !generic.test(product) ? product : null,
-    hookFact: hook && !generic.test(hook) && !/\d[\d,.]*\s*(billion|million|%|users|requests)/i.test(hook) ? hook : null,
-    tone: research.tone ?? "casual",
+    mission: clean(research.mission),
+    product: clean(research.product),
+    hookFact: clean(research.hookFact),
+    recent: (research.news ?? []).map((n) => n.trim()).filter((n) => n && !generic.test(n)).slice(0, 4),
   };
 }
 
-const CLOSE_BY_KIND: Record<RecipientKind, string> = {
-  campus: "Close with: Is this still open?",
-  recruiter: "Close with: Is this still open?",
-  manager: "Close with: Are you the right person for this? or Is this still open?",
-  engineer: "Close with: Are you on that team?",
-  unknown: "Close with: Is this still open?",
+const isHrKind = (kind: RecipientKind) => kind === "recruiter" || kind === "campus";
+
+function askFor(kind: RecipientKind): string {
+  return isHrKind(kind)
+    ? "It would be great if you could take a look at my online application when you get a chance."
+    : "Would you be open to a quick coffee chat sometime? And if you think I'd be a good fit, I'd really appreciate a referral.";
+}
+
+const ASK_RE_BY_HR = {
+  hr: /take a look at my (online )?application/i,
+  other: /coffee chat|referral/i,
 };
 
 const SIMPLE_QUESTION = "Is this still open?";
@@ -294,7 +268,7 @@ function greetingLine(opts: { recipientFirst: string | null; company: string }):
  */
 export function polishEmail(
   draft: EmailDraft,
-  opts: { signOff: string; recipientFirst: string | null; company: string }
+  opts: { signOff: string; recipientFirst: string | null; company: string; kind?: RecipientKind }
 ): EmailDraft {
   const subject = String(draft.subject ?? "")
     .replace(/^["']|["']$/g, "")
@@ -329,10 +303,21 @@ export function polishEmail(
   let paras = blocks.filter((p) => !/^hi\b/i.test(p));
   if (paras.length === 1) paras = splitWall(paras[0]);
   paras = paras.map((p) => stripClerkTalk(p)).filter(Boolean).slice(0, 4);
-  if (paras.length && (COMMANDING_CLOSE.test(paras[paras.length - 1]) || FAKE_HUMILITY.test(paras[paras.length - 1]))) {
-    paras[paras.length - 1] = SIMPLE_QUESTION;
+  if (opts.kind) {
+    const ask = askFor(opts.kind);
+    const askRe = isHrKind(opts.kind) ? ASK_RE_BY_HR.hr : ASK_RE_BY_HR.other;
+    paras = paras.filter((p) => !FAKE_HUMILITY.test(p));
+    const last = paras[paras.length - 1];
+    if (!last || !askRe.test(last)) {
+      paras = paras.filter((p) => !ASK_RE_BY_HR.hr.test(p) && !ASK_RE_BY_HR.other.test(p) && !COMMANDING_CLOSE.test(p));
+      paras.push(ask);
+    }
+  } else {
+    if (paras.length && (COMMANDING_CLOSE.test(paras[paras.length - 1]) || FAKE_HUMILITY.test(paras[paras.length - 1]))) {
+      paras[paras.length - 1] = SIMPLE_QUESTION;
+    }
+    if (!paras.some((p) => /\?\s*$/.test(p))) paras.push(SIMPLE_QUESTION);
   }
-  if (!paras.some((p) => /\?\s*$/.test(p))) paras.push(SIMPLE_QUESTION);
   if (paras.length === 0) paras = [SIMPLE_QUESTION];
 
   const parts = [greetingLine(opts)];
@@ -347,27 +332,67 @@ export function polishEmail(
   return { subject, body: parts.join("\n") };
 }
 
-function fallbackDraft(input: DraftInput, _kind: RecipientKind, first: string | null): EmailDraft {
-  const project = input.projects[0];
-  const who = project
-    ? `I just graduated from Seneca in Toronto. I've been building ${project.name} - ${project.oneLiner.replace(/\.$/, "")}.`
-    : "I just graduated from Seneca in Toronto (Software Development, August 2026).";
-  const body = [
-    first ? `Hi ${first},` : `Hi ${input.job.company} team,`,
-    "",
-    `I applied for ${input.job.title} at ${input.job.company}.`,
-    "",
-    who,
-    "",
-    SIMPLE_QUESTION,
-    "",
-    "Thanks,",
-    CANDIDATE.signOff,
-  ].join("\n");
-  return { subject: `${input.job.title} - ${CANDIDATE.fullName}`, body };
+/** "Junior Analyst, Data - CIB (Req 12345)" -> "Junior Analyst, Data - CIB" */
+function cleanRoleTitle(title: string): string {
+  return title
+    .replace(/\s*[([]\s*(req|job|id|#)[^)\]]*[)\]]/gi, "")
+    .replace(/\s*-\s*(toronto|remote|hybrid|ontario|canada)\b.*$/i, "")
+    .replace(/\s+role$/i, "")
+    .trim();
 }
 
-async function completeJson(system: string, user: unknown, tier: "quality" | "cheap"): Promise<EmailDraft | null> {
+/** "NATIONAL BANK OF CANADA" -> "National Bank of Canada"; short acronyms like ZS / RBC stay as-is. */
+function displayCompany(name: string): string {
+  const n = name.trim();
+  if (n.length <= 4 || n !== n.toUpperCase() || !/[A-Z]{2}/.test(n)) return n;
+  const small = new Set(["of", "and", "the", "for", "in", "de", "du", "la", "et"]);
+  return n
+    .split(/\s+/)
+    .map((w, i) => {
+      const lower = w.toLowerCase();
+      if (i > 0 && small.has(lower)) return lower;
+      if (/^[A-Z&]{2,3}$/.test(w) && !/^(THE|AND)$/.test(w)) return w;
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join(" ");
+}
+
+function introLine(input: DraftInput): string {
+  return (
+    `I'm Kabir, I recently graduated from ${CANDIDATE.school} with an ${CANDIDATE.degreePhrase}. ` +
+    `I just applied to the ${cleanRoleTitle(input.job.title)} role at ${input.job.company} and I'm really interested in working there.`
+  );
+}
+
+function interestArea(title: string): string {
+  if (/data|analyt|insight|bi\b|intelligence|statistic/i.test(title)) return "data and analytics";
+  if (/consult|strategy|business analyst|decision/i.test(title)) return "using data to solve real business problems";
+  if (/\bai\b|machine learning|\bml\b|llm/i.test(title)) return "building AI products";
+  if (/product/i.test(title)) return "building products people actually use";
+  return "building software people actually use";
+}
+
+function fallbackInterest(input: DraftInput): string {
+  const area = interestArea(input.job.title);
+  return `From what I've read about ${input.job.company} and this team, the work lines up with what I want to do, and ${area} is exactly the area I want to build my career in.`;
+}
+
+const INTEREST_BANNED =
+  /passionate|excited to contribute|great fit|leverag|utiliz|innovative|cutting-edge|world-class|industry leader|synergy|align(s)? with my values|resonat|thrilled|journey|!/i;
+
+function cleanInterest(raw: string, input: DraftInput): string {
+  let s = tidyLine(String(raw ?? "").replace(/\s*\n+\s*/g, " "));
+  s = s.replace(/^(hi|hey)\b[^,]*,\s*/i, "");
+  if (!s || INTEREST_BANNED.test(s) || ASK_RE_BY_HR.hr.test(s) || ASK_RE_BY_HR.other.test(s)) return fallbackInterest(input);
+  if (s.split(/\s+/).length > 60) {
+    const sentences = s.match(/[^.!?]+[.!?]+/g) ?? [s];
+    s = sentences.slice(0, 2).join(" ").trim();
+  }
+  if (!/[.!?]$/.test(s)) s += ".";
+  return s;
+}
+
+async function completeRaw(system: string, user: unknown, tier: "quality" | "cheap"): Promise<Record<string, unknown>> {
   const res = await openai().chat.completions.create({
     model: model(tier),
     messages: [
@@ -376,75 +401,95 @@ async function completeJson(system: string, user: unknown, tier: "quality" | "ch
     ],
     response_format: { type: "json_object" },
   });
-  const parsed = parseJson(res.choices[0]?.message?.content ?? "{}");
+  return parseJson(res.choices[0]?.message?.content ?? "{}") ?? {};
+}
+
+async function completeJson(system: string, user: unknown, tier: "quality" | "cheap"): Promise<EmailDraft | null> {
+  const parsed = await completeRaw(system, user, tier);
   const subject = typeof parsed.subject === "string" ? parsed.subject : "";
   const body = typeof parsed.body === "string" ? parsed.body : "";
   if (!body.trim()) return null;
   return { subject, body };
 }
 
-function userPayload(input: DraftInput, extra: Record<string, unknown> = {}) {
-  const first = recipientFirst(input.contact);
-  const kind = classifyRecipient(input.contact?.role);
+function interestPayload(input: DraftInput) {
   return {
-    write_as: CANDIDATE,
-    never_call_him_a_student: true,
-    recipient: input.contact
-      ? {
-          firstName: first,
-          fullName: input.contact.name,
-          role: input.contact.role,
-          kind,
-          whyThisInbox: input.contact.why ?? CLOSE_BY_KIND[kind],
-          greeting: first ? `Hi ${first},` : `Hi ${input.job.company} team,`,
-        }
-      : { kind: "unknown" as const, greeting: `Hi ${input.job.company} team,`, whyThisInbox: CLOSE_BY_KIND.unknown },
-    job: { title: input.job.title, company: input.job.company },
-    role_in_one_line: input.job.description.replace(/\s+/g, " ").trim().slice(0, 400),
-    company_for_optional_interest: researchForEmail(input.research),
-    talk_about_at_most_one_of_these_projects: input.projects,
-    already_applied_online: true,
-    close_is_a_yes_no_question: CLOSE_BY_KIND[kind],
-    sign_off_exactly: "Thanks,",
-    spacing: "one blank line between greeting / paragraphs / Thanks. Do not write a signature; the formatter appends full name, email, phone, LinkedIn, GitHub.",
-    ...extra,
+    company: input.job.company,
+    role: cleanRoleTitle(input.job.title),
+    his_interest_area_hint: interestArea(input.job.title),
+    recent_headlines: (input.news ?? []).slice(0, 6),
+    company_research: researchForEmail(input.research),
+    role_context: input.job.description.replace(/\s+/g, " ").trim().slice(0, 1500),
+    his_projects_optional: input.projects.map((p) => ({ name: p.name, what: p.oneLiner })),
+    about_him: CANDIDATE.howHeSounds,
   };
 }
 
-export async function draftOutreachEmail(input: DraftInput): Promise<EmailDraft> {
-  const first = recipientFirst(input.contact);
-  const kind = classifyRecipient(input.contact?.role);
-  const generated = await completeJson(SYSTEM_PROMPT, userPayload(input), "quality");
-  const raw = generated ?? fallbackDraft(input, kind, first);
-  if (!raw.subject.trim()) {
-    raw.subject = `${input.job.title} - ${CANDIDATE.fullName}`;
+function polishOpts(input: DraftInput) {
+  return {
+    signOff: CANDIDATE.signOff,
+    recipientFirst: recipientFirst(input.contact),
+    company: input.job.company,
+    kind: classifyRecipient(input.contact?.role),
+  };
+}
+
+/**
+ * Hi {First},
+ *
+ * I'm Kabir, recent Seneca grad ... just applied to {role} at {company} ...
+ *
+ * {why this company + his area of interest}
+ *
+ * {recruiter/campus: look at my online application | everyone else: coffee chat or referral}
+ */
+export async function draftOutreachEmail(rawInput: DraftInput): Promise<EmailDraft> {
+  const input = { ...rawInput, job: { ...rawInput.job, company: displayCompany(rawInput.job.company) } };
+  const opts = polishOpts(input);
+  let interest = "";
+  let subject = "";
+  try {
+    const parsed = await completeRaw(INTEREST_PROMPT, interestPayload(input), "cheap");
+    interest = typeof parsed.interest === "string" ? parsed.interest : "";
+    subject = typeof parsed.subject === "string" ? parsed.subject : "";
+  } catch {
+    interest = "";
   }
-  return polishEmail(raw, { signOff: CANDIDATE.signOff, recipientFirst: first, company: input.job.company });
+  const body = [introLine(input), cleanInterest(interest, input), askFor(opts.kind)].join("\n\n");
+  return polishEmail(
+    { subject: subject.trim() || `${cleanRoleTitle(input.job.title)} - ${CANDIDATE.fullName}`, body },
+    opts
+  );
 }
 
 /** Follow-up nudge N days after applying with no response. */
-export async function draftFollowUpEmail(input: DraftInput & { daysSinceApplied: number }): Promise<EmailDraft> {
-  const first = recipientFirst(input.contact);
+export async function draftFollowUpEmail(rawInput: DraftInput & { daysSinceApplied: number }): Promise<EmailDraft> {
+  const input = { ...rawInput, job: { ...rawInput.job, company: displayCompany(rawInput.job.company) } };
+  const opts = polishOpts(input);
+  const role = cleanRoleTitle(input.job.title);
   const generated = await completeJson(
     FOLLOWUP_PROMPT,
-    userPayload(input, { days_since_applied: input.daysSinceApplied, do_not_invent_new_work: true }),
-    "quality"
-  );
+    {
+      greeting: opts.recipientFirst ? `Hi ${opts.recipientFirst},` : `Hi ${input.job.company} team,`,
+      role,
+      company: input.job.company,
+      days_since_applied: input.daysSinceApplied,
+      ask: askFor(opts.kind),
+      do_not_invent_new_work: true,
+    },
+    "cheap"
+  ).catch(() => null);
   const raw =
     generated ??
     ({
-      subject: `following up - ${input.job.title}`,
+      subject: `following up - ${role}`,
       body: [
-        first ? `Hi ${first},` : `Hi ${input.job.company} team,`,
+        `I applied about ${input.daysSinceApplied} days ago for the ${role} role at ${input.job.company} and I'm still really interested.`,
         "",
-        `Applied about ${input.daysSinceApplied} days ago for ${input.job.title}. Still interested.`,
-        "",
-        SIMPLE_QUESTION,
-        "",
-        "Thanks,",
-        CANDIDATE.signOff,
+        askFor(opts.kind),
       ].join("\n"),
     } satisfies EmailDraft);
-  if (!raw.subject.trim()) raw.subject = `following up - ${input.job.title}`;
-  return polishEmail(raw, { signOff: CANDIDATE.signOff, recipientFirst: first, company: input.job.company });
+  if (!raw.subject.trim()) raw.subject = `following up - ${role}`;
+  return polishEmail(raw, opts);
 }
+

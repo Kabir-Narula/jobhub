@@ -1,11 +1,14 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 
+// Pin Turbopack to this package even when Cursor opens the parent Jobs_Helper
+// folder — otherwise App Router pages under route groups 404.
+const appRoot = path.dirname(fileURLToPath(import.meta.url));
+
 const nextConfig: NextConfig = {
-  // Cursor opens the parent Jobs_Helper folder; pin Turbopack to this app so
-  // it does not infer the wrong workspace root and 404 every App Router page.
   turbopack: {
-    root: path.resolve(__dirname),
+    root: appRoot,
   },
   // pdfjs-dist loads its worker via dynamic import — serve it from node_modules
   // at runtime instead of bundling (the bundle loses pdf.worker.mjs).

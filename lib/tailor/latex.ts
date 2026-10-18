@@ -22,14 +22,24 @@ import { BUSINESS_SKILL_SUPPRESS } from "./lens";
  * engines. Output is identical under pdfLaTeX; under XeTeX ToUnicode maps
  * are embedded anyway. Applied at import time (seed + re-upload).
  */
+const GLYPH_GUARD = "\\ifdefined\\pdfgentounicode\n  \\input{glyphtounicode}\n\\fi";
+const GENTOUNICODE_GUARD = "\\ifdefined\\pdfgentounicode\n  \\pdfgentounicode=1\n\\fi";
+const FONT_GUARD =
+  "\\ifdefined\\XeTeXversion\n  % XeTeX maps Unicode directly; Latin Modern via fontspec keeps identical metrics\n  \\usepackage{fontspec}\n\\else\n  \\usepackage[T1]{fontenc}\n\\fi";
+
+/** Idempotent: re-running on its own output (or on masters that were guarded repeatedly) yields one guard each. */
 export function normalizeForTectonic(tex: string): string {
-  return tex
-    .replace(/^[ \t]*\\input\{glyphtounicode\}[ \t]*$/m, "\\ifdefined\\pdfgentounicode\n  \\input{glyphtounicode}\n\\fi")
-    .replace(/^[ \t]*\\pdfgentounicode=1[ \t]*$/m, "\\ifdefined\\pdfgentounicode\n  \\pdfgentounicode=1\n\\fi")
+  let out = tex
+    .replace(/(?:\\ifdefined\\pdfgentounicode[ \t]*\r?\n)+[ \t]*\\input\{glyphtounicode\}[ \t]*\r?\n(?:[ \t]*\\fi[ \t]*(?:\r?\n|$))+/g, GLYPH_GUARD + "\n")
+    .replace(/(?:\\ifdefined\\pdfgentounicode[ \t]*\r?\n)+[ \t]*\\pdfgentounicode=1[ \t]*\r?\n(?:[ \t]*\\fi[ \t]*(?:\r?\n|$))+/g, GENTOUNICODE_GUARD + "\n")
     .replace(
-      /^[ \t]*\\usepackage\[T1\]\{fontenc\}[ \t]*$/m,
-      "\\ifdefined\\XeTeXversion\n  % XeTeX maps Unicode directly; Latin Modern via fontspec keeps identical metrics\n  \\usepackage{fontspec}\n\\else\n  \\usepackage[T1]{fontenc}\n\\fi"
+      /(?:\\ifdefined\\XeTeXversion[ \t]*\r?\n[ \t]*%[^\n]*\r?\n[ \t]*\\usepackage\{fontspec\}[ \t]*\r?\n\\else[ \t]*\r?\n)+[ \t]*\\usepackage\[T1\]\{fontenc\}[ \t]*\r?\n(?:[ \t]*\\fi[ \t]*(?:\r?\n|$))+/g,
+      FONT_GUARD + "\n"
     );
+  if (!out.includes(GLYPH_GUARD)) out = out.replace(/^[ \t]*\\input\{glyphtounicode\}[ \t]*$/m, GLYPH_GUARD);
+  if (!out.includes(GENTOUNICODE_GUARD)) out = out.replace(/^[ \t]*\\pdfgentounicode=1[ \t]*$/m, GENTOUNICODE_GUARD);
+  if (!out.includes(FONT_GUARD)) out = out.replace(/^[ \t]*\\usepackage\[T1\]\{fontenc\}[ \t]*$/m, FONT_GUARD);
+  return out;
 }
 
 // ---------- LaTeX escaping (LLM content is plain text) ----------
@@ -40,7 +50,7 @@ export function normalizeForTectonic(tex: string): string {
  * model output into a hard Tectonic failure — the prompt bans backslashes but
  * that is not an enforceable guarantee. Every caller passes plain text.
  */
-export function escapeLatex(s: string): string {
+function escapeLatex(s: string): string {
   return s.replace(/[\\&%$#_{}~^]/g, (c) => {
     switch (c) {
       case "\\":
@@ -535,19 +545,51 @@ export function pinBusinessSkills(
   const section = parseSkillsSection(tex);
   const nl = section.nl;
   const swe = BUSINESS_SKILL_SUPPRESS.map((s) => s.toLowerCase());
+  const jd = opts.jobDescription ?? "";
   const notSwe = (item: string) => {
     const plain = item.replace(/\\([&%$#_{}])/g, "$1").toLowerCase();
     if (BUSINESS_NEVER_INVENT.test(plain)) return false;
     if (/^(microsoft word|word)$/i.test(plain.trim())) return false;
+    // Repo languages (C, C++, Java) read as noise on a business page unless the posting asks.
+    if (/^(c|c\+\+|java|kotlin|typescript)$/.test(plain.trim())) {
+      const re = new RegExp(`(^|[^a-z])${plain.trim().replace(/[+]/g, "\\+")}([^a-z+#]|$)`, "i");
+      if (!re.test(jd)) return false;
+    }
     return !swe.some((s) => s && plain.includes(s));
   };
   const unescape = (s: string) => s.replace(/\\([&%$#_{}])/g, "$1");
-  const lines = section.lines.map((orig) => {
-    let items = orig.items.filter(notSwe);
-    items = [...new Map(items.map((i) => [unescape(i).toLowerCase(), i])).values()];
-    items = clampBusinessSkillLine(items, maxItemsPerLine);
-    return `      \\textbf{${orig.label}}{: ${items.join(", ")} \\\\}`;
-  });
+  // Master labels are engineering headings ("Frameworks", "Cloud & Data"); a business
+  // page regroups the same items under headings a business screener reads.
+  const isProfessionalLabel = (label: string) => /professional|collaboration|soft/i.test(unescape(label));
+  const buckets: Record<string, string[]> = { "Programming \\& Data": [], "Analytics \\& Tools": [], Methods: [] };
+  const bucketOf = (item: string): string => {
+    const p = unescape(item).toLowerCase().trim();
+    if (/^(sql|python|r|javascript|typescript|java|vba|pandas|numpy|etl)$|sql|database|rest api|data pipeline|data model|^data (validation|quality|entry|cleaning|management|integrity)/.test(p)) return "Programming \\& Data";
+    if (/excel|powerpoint|microsoft|office|o365|\b365\b|jira|\bgit\b|github|power query|sheets|ai tools?|chatgpt|copilot|llm|openai|reporting|dashboard|linux|unix/.test(p)) return "Analytics \\& Tools";
+    return "Methods";
+  };
+  const professionalLines: string[] = [];
+  for (const orig of section.lines) {
+    const items = orig.items.filter(notSwe);
+    if (isProfessionalLabel(orig.label)) {
+      professionalLines.push(`      \\textbf{${orig.label}}{: ${clampBusinessSkillLine(items, maxItemsPerLine).join(", ")} \\\\}`);
+      continue;
+    }
+    for (const item of items) buckets[bucketOf(item)].push(item);
+  }
+  const lines = Object.entries(buckets)
+    .map(([label, items]) => {
+      const deduped = [...new Map(items.map((i) => [unescape(i).toLowerCase(), i])).values()];
+      // "Reporting" next to "Dashboard Reporting" is the same claim twice.
+      const words = (s: string) => unescape(s).toLowerCase().split(/\s+/);
+      const distinct = deduped.filter(
+        (i) => !deduped.some((o) => o !== i && words(o).length > words(i).length && words(i).every((w) => words(o).includes(w)))
+      );
+      const unique = clampBusinessSkillLine(distinct, maxItemsPerLine);
+      return unique.length ? `      \\textbf{${label}}{: ${unique.join(", ")} \\\\}` : "";
+    })
+    .filter(Boolean)
+    .concat(professionalLines);
   const hasProfessional = lines.some((l) => /textbf\{Professional\}/i.test(l));
   const professional = (opts.professional ?? []).map((p) => p.trim()).filter(Boolean).slice(0, 5);
   if (!hasProfessional && professional.length > 0) {

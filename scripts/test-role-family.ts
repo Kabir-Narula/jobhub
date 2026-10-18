@@ -11,6 +11,7 @@ import {
   jdWantsProgramming,
 } from "../lib/tailor/role-family";
 import { detectLens } from "../lib/tailor/lens";
+import { classifyCategory } from "../lib/classify";
 import { isTechTerm } from "../lib/tailor/match";
 import { softSkillsFor } from "../lib/tailor/soft-skills";
 import { projectSlots } from "../lib/tailor/projects";
@@ -42,6 +43,13 @@ check(
   "Data Analyst is analyst",
   detectRoleFamily("Data Analyst", "Shopify", "Excel SQL Tableau") === "analyst"
 );
+check(
+  "Junior Analyst Data CIB is analyst (word order, no SWE fallback)",
+  detectRoleFamily("Junior Analyst Data CIB", "National Bank of Canada", "") === "analyst"
+);
+check("Junior Analyst Data CIB feed category is DATA_ML", classifyCategory("Junior Analyst Data CIB") === "DATA_ML");
+check("Systems Analyst feed category stays INFRA", classifyCategory("Systems Analyst") === "INFRA");
+check("Business Analyst feed category is CONSULTING_TECH", classifyCategory("Business Analyst") === "CONSULTING_TECH");
 check(
   "Autodesk Market and Competitive Intelligence Analyst is analyst, not SWE",
   detectRoleFamily("AI Market and Competitive Intelligence Analyst", "Autodesk", "PitchBook competitive landscape") ===

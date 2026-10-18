@@ -191,6 +191,40 @@ if (/out of the blue|don'?t know me|didn'?t ask for this|no need to reply/i.test
   console.log("ok  apology theater stripped");
 }
 
+const recruiter = polishEmail(
+  {
+    subject: "Role",
+    body: "Hi Priya,\n\nI'm Kabir, I recently graduated from Seneca Polytechnic.\n\nWhat I like about this team is the data work.\n",
+  },
+  { signOff: "Kabir", recipientFirst: "Priya", company: "National Bank of Canada", kind: "recruiter" }
+);
+if (!/take a look at my online application/i.test(recruiter.body)) {
+  console.log("FAIL recruiter should ask about the online application\n", recruiter.body);
+  failed++;
+} else if (/coffee chat|referral/i.test(recruiter.body)) {
+  console.log("FAIL recruiter should not ask for a coffee chat\n", recruiter.body);
+  failed++;
+} else {
+  console.log("ok  recruiter ask: look at the application");
+}
+
+const manager = polishEmail(
+  {
+    subject: "Role",
+    body: "Hi Julien,\n\nI'm Kabir, I recently graduated from Seneca Polytechnic.\n\nWhat I like about this team is the data work.\n",
+  },
+  { signOff: "Kabir", recipientFirst: "Julien", company: "National Bank of Canada", kind: "manager" }
+);
+if (!/coffee chat/i.test(manager.body) || !/referral/i.test(manager.body)) {
+  console.log("FAIL manager should ask for a coffee chat or referral\n", manager.body);
+  failed++;
+} else if (/take a look at my online application/i.test(manager.body)) {
+  console.log("FAIL manager should not ask HR to review the ATS\n", manager.body);
+  failed++;
+} else {
+  console.log("ok  manager ask: coffee chat / referral");
+}
+
 if (failed) {
   console.log(`\n${failed} failed`);
   process.exit(1);

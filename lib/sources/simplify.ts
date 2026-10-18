@@ -24,7 +24,7 @@ function ageToDate(age: string): Date | null {
  * Rows are HTML tables inside markdown; closed postings are marked 🔒.
  * Descriptions aren't provided by the list — apply links go to the ATS.
  */
-export function simplifyAdapter(feed: (typeof FEEDS)[number]): SourceAdapter {
+function simplifyAdapter(feed: (typeof FEEDS)[number]): SourceAdapter {
   return {
     name: feed.name,
     async fetch(): Promise<NormalizedJob[]> {

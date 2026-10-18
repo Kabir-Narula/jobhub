@@ -41,7 +41,7 @@ export const maxDuration = 300;
 
 const RESUME_PAGE_LIMIT = 1;
 const COVER_PAGE_LIMIT = 1; // master cover template is single-page
-const FILL_TARGET = 0.9; // below this, run one auto-expand pass (no empty bottom)
+const FILL_TARGET = 0.85; // below this, run one auto-expand pass (no empty bottom); 85-90% already reads full
 
 async function getResearch(jobId: string, refresh = false): Promise<CompanyResearch | null> {
   const job = await prisma.job.findUniqueOrThrow({ where: { id: jobId } });
@@ -83,6 +83,14 @@ async function getResearch(jobId: string, refresh = false): Promise<CompanyResea
       return null;
     }
   }
+}
+
+function isQuotaError(e: unknown): boolean {
+  const err = e as { status?: number; code?: string; error?: { code?: string; type?: string } } | null;
+  return (
+    err?.status === 429 &&
+    /insufficient_quota|credit_balance_exhausted/.test(`${err.code ?? ""} ${err.error?.code ?? ""} ${err.error?.type ?? ""}`)
+  );
 }
 
 async function nextVersion(jobId: string, kind: "RESUME" | "COVER"): Promise<number> {
@@ -184,6 +192,17 @@ export async function POST(request: Request) {
 
   const warnings: string[] = [];
   const requestStart = Date.now();
+  // Boost / expand / repair improve a resume that already fits; a failure there
+  // (quota, timeout, bad JSON) must not throw away the draft already paid for.
+  async function optionalPass<T>(label: string, run: () => Promise<T>): Promise<T | null> {
+    try {
+      return await run();
+    } catch (e) {
+      console.error(`[tailor/generate] ${label} pass failed`, e);
+      warnings.push(`${label} pass skipped (${isQuotaError(e) ? "OpenAI credits exhausted" : "model error"}) — saved the last good draft.`);
+      return null;
+    }
+  }
   try {
 
   // Thin JDs (Simplify cards, Workday shells) hydrate from the live posting so
@@ -199,6 +218,15 @@ export async function POST(request: Request) {
     } else if (job.description.trim().length < 200) {
       warnings.push("Job description couldn't be fetched (JS-rendered page) — tailored from the title only; ATS score unavailable.");
     }
+  }
+
+  // Page-scraped postings keep the careers site's nav + footer; strip it once and persist.
+  const { cleanJobDescription } = await import("@/lib/jobs/clean-description");
+  const cleanedJd = cleanJobDescription(job.description);
+  if (cleanedJd.length >= 200 && cleanedJd.length < job.description.length * 0.95) {
+    job.description = cleanedJd;
+    hydratedNow = true;
+    await prisma.job.update({ where: { id: job.id }, data: { description: cleanedJd } });
   }
 
   // Structured read of the posting (must/nice requirements, domain, work types,
@@ -224,8 +252,8 @@ export async function POST(request: Request) {
   let research = await getResearch(job.id, deepResearch || Boolean(body?.force));
   if (!research) {
     warnings.push("Company research failed — generated without company intel (no hook fact or tone match). Retry for a stronger cover letter.");
-  } else if (!(research.redditIntel && research.redditIntel.length > 100)) {
-    warnings.push("Reddit intel was thin — used JD-derived hiring-screen rules; force-refresh research if the resume feels generic.");
+  } else if (!(research.redditIntel && research.redditIntel.length > 100) && !(research.hiringScreen?.length)) {
+    warnings.push("No hiring-screen intel for this role (Reddit and JD both thin) — force-refresh research if the resume feels generic.");
   }
 
   const jobInput = {
@@ -395,12 +423,14 @@ export async function POST(request: Request) {
   ];
   let banned = bannedNumberShapes(resumeClaims());
   if (banned.length > 0) {
-    generated = await generateContent({ ...baseInput });
+    generated = (await optionalPass("Number-safety retry", () => generateContent({ ...baseInput }))) ?? generated;
     banned = bannedNumberShapes(resumeClaims());
     if (banned.length > 0) {
       warnings.push(`Remove before sending — these cannot be defended in a screen: ${banned.join(", ")}`);
     }
   }
+  // Shorten / boost / expand / repair only touch the resume; the first letter ships.
+  const refineBase = { ...baseInput, carryCoverLetter: generated.coverLetter };
   const inventedNumbers = findNewNumbers(originalText, generatedText());
   if (inventedNumbers.length > 0) {
     warnings.push(`Invented figures you will need to defend in an interview: ${inventedNumbers.join(", ")}`);
@@ -476,15 +506,16 @@ export async function POST(request: Request) {
       // Keep the model's ranking. Only strip SWE leaks and invented vendors.
       // Backfill only JD-matched intern-defensible items the model omitted —
       // never raw placementGaps (those re-injected Excel-function noise).
-      tex = pinBusinessSkills(tex, clamps.compactSkills ?? 0, {
-        professional: softSkills,
-      });
+      const pinOpts = { professional: softSkills, jobDescription: job!.description };
+      tex = pinBusinessSkills(tex, clamps.compactSkills ?? 0, pinOpts);
       const businessBackfill = claimableBusinessSkillItems(job!.description, family)
         .filter(allowedByLens)
         .filter((t) => !tex.toLowerCase().includes(t.toLowerCase()))
         .slice(0, 4);
       if (businessBackfill.length) {
         tex = ensureSkillsTerms(tex, businessBackfill, clamps.compactSkills || 7);
+        // backfill lands on the shortest line regardless of heading; regroup again
+        tex = pinBusinessSkills(tex, clamps.compactSkills ?? 0, pinOpts);
       }
     } else {
       // Deterministic backfill: homed JD technologies that are still absent
@@ -563,11 +594,14 @@ export async function POST(request: Request) {
     // One shorten call, reused across clamp steps — the task text is identical
     // for every step, so regenerating per clamp just burns tokens.
     if (!shortenedGen) {
-      shortenedGen = await generateContent({
-        ...baseInput,
-        shorten: true,
-        projectCount: business ? 1 : 2,
-      });
+      shortenedGen = await optionalPass("Compress", () =>
+        generateContent({
+          ...refineBase,
+          shorten: true,
+          projectCount: business ? 1 : 2,
+        })
+      );
+      if (!shortenedGen) break;
     }
     resumeTex = buildTex(shortenedGen, clamps);
     resumeResult = await compileLatex(resumeTex);
@@ -584,6 +618,35 @@ export async function POST(request: Request) {
       { status: 422 }
     );
   }
+
+  const auditFamily = family === "analyst" ? ("analyst" as const) : ("consulting" as const);
+  const auditOpts = {
+    // Consulting: every entry is CAR, including campus-ops. SWE: last software
+    // entry stays the verbatim-true anchor.
+    expandedCount: business ? parsedForJob.entries.length : Math.min(2, parsedForJob.entries.length - 1),
+    ...(business
+      ? {
+          family: auditFamily,
+          jobDescription: jobInput.description,
+          jobTitle: jobInput.title,
+        }
+      : {}),
+  };
+  // Requirement coverage is part of the gate: a resume can pass every style
+  // check while skipping the posting's #1 must-have. Coverage issues feed the
+  // same repair pass as style failures.
+  const coverageFor = (tex: string) =>
+    coverageIssues(uncoveredTerms(jdAnalysis.mustHaves, tex).filter(allowedByLens), job.company);
+  const auditAll = (gen: typeof generated, tex: string) => [
+    ...coverageFor(tex),
+    ...auditExperienceBullets(gen.experience, auditOpts),
+    ...auditProjectBullets(gen.projects ?? [], business ? { family: auditFamily } : {}),
+  ];
+  const resumeBullets = (gen: GeneratedContent) => [
+    ...gen.experience.flatMap((e) => e.bullets),
+    ...(gen.projects ?? []).flatMap((p) => p.bullets ?? []),
+  ];
+  let combinedRepairRan = false;
 
   // --- ATS optimization loop: score, weave claimable missing terms, re-score ---
   // Fires on aggregate <70 OR any uncovered must-have — a 75 that skips the
@@ -615,20 +678,33 @@ export async function POST(request: Request) {
       missing = missing.filter((t) => allowed.has(t.toLowerCase()) || allowed.has(t.toLowerCase().replace(/\s+/g, "")));
     }
     if (missing.length > 0) {
-      const boosted = await generateContent({
-        ...baseInput,
-        boost: { missingTerms: missing },
-        ...(wasCompressed ? { shorten: true, projectCount: 2 } : {}),
-      });
-      const boostedTex = buildTex(boosted, activeClamps);
-      const boostedResult = await compileLatex(boostedTex);
-      if (boostedResult.pageCount === 1) {
+      // One call fixes keywords AND bullet doctrine when both are needed —
+      // running them as two sequential quality-tier passes doubled the cost.
+      const preIssues = auditAll(generated, resumeTex);
+      const fixQuality = highSeverityCount(preIssues) > 0;
+      const boosted = await optionalPass("ATS boost", () =>
+        generateContent({
+          ...refineBase,
+          boost: { missingTerms: missing },
+          ...(fixQuality ? { qualityIssues: qualityFeedback(preIssues, business ? auditFamily : undefined) } : {}),
+          ...(wasCompressed ? { shorten: true, projectCount: 2 } : {}),
+        })
+      );
+      const boostedTex = boosted ? buildTex(boosted, activeClamps) : "";
+      const boostedResult = boosted ? await compileLatex(boostedTex) : null;
+      if (boosted && boostedResult && boostedResult.pageCount === 1 && bannedNumberShapes(resumeBullets(boosted)).length === 0) {
         const boostedScore = matchScore(job.description, boostedTex, job.company, job.title, jdAnalysis);
-        if (boostedScore !== null && (score === null || boostedScore > score)) {
+        const before = highSeverityCount(preIssues);
+        const after = highSeverityCount(auditAll(boosted, boostedTex));
+        const scoreUp = boostedScore !== null && (score === null || boostedScore > score);
+        const scoreHeld = boostedScore !== null && (score === null || boostedScore >= score);
+        if ((scoreUp && after <= before) || (scoreHeld && after < before)) {
           resumeTex = boostedTex;
           resumeResult = boostedResult;
           generated = boosted;
           score = boostedScore;
+          // Only skip the later repair when this draft actually shipped WITH quality in the prompt.
+          if (fixQuality) combinedRepairRan = true;
         }
       }
     }
@@ -640,10 +716,10 @@ export async function POST(request: Request) {
   // compressing to fit is self-defeating, and the clamps would trim the extra
   // bullets straight back off. The sparseness there is the clamps, not the draft.
   if (fillPct < FILL_TARGET * 100 && resumeResult.pageCount === 1 && !wasCompressed) {
-    const expanded = await generateContent({ ...baseInput, expand: true });
-    const expandedTex = buildTex(expanded, activeClamps);
-    const expandedResult = await compileLatex(expandedTex);
-    if (expandedResult.pageCount === 1) {
+    const expanded = await optionalPass("Page-fill", () => generateContent({ ...refineBase, expand: true }));
+    const expandedTex = expanded ? buildTex(expanded, activeClamps) : "";
+    const expandedResult = expanded ? await compileLatex(expandedTex) : null;
+    if (expanded && expandedResult && expandedResult.pageCount === 1) {
       const expandedFill = Math.round((await pageFill(expandedResult.pdf)) * 100);
       if (expandedFill > fillPct) {
         resumeTex = expandedTex;
@@ -660,51 +736,31 @@ export async function POST(request: Request) {
   // draft measured content later passes then overwrote — the repair was spent on
   // a draft nobody would ever see. Same trap as the title note. One repair, only
   // for high-severity issues, and only if it survives the same page and ATS bars
-  // as every other pass.
-  const auditOpts = {
-    // Consulting: every entry is CAR, including campus-ops. SWE: last software
-    // entry stays the verbatim-true anchor.
-    expandedCount: business ? parsedForJob.entries.length : Math.min(2, parsedForJob.entries.length - 1),
-    ...(business
-      ? {
-          family: "consulting" as const,
-          jobDescription: jobInput.description,
-          jobTitle: jobInput.title,
-        }
-      : {}),
-  };
-  // Requirement coverage is part of the gate: a resume can pass every style
-  // check while skipping the posting's #1 must-have. Coverage issues feed the
-  // same repair pass as style failures.
-  const coverageFor = (tex: string) =>
-    coverageIssues(uncoveredTerms(jdAnalysis.mustHaves, tex).filter(allowedByLens), job.company);
-  const auditAll = (gen: typeof generated, tex: string) => [
-    ...coverageFor(tex),
-    ...auditExperienceBullets(gen.experience, auditOpts),
-    ...auditProjectBullets(gen.projects ?? [], business ? { family: "consulting" } : {}),
-  ];
+  // as every other pass. Skipped when the combined boost+repair pass already ran.
   let bulletIssues = auditAll(generated, resumeTex);
   // A repair costs one quality-tier call plus a compile. Skipping it when the
   // request is already close to maxDuration is better than being killed after
   // the work is done but before anything is saved.
   // maxDuration is 300s; leave ~45s for compile + save after a quality repair call.
   const timeForRepair = Date.now() - requestStart < 255_000;
-  if (highSeverityCount(bulletIssues) > 0 && timeForRepair) {
-    const repaired = await generateContent({
-      ...baseInput,
-      qualityIssues: qualityFeedback(bulletIssues, business ? "consulting" : undefined),
-      // Keep whichever length mode made the page fit, or the repair overflows and
-      // gets discarded for a reason that has nothing to do with bullet quality.
-      ...(wasCompressed ? { shorten: true, projectCount: 2 } : {}),
-    });
+  const repaired =
+    highSeverityCount(bulletIssues) > 0 && timeForRepair && !combinedRepairRan
+      ? await optionalPass("Quality repair", () =>
+          generateContent({
+            ...refineBase,
+            qualityIssues: qualityFeedback(bulletIssues, business ? auditFamily : undefined),
+            // Keep whichever length mode made the page fit, or the repair overflows and
+            // gets discarded for a reason that has nothing to do with bullet quality.
+            ...(wasCompressed ? { shorten: true, projectCount: 2 } : {}),
+          })
+        )
+      : null;
+  if (repaired) {
     const repairedTex = buildTex(repaired, activeClamps);
     const repairedIssues = auditAll(repaired, repairedTex);
     if (
       highSeverityCount(repairedIssues) < highSeverityCount(bulletIssues) &&
-      bannedNumberShapes([
-        ...repaired.experience.flatMap((e) => e.bullets),
-        ...(repaired.projects ?? []).flatMap((p) => p.bullets ?? []),
-      ]).length === 0
+      bannedNumberShapes(resumeBullets(repaired)).length === 0
     ) {
       const repairedResult = await compileLatex(repairedTex);
       const repairedScore = matchScore(job.description, repairedTex, job.company, job.title, jdAnalysis);
@@ -825,7 +881,9 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error("[tailor/generate]", err);
     const raw = err instanceof Error ? err.message : "";
-    const error = /Tectonic|Missing \\}/i.test(raw)
+    const error = isQuotaError(err)
+      ? "OpenAI credits are exhausted — add credits at platform.openai.com/settings/organization/billing, then generate again."
+      : /Tectonic|Missing \\}/i.test(raw)
       ? "Resume failed to compile. Click generate again."
       : /omitted experience/i.test(raw)
         ? "The model skipped an experience entry. Click generate again."

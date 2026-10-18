@@ -24,7 +24,7 @@ const BOTH: Array<"consulting" | "analyst"> = ["consulting", "analyst"];
  * Intern-defensible techniques. jd patterns are NARROW — named tools/methods
  * only. Hints for the model, never a mandatory stamp list.
  */
-export const ANALYST_TECHNIQUE_PALETTE: AnalystTechnique[] = [
+const ANALYST_TECHNIQUE_PALETTE: AnalystTechnique[] = [
   {
     id: "pivot",
     writeAs: "a Pivot Table",
@@ -99,7 +99,7 @@ export const ANALYST_TECHNIQUE_PALETTE: AnalystTechnique[] = [
     id: "secondary",
     writeAs: "secondary-research synthesis",
     why: "Insights/CI: secondary research or syndicated sources — never invent Nielsen/Qualtrics/PitchBook as tools you used",
-    jd: /\bsecondary research\b|\bmarket research\b|\bqualtrics\b|\bnielsen\b|\biri\b|\bcircana\b|\bsurveys?\b|\bsyndicat|\bmintel\b|\bpitchbook\b|\bcb insights\b/i,
+    jd: /\bsecondary research\b|\bmarket research\b|\bqualtrics\b|\bnielsen\b|\biri\b|\bcircana\b|\bsurvey (?:data|design|analysis|research|results)\b|\bsyndicat|\bmintel\b|\bpitchbook\b|\bcb insights\b/i,
     families: ["analyst"],
   },
   {
@@ -120,14 +120,14 @@ export const ANALYST_TECHNIQUE_PALETTE: AnalystTechnique[] = [
     id: "workshop",
     writeAs: "a discovery / requirements walkthrough with stakeholders",
     why: "HR-tech / consulting: workshops, discovery, facilitation — map from advising or client walkthroughs",
-    jd: /\bworkshops?\b|\bdiscovery\b|\bfacilitat\w*/i,
+    jd: /\bworkshops?\b|\bdiscovery (?:sessions?|workshops?|phase)\b|\bfacilitat\w* (?:workshops?|sessions?|meetings?|discussions?)\b/i,
     families: BOTH,
   },
   {
     id: "requirements",
     writeAs: "a requirements note or process-gap list",
     why: "JD named requirements gathering / user stories / process documentation",
-    jd: /\brequirements?\b|\buser stor(?:y|ies)\b|\bprocess (?:gap|map|mapping|notes?)\b/i,
+    jd: /\b(?:business|functional|client|user|system|stakeholder|technical|integration|data|reporting) requirements\b|\b(?:gather\w*|document\w*|captur\w*|defin\w*) (?:\w+ ){0,2}requirements\b|\brequirements (?:gathering|elicitation|analysis|documentation)\b|\buser stor(?:y|ies)\b|\bprocess (?:gap|map|mapping|notes?)\b/i,
     families: BOTH,
   },
   {
@@ -291,10 +291,16 @@ const BUSINESS_JD_EXTRAS: { item: string; bucket: BusinessSkillBucket; jd: RegEx
   { item: "Python", bucket: "languages", jd: /\bpython\b/i },
   { item: "JavaScript", bucket: "languages", jd: /\bjava\s*script\b|\bjavascript\b|\bjs\b/i },
   { item: "REST APIs", bucket: "cloud", jd: /\bapis?\b|\brest\b|\bhr apis?\b/i },
+  { item: "Microsoft 365", bucket: "infra", jd: /\bmicrosoft (?:suite|office|365)\b|\bo365\b|\bms office\b|\boffice 365\b/i },
+  { item: "Data Entry", bucket: "cloud", jd: /\bdata entry\b/i },
+  { item: "Data Validation", bucket: "cloud", jd: /\bdata (?:integrity|accuracy|validation)\b|\bvalidat\w+ (?:data|records)\b/i },
+  { item: "Data Quality", bucket: "cloud", jd: /\bdata (?:quality|integrity|management)\b/i },
+  { item: "Reporting", bucket: "cloud", jd: /\b(?:generate|prepare|produce|build) (?:\w+ )?reports?\b|\breporting\b/i },
+  { item: "AI Tools (ChatGPT, LLM APIs)", bucket: "infra", jd: /\bartificial intelligence\b|\bai tools?\b|\bgenerative ai\b|\bgen ?ai\b|\bllms?\b|\bchatgpt\b|\bcopilot\b/i },
   {
     item: "Secondary Research",
     bucket: "frameworks",
-    jd: /\bsecondary research\b|\bmarket research\b|\bqualtrics\b|\bnielsen\b|\biri\b|\bcircana\b|\bsurveys?\b|\bsyndicat|\bmintel\b|\bpitchbook\b|\bcb insights\b/i,
+    jd: /\bsecondary research\b|\bmarket research\b|\bqualtrics\b|\bnielsen\b|\biri\b|\bcircana\b|\bsurvey (?:data|design|analysis|research|results)\b|\bsyndicat|\bmintel\b|\bpitchbook\b|\bcb insights\b/i,
   },
   {
     item: "Competitive Intelligence",
@@ -309,12 +315,13 @@ const BUSINESS_JD_EXTRAS: { item: string; bucket: BusinessSkillBucket; jd: RegEx
   {
     item: "Requirements Gathering",
     bucket: "frameworks",
-    jd: /\brequirements?\b|\buser stor(?:y|ies)\b|\banalyz(?:e|ing) client requirements\b/i,
+    // Bare "requirements" is every posting's qualifications header, not BA work.
+    jd: /\b(?:business|functional|client|user|system|stakeholder|technical|integration|data|reporting) requirements\b|\b(?:gather\w*|document\w*|captur\w*|defin\w*) (?:\w+ ){0,2}requirements\b|\brequirements (?:gathering|elicitation|analysis|documentation)\b|\buser stor(?:y|ies)\b/i,
   },
   {
     item: "Workshop Facilitation",
     bucket: "frameworks",
-    jd: /\bworkshops?\b|\bdiscovery\b|\bfacilitat\w*/i,
+    jd: /\bworkshops?\b|\bdiscovery (?:sessions?|workshops?|phase)\b|\bfacilitat\w* (?:workshops?|sessions?|meetings?|discussions?)\b/i,
   },
   {
     item: "UAT / Test Scripts",

@@ -50,3 +50,8 @@ next-env.d.ts
 
 # test artifacts
 test-master-roundtrip.pdf
+
+# personal interview prep (public repo) + Office lock files
+*.docx
+~$*
+/scripts/build-zs-prep-docx.ts

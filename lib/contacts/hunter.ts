@@ -55,11 +55,48 @@ async function hunterGet<T>(path: string, params: Record<string, string>): Promi
   }
 }
 
-async function domainSearch(domain: string, department?: string): Promise<{ emails: HunterEmail[]; pattern: string | null }> {
-  const params: Record<string, string> = { domain, limit: "10" };
-  if (department) params.department = department;
+/** Location filters require POST. Other params stay on the query string. */
+async function hunterPost<T>(path: string, params: Record<string, string>, body: unknown): Promise<T> {
+  const url = `https://api.hunter.io/v2/${path}?${new URLSearchParams({ ...params, api_key: key() })}`;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 15000);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    if (res.status === 429) throw new Error("Hunter monthly quota exceeded — try again next month or upgrade");
+    if (!res.ok) throw new Error(`Hunter HTTP ${res.status}`);
+    return (await res.json()) as T;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+type DomainHit = { emails: HunterEmail[]; pattern: string | null };
+
+async function domainSearch(
+  domain: string,
+  opts: { department?: string; city?: string; country?: string } = {}
+): Promise<DomainHit> {
+  const params: Record<string, string> = { domain, limit: "10", type: "personal" };
+  if (opts.department) params.department = opts.department;
+  const unpack = (data: { data?: { emails?: HunterEmail[]; pattern?: string } }): DomainHit => ({
+    emails: data.data?.emails ?? [],
+    pattern: data.data?.pattern ?? null,
+  });
+  if (opts.country) {
+    const loc: { country: string; city?: string } = { country: opts.country };
+    if (opts.city) loc.city = opts.city;
+    const data = await hunterPost<{ data?: { emails?: HunterEmail[]; pattern?: string } }>("domain-search", params, {
+      location: { include: [loc] },
+    });
+    return unpack(data);
+  }
   const data = await hunterGet<{ data?: { emails?: HunterEmail[]; pattern?: string } }>("domain-search", params);
-  return { emails: data.data?.emails ?? [], pattern: data.data?.pattern ?? null };
+  return unpack(data);
 }
 
 const CAMPUS_RE = /university|campus|early[- ]career|new[- ]?grad|student program|emerging talent|graduate program/i;
@@ -67,12 +104,25 @@ const MANAGER_RE = /engineering manager|manager|director|head of|team lead|tech 
 const ENGINEER_RE = /software|engineer|developer|swe|programmer|architect/i;
 const RECRUITER_RE = /recruit|talent|sourcer|hiring|staffing|human_resources|people ops|\bhr\b/i;
 
+export interface ContactSearchOpts {
+  jobTitle?: string;
+  /** Raw posting location, e.g. "Toronto, Ontario". */
+  location?: string;
+}
+
+function isBusinessRole(jobTitle?: string): boolean {
+  return /consult|analyst|insights|strategy|decision analytics|planning|business/i.test(jobTitle ?? "");
+}
+
 /** One-line reason this person is worth cold-emailing for a new-grad application. */
-export function whyContact(e: HunterEmail): string {
+function whyContact(e: HunterEmail, jobTitle?: string): string {
   const t = `${e.position ?? ""} ${e.department ?? ""}`;
   if (CAMPUS_RE.test(t)) return "Campus recruiting — owns new-grad hiring, reads these";
+  if (isBusinessRole(jobTitle) && /consult|analyst|insights|strategy/i.test(t)) {
+    return "Close to this kind of work — can forward you to the hiring team";
+  }
   if (MANAGER_RE.test(t)) return "Likely hiring-manager track — can forward your resume internally";
-  if (ENGINEER_RE.test(t)) return "Engineer on the team — referral path (referrals pay bonuses)";
+  if (!isBusinessRole(jobTitle) && ENGINEER_RE.test(t)) return "Engineer on the team — referral path (referrals pay bonuses)";
   if (RECRUITER_RE.test(t)) return "Recruiter — right inbox, high volume";
   return "Relevant contact at the company";
 }
@@ -83,19 +133,35 @@ export function whyContact(e: HunterEmail): string {
  * forwards your resume beats a flooded recruiter inbox; campus recruiters
  * own the new-grad pipeline and actually read; generic HR is the fallback.
  */
-function rankContacts(emails: HunterEmail[]): HunterEmail[] {
+function rankContacts(emails: HunterEmail[], jobTitle?: string): HunterEmail[] {
+  const business = isBusinessRole(jobTitle);
   const score = (e: HunterEmail): number => {
     const t = `${e.position ?? ""} ${e.department ?? ""}`;
     let s = 0;
-    if (CAMPUS_RE.test(t)) s += 100; // owns new-grad hiring, reachable
-    if (MANAGER_RE.test(t)) s += 90; // decision-maker / internal forward
-    if (ENGINEER_RE.test(t)) s += 75; // referral path
-    if (RECRUITER_RE.test(t)) s += 55; // right but flooded inbox
+    if (CAMPUS_RE.test(t)) s += 100;
+    if (business && /consult|analyst|insights|strategy|decision/i.test(t)) s += 95;
+    if (MANAGER_RE.test(t)) s += business ? 70 : 90;
+    if (ENGINEER_RE.test(t)) s += business ? 25 : 75;
+    if (RECRUITER_RE.test(t)) s += business ? 80 : 55;
+    if (/toronto|canada/i.test(t)) s += 15;
     s += (e.confidence ?? 0) / 2;
     if (e.type === "personal") s += 10;
     return s;
   };
   return [...emails].sort((a, b) => score(b) - score(a));
+}
+
+function departmentsFor(jobTitle?: string): string {
+  if (isBusinessRole(jobTitle)) return "hr,consulting,management";
+  if (/product/i.test(jobTitle ?? "")) return "product,hr,management";
+  return "it,hr,management";
+}
+
+function geoFor(location?: string): { city?: string; country: string } | null {
+  if (!location) return null;
+  if (/toronto/i.test(location)) return { city: "Toronto", country: "CA" };
+  if (/\bontario\b|\bcanada\b|\bON\b/i.test(location)) return { country: "CA" };
+  return null;
 }
 
 interface VerifyResult {
@@ -150,35 +216,36 @@ const GENERIC_LOCAL = /^(info|careers|jobs|job|hr|humanresources|support|assist|
 export async function findCompanyContacts(
   domain: string,
   count = 2,
-  exclude: Set<string> = new Set()
+  exclude: Set<string> = new Set(),
+  opts: ContactSearchOpts = {}
 ): Promise<ContactResult[]> {
-  const [hr, it, mgmt] = await Promise.all([
-    domainSearch(domain, "hr"),
-    domainSearch(domain, "it"),
-    domainSearch(domain, "management"),
-  ]);
-  let pattern: string | null = hr.pattern ?? it.pattern ?? mgmt.pattern;
+  const department = departmentsFor(opts.jobTitle);
+  const geo = geoFor(opts.location);
+  // One location-scoped search first (Toronto city, else Canada). Falls back
+  // to a single unscoped search so a thin local index doesn't burn 3 credits.
+  let scoped: DomainHit = { emails: [], pattern: null };
+  if (geo) {
+    try {
+      scoped = await domainSearch(domain, { department, ...geo });
+    } catch {
+      scoped = { emails: [], pattern: null };
+    }
+  }
+  let pattern: string | null = scoped.pattern;
   const seen = new Set<string>();
-  let candidates = [...it.emails, ...mgmt.emails, ...hr.emails].filter((c) => {
-    const k = c.value.toLowerCase();
-    if (seen.has(k) || exclude.has(k) || GENERIC_LOCAL.test(c.value)) return false;
-    seen.add(k);
-    return true;
-  });
-  candidates = rankContacts(candidates);
+  const keep = (list: HunterEmail[]) =>
+    list.filter((c) => {
+      const k = c.value.toLowerCase();
+      if (seen.has(k) || exclude.has(k) || GENERIC_LOCAL.test(c.value)) return false;
+      seen.add(k);
+      return true;
+    });
+  let candidates = rankContacts(keep(scoped.emails), opts.jobTitle);
 
-  if (candidates.length < 8) {
-    const general = await domainSearch(domain);
+  if (candidates.length < 6) {
+    const general = await domainSearch(domain, { department });
     if (!pattern) pattern = general.pattern;
-    candidates = [
-      ...candidates,
-      ...rankContacts(general.emails).filter((c) => {
-        const k = c.value.toLowerCase();
-        if (seen.has(k) || exclude.has(k) || GENERIC_LOCAL.test(c.value)) return false;
-        seen.add(k);
-        return true;
-      }),
-    ];
+    candidates = [...candidates, ...rankContacts(keep(general.emails), opts.jobTitle)];
   }
 
   const out: ContactResult[] = [];
@@ -200,7 +267,7 @@ export async function findCompanyContacts(
       confidence: Math.max(c.confidence ?? 0, v.score),
       deliverability: v.deliverability,
       sources: (c.sources ?? []).map((s) => s.uri).slice(0, 3),
-      why: whyContact(c),
+      why: whyContact(c, opts.jobTitle),
       quality,
     });
   }

@@ -260,6 +260,28 @@ const CANON_SURFACE: Record<string, string[]> = {
  * truthfully claim — mapping them to generic words ("excel" covers "tableau")
  * granted free coverage and hid real gaps from the boost pass.
  */
+/**
+ * Posting phrasing → resume phrasings an ATS/recruiter accepts as the same skill.
+ * Without this the repair pass pasted "Microsoft Suite within O365" into a bullet.
+ */
+const OFFICE = ["microsoft 365", "microsoft office", "office 365", "o365", "excel", "powerpoint"];
+const PHRASE_EQUIV: Record<string, string[]> = {
+  "microsoft suite": OFFICE,
+  "microsoft office": OFFICE,
+  "ms office": OFFICE,
+  "office 365": OFFICE,
+  o365: OFFICE,
+  "microsoft 365": OFFICE,
+  "data integrity": ["data validation", "data quality", "validation checks"],
+  "data accuracy": ["data validation", "data quality", "validation checks"],
+  "data quality": ["data validation", "validation checks"],
+  "report generation": ["reporting", "reports"],
+  "generate reports": ["reporting", "reports"],
+  "artificial intelligence tools": ["ai tools", "llm", "ai-assisted"],
+  "ai tools": ["ai tools", "llm", "ai-assisted"],
+  "data entry tools": ["data entry"],
+};
+
 function covered(term: string, plain: string, plainSquash: string, segments: string[]): boolean {
   const words = term.split(" ").filter(Boolean);
 
@@ -270,11 +292,13 @@ function covered(term: string, plain: string, plainSquash: string, segments: str
     for (const surface of CANON_SURFACE[term] ?? []) {
       if (hasWord(surface, plain)) return true;
     }
+    if ((PHRASE_EQUIV[term] ?? []).some((eq) => plain.includes(eq))) return true;
     return (IMPLIES[term] ?? []).some((specific) => hasWord(specific, plain));
   }
 
   if (plain.includes(term)) return true;
   if (plainSquash.includes(term.replace(/\s+/g, ""))) return true;
+  if ((PHRASE_EQUIV[term] ?? []).some((eq) => plain.includes(eq))) return true;
   const parts = words.filter((w) => w.length > 2);
   if (parts.length === 0) return false;
   return segments.some((seg) => parts.every((w) => hasWord(w, seg)));
@@ -327,12 +351,15 @@ export function matchScore(
   analysis?: JdAnalysis | null
 ): number | null {
   if (!jobDescription.trim()) return null; // no JD to score against — display as "—", not 0%
-  const terms = claimableJdTerms(
-    jobDescription,
-    40,
-    companyName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean),
-    jobTitle
-  );
+  // The claimable lexicon is tech-shaped; the analysis carries the posting's own
+  // business requirements ("microsoft office", "data integrity"), so score both.
+  const terms = [
+    ...new Set([
+      ...claimableJdTerms(jobDescription, 40, companyName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean), jobTitle),
+      ...(analysis?.mustHaves ?? []),
+      ...(analysis?.niceToHaves ?? []),
+    ]),
+  ];
   if (terms.length === 0) return null;
   const plain = plainTex(resumeTex);
   const plainSquash = plain.replace(/\s+/g, "");

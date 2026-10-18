@@ -22,6 +22,9 @@ const CONSULTING_RE =
   /\b(consultant|consulting|implementation (engineer|consultant|specialist|manager)|solutions? (analyst|engineer|consultant|architect)|business (systems? )?analyst|technical account manager|professional services|pre-?sales|customer (engineer|success engineer)|deployment specialist|onboarding engineer|it consultant)\b/i;
 const DATA_ML_RE =
   /\b(data (engineer|scientist|analyst|engineering|sciences?|platform)|machine learning|ml (engineer|ops)|ai (engineer|developer)|computer vision|nlp|analytics engineer|business intelligence|bi (developer|analyst)|data ops|mlops|applied scientist)\b/i;
+// "Junior Analyst Data CIB", "Decision Analytics Associate" — word order defeats DATA_ML_RE.
+const ANALYST_RE =
+  /\b((insights?|research|operations|market|marketing|financial|risk|pricing|reporting|decision)[- ]?(analyst|associate)|junior analyst|analyst[, ]+data|decision analytics|strategy insights)\b/i;
 const INFRA_RE =
   /\b(devops|sre|site reliability|platform (engineer|engineering)|infrastructure (engineer|engineering)|cloud (engineer|architect|ops)|systems (engineer|administrator)|network (engineer|administrator)|database administrator|dba|release engineer|build engineer|it (support|specialist|technician)|help ?desk|systems analyst)\b/i;
 const SWE_RE =
@@ -29,7 +32,7 @@ const SWE_RE =
 
 export function classifyCategory(title: string): RoleCategory {
   if (CONSULTING_RE.test(title)) return "CONSULTING_TECH";
-  if (DATA_ML_RE.test(title)) return "DATA_ML";
+  if (ANALYST_RE.test(title) || DATA_ML_RE.test(title)) return "DATA_ML";
   if (INFRA_RE.test(title)) return "INFRA";
   if (SWE_RE.test(title)) return "SWE";
   return "OTHER";

@@ -42,7 +42,6 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/diff": "^7.0.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -51,9 +50,9 @@
     "eslint-config-next": "16.2.10",
     "playwright": "^1.61.1",
     "prisma": "^6.19.3",
+    "shadcn": "^4.13.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.1",
-    "typescript": "^5",
-    "shadcn": "^4.13.1"
+    "typescript": "^5"
   }
 }

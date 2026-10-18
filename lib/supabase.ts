@@ -2,7 +2,7 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 let client: SupabaseClient | null = null;
 
-export function supabaseAdmin(): SupabaseClient {
+function supabaseAdmin(): SupabaseClient {
   if (client) return client;
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -11,7 +11,7 @@ export function supabaseAdmin(): SupabaseClient {
   return client;
 }
 
-export function bucketName(): string {
+function bucketName(): string {
   return process.env.SUPABASE_STORAGE_BUCKET || "pdfs";
 }
 

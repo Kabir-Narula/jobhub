@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { draftOutreachEmail, draftFollowUpEmail, projectsFromResumeTex } from "@/lib/tailor/email";
-import type { CompanyResearch } from "@/lib/tailor/research";
+import { researchCompany, type CompanyResearch } from "@/lib/tailor/research";
+import { fetchCompanyNews } from "@/lib/tailor/company-news";
 import type { ContactResult } from "@/lib/contacts/hunter";
 
 export const maxDuration = 120;
@@ -15,7 +16,20 @@ export async function POST(request: Request) {
   const job = await prisma.job.findUnique({ where: { id: jobId } });
   if (!job) return NextResponse.json({ error: "job not found" }, { status: 404 });
 
-  const research = (job.companyResearch as unknown as CompanyResearch | null) ?? null;
+  let research = (job.companyResearch as unknown as CompanyResearch | null) ?? null;
+  const [news, freshResearch] = await Promise.all([
+    fetchCompanyNews(job.company),
+    research
+      ? Promise.resolve(null)
+      : researchCompany({ company: job.company, jobTitle: job.title, jobDescription: job.description }).catch(() => null),
+  ]);
+  if (freshResearch) {
+    research = freshResearch;
+    await prisma.job.update({
+      where: { id: job.id },
+      data: { companyResearch: freshResearch as never, researchedAt: new Date() },
+    });
+  }
   const storedContacts = (job.contacts as unknown as { contacts?: ContactResult[] } | null)?.contacts ?? [];
   const contact = contactEmail
     ? storedContacts.find((c) => c.email.toLowerCase() === contactEmail.toLowerCase()) ?? null
@@ -42,6 +56,7 @@ export async function POST(request: Request) {
     projects: projectsFromResumeTex(doc?.texContent),
     hasFinalDocs,
     candidateName: "Kabir Narula",
+    news: news.map((n) => ({ title: n.title, date: n.date })),
   };
 
   const followup = body?.mode === "followup" || body?.kind === "followup";

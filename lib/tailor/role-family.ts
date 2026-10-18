@@ -7,6 +7,8 @@
  * resume into data-engineering.
  */
 
+import { cleanJobDescription } from "@/lib/jobs/clean-description";
+
 export type RoleFamily = "consulting" | "analyst" | "swe" | "data-ml" | "infra" | "product";
 
 export function isBusinessFamily(family: RoleFamily): boolean {
@@ -33,6 +35,10 @@ const PRODUCT_TITLE = /\b(product (manager|owner|analyst|associate)|program mana
 const INFRA_TITLE =
   /\b(devops|sre|site reliability|platform engineer|it (support|analyst|consultant)|help ?desk|systems? admin|technical support|desktop support|hyflex)\b/i;
 
+const GENERIC_ANALYST_TITLE = /\banalyst\b/i;
+const TECH_ANALYST_TITLE =
+  /\b(software|systems?|it|security|soc|cyber|network|qa|test|programmer|application support|technical support|devops)\b[^,]{0,20}\banalyst\b|\banalyst\b[^,]{0,20}\b(developer|programmer|security|soc)\b/i;
+
 const CONSULTING_JD =
   /\b(case interview|problem[- ]solving test|\bpst\b|client engagement|workstream|management consulting|strategy consulting|ibm consulting|associate consultant|successfactors|techno[- ]?functional|strategy insights and planning|decision analytics|desk research|client[- ]first)\b/i;
 
@@ -48,12 +54,16 @@ export function detectRoleFamily(title: string, company: string, description = "
   if (CONSULTING_TITLE.test(title)) return "analyst";
   if (PRODUCT_TITLE.test(title)) return "product";
   if (INFRA_TITLE.test(title)) return "infra";
+  // "Junior Analyst Data CIB", "Analyst, Capital Markets", "Analyst I - Operations":
+  // word order defeats ANALYST_TITLE, but an Analyst title outside IT/security is a business seat.
+  if (GENERIC_ANALYST_TITLE.test(title) && !TECH_ANALYST_TITLE.test(title)) return "analyst";
+  const body = cleanJobDescription(description);
   // IBM Consulting / Associate Consultant body copy without a classic MBB title.
-  if (CONSULTING_FIRM.test(company) && CONSULTING_JD.test(description.slice(0, 4000))) return "consulting";
-  if (CONSULTING_JD.test(`${title}\n${description.slice(0, 4000)}`)) return "consulting";
+  if (CONSULTING_FIRM.test(company) && CONSULTING_JD.test(body.slice(0, 4000))) return "consulting";
+  if (CONSULTING_JD.test(`${title}\n${body.slice(0, 4000)}`)) return "consulting";
 
-  const head = `${title}\n${description.slice(0, 2500)}`.toLowerCase();
-  const analystHits = (head.match(/\b(excel|powerpoint|stakeholder|workstream|insights?|market research|business analyst|data analyst|competitive intelligence|competitive landscape|segmentation|kpi|brief)\b/g) ?? []).length;
+  const head = `${title}\n${body.slice(0, 4000)}`.toLowerCase();
+  const analystHits = (head.match(/\b(excel|powerpoint|microsoft (office|suite)|o365|stakeholders?|workstream|insights?|market research|business analyst|data analyst|data entry|data integrity|reports?|competitive intelligence|competitive landscape|segmentation|kpi|brief|capital markets)\b/g) ?? []).length;
   const sweHits = (head.match(/\b(software engineer|backend|frontend|full[- ]?stack|fastapi|kubernetes|react|kotlin)\b/g) ?? []).length;
   if (analystHits >= 2 && analystHits >= sweHits) return "analyst";
   return "swe";
@@ -99,7 +109,7 @@ export function csBridgeEntryIndex(entries: { company: string; title: string }[]
  * engineering title on it reads as a mismatch, not a bridge.
  */
 const PROGRAMMING_ASK =
-  /\b(python|javascript|typescript|java(?!script)|\bsql\b|c\+\+|c#|scala|kotlin|golang|rust|\br\b|coding|programming|software (?:engineer|develop\w*)|automation|apis?\b|machine learning|data pipelines?|algorithms?|debugging|scripts?|statistical (?:models?|analysis)|vba|macros?)\b/i;
+  /\b(python|javascript|typescript|java(?!script)|\bsql\b|c\+\+|c#|scala|kotlin|golang|rust|\br\b|coding|programming|software (?:engineer|develop\w*)|automation|apis?\b|machine learning|data pipelines?|algorithms?|debugging|scripts?|statistical (?:models?|analysis)|vba|macros?|databases?|data management|data integrity|data quality|technical proficiency|technical skills|artificial intelligence|ai tools?|power query|etl)\b/i;
 
 export function jdWantsProgramming(jobDescription: string, jobTitle = ""): boolean {
   return PROGRAMMING_ASK.test(`${jobTitle}\n${jobDescription}`);

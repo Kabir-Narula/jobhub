@@ -52,7 +52,7 @@ export function parseJson(content: string): any {
   return JSON.parse(cleaned);
 }
 
-function slugify(company: string): string {
+export function slugify(company: string): string {
   return company
     .toLowerCase()
     .replace(/\b(inc|corp|corporation|ltd|llc|limited|co|company|technologies|technology|labs|group)\b\.?/g, "")

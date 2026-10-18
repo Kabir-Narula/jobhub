@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { findCompanyContacts, type ContactResult } from "@/lib/contacts/hunter";
 import { bouncedEmailSet } from "@/lib/contacts/blocklist";
+import { slugify } from "@/lib/tailor/research";
 
 export const maxDuration = 120;
 
@@ -9,14 +10,6 @@ interface StoredContacts {
   domain: string;
   contacts: ContactResult[];
   searchedAt: string;
-}
-
-function slugify(company: string): string {
-  return company
-    .toLowerCase()
-    .replace(/\b(inc|corp|corporation|ltd|llc|limited|co|company|technologies|technology|labs|group)\b\.?/g, "")
-    .replace(/[^a-z0-9]+/g, "")
-    .trim();
 }
 
 /**
@@ -193,7 +186,12 @@ export async function POST(request: Request) {
   let lastError: string | null = null;
   for (const domain of candidates) {
     try {
-      const contacts = (await findCompanyContacts(domain, 3, blocked)).filter(
+      const contacts = (
+        await findCompanyContacts(domain, 3, blocked, {
+          jobTitle: job.title,
+          location: job.locationRaw,
+        })
+      ).filter(
         (c) => !blocked.has(c.email.toLowerCase())
       );
       if (contacts.length === 0) continue;

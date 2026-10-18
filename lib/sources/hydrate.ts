@@ -1,4 +1,5 @@
 import { fetchJson, fetchText, stripHtml } from "./http";
+import { cleanJobDescription } from "@/lib/jobs/clean-description";
 
 /**
  * Some listings arrive without a description (Simplify rows, LinkedIn cards and
@@ -59,7 +60,7 @@ export async function hydrateJobDescription(input: {
   // Generic: fetch the posting page and take its text.
   try {
     const html = await fetchText(input.applyUrl, {}, 12000);
-    const text = stripHtml(html);
+    const text = cleanJobDescription(stripHtml(html));
     return text.length > 400 ? text.slice(0, 12000) : "";
   } catch {
     return "";
