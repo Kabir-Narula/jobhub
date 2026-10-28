@@ -1,5 +1,6 @@
 import { fetchJson, fetchText, stripHtml } from "@/lib/sources/http";
 import { cleanJobDescription } from "./clean-description";
+import { isClosedShell, phenomFromHtml } from "./embedded-posting";
 import { prisma } from "@/lib/db";
 
 /**
@@ -416,11 +417,31 @@ export async function parseJobUrl(rawUrl: string): Promise<{ job?: ParsedJobUrl;
   }
 
   if (!blocked && html) {
+    // Phenom (Air Canada) keeps the posting in phApp.ddo and shows a
+    // "no longer active" widget to non-JS fetches. Prefer the embedded body.
+    const embedded = phenomFromHtml(html);
     const ld = fromJsonLd(html, applyUrlOf(u));
-    if (ld && ld.description.length > 200) return { job: { ...ld, applyUrl: applyUrlOf(u) } };
+    if (embedded) {
+      return {
+        job: {
+          title: embedded.title || ld?.title || "",
+          company: embedded.company || ld?.company || companyFromHost(u),
+          locationRaw: embedded.locationRaw || ld?.locationRaw || "",
+          description: embedded.description,
+          applyUrl: applyUrlOf(u),
+          postedAt: ld?.postedAt ?? null,
+          salaryMin: ld?.salaryMin ?? null,
+          salaryMax: ld?.salaryMax ?? null,
+          salaryCurrency: ld?.salaryCurrency ?? null,
+        },
+      };
+    }
+    if (ld && ld.description.length > 200 && !isClosedShell(ld.description)) {
+      return { job: { ...ld, applyUrl: applyUrlOf(u) } };
+    }
 
     const heur = fromMetaHeuristics(html, u);
-    if (heur && heur.description.length > 400) return { job: heur };
+    if (heur && heur.description.length > 400 && !isClosedShell(heur.description)) return { job: heur };
   }
 
   // WAF / empty shell / thin HTML — reader proxy (works for careers.ibm.com).

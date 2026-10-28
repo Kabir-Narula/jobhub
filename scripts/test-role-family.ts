@@ -51,6 +51,21 @@ check("Junior Analyst Data CIB feed category is DATA_ML", classifyCategory("Juni
 check("Systems Analyst feed category stays INFRA", classifyCategory("Systems Analyst") === "INFRA");
 check("Business Analyst feed category is CONSULTING_TECH", classifyCategory("Business Analyst") === "CONSULTING_TECH");
 check(
+  "AlayaCare People Business Partner is analyst, not the SWE default",
+  detectRoleFamily(
+    "Associate People Business Partner",
+    "AlayaCare",
+    "People processes, HRIS, employee lifecycle, onboarding, and AI automation for a SaaS home-care platform."
+  ) === "analyst"
+);
+check(
+  "People Business Partner does not treat 'AI and automation' as a programming ask",
+  jdWantsProgramming(
+    "Explore how AI and automation can transform People processes. HRIS and onboarding.",
+    "Associate People Business Partner"
+  ) === false
+);
+check(
   "Autodesk Market and Competitive Intelligence Analyst is analyst, not SWE",
   detectRoleFamily("AI Market and Competitive Intelligence Analyst", "Autodesk", "PitchBook competitive landscape") ===
     "analyst"
@@ -175,6 +190,29 @@ check(
 check(
   "SWE posting wants programming",
   jdWantsProgramming("Build REST services and write automated tests.", "Software Engineer")
+);
+check(
+  "an AI-screening disclaimer is not a programming requirement",
+  !jdWantsProgramming(
+    "Facilitate working sessions with clients and write proposals. Proven Microsoft Office skills including Excel and PowerPoint. Applications are reviewed without the use of artificial intelligence screening tools.",
+    "Consultant - Cognizant Consulting (Canada)"
+  )
+);
+check(
+  "a real artificial-intelligence build still wants programming",
+  jdWantsProgramming("Build artificial intelligence models in Python for client delivery.", "Consultant")
+);
+check(
+  "Cognizant COIN Consultant is consulting",
+  detectRoleFamily(
+    "Consultant - Cognizant Consulting (Canada)",
+    "Cognizant",
+    "Your role as a COIN Consultant will be to deliver value to clients across Cognizant Consulting. Facilitate working sessions and write proposals."
+  ) === "consulting"
+);
+check(
+  "IT Consultant is not pulled into consulting by the word consulting",
+  detectRoleFamily("IT Consultant", "Cognizant", "Cognizant Consulting technology support desk.") !== "consulting"
 );
 
 console.log(failures === 0 ? "\nall role-family checks passed" : `\n${failures} check(s) FAILED`);

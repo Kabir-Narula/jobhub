@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { researchCompany } from "@/lib/tailor/research";
 
@@ -18,12 +19,20 @@ export async function POST(request: Request) {
 
   // Hydrate first: researching a job with a thin/empty description produces
   // shallow research that would be cached and reused even after hydration.
-  if (job.description.trim().length < 200) {
+  const { needsDescriptionFetch, isClosedShell } = await import("@/lib/jobs/embedded-posting");
+  if (needsDescriptionFetch(job.description) && (job.applyUrl || job.sourceUrl)) {
     const { hydrateJobDescription } = await import("@/lib/sources/hydrate");
     const hydrated = await hydrateJobDescription(job).catch(() => "");
-    if (hydrated) {
+    const wasShell = isClosedShell(job.description);
+    if (hydrated && (hydrated.length > job.description.trim().length || wasShell)) {
       job.description = hydrated;
-      await prisma.job.update({ where: { id: job.id }, data: { description: hydrated } });
+      await prisma.job.update({
+        where: { id: job.id },
+        data: {
+          description: hydrated,
+          ...(wasShell ? { jdAnalysis: Prisma.DbNull, companyResearch: Prisma.DbNull } : {}),
+        },
+      });
     }
   }
 
@@ -31,7 +40,7 @@ export async function POST(request: Request) {
     company: job.company,
     jobTitle: job.title,
     jobDescription: job.description,
-    deep: Boolean(body?.force),
+    deep: true,
   });
   await prisma.job.update({
     where: { id: job.id },

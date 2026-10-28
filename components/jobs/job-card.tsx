@@ -111,7 +111,7 @@ export function JobCard({ job, selected, applied = false, onApply, onToggleSave,
               <ExternalLink className="size-3" /> Apply
             </Button>
           )}
-          <Button size="sm" variant="ghost" className="h-7 text-xs text-[#6e6b61] hover:bg-[#fdeadd] hover:text-[#9a3412]" nativeButton={false} render={<Link href={`/tailor/${job.id}`} />}>
+          <Button size="sm" variant="ghost" className="h-7 text-xs text-[#6e6b61] hover:bg-[#fdeadd] hover:text-[#9a3412]" nativeButton={false} render={<Link href={`/tailor/${job.id}`} target="_blank" rel="noopener noreferrer" />}>
             <Sparkles className="size-3" /> Tailor
           </Button>
           {!applied && onMarkApplied && (

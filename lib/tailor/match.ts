@@ -272,6 +272,10 @@ const PHRASE_EQUIV: Record<string, string[]> = {
   "office 365": OFFICE,
   o365: OFFICE,
   "microsoft 365": OFFICE,
+  "microsoft excel": ["excel"],
+  "ms excel": ["excel"],
+  "microsoft powerpoint": ["powerpoint"],
+  "ms powerpoint": ["powerpoint"],
   "data integrity": ["data validation", "data quality", "validation checks"],
   "data accuracy": ["data validation", "data quality", "validation checks"],
   "data quality": ["data validation", "validation checks"],
@@ -327,6 +331,29 @@ export interface JdAnalysis {
 const MUST_WEIGHT = 3;
 const NICE_WEIGHT = 0.75;
 
+/**
+ * Soft-skill / concept phrases the JD labeler loves. Scoring them 3× makes the
+ * boost pass paste "verbal communication" and "organizational skills" into
+ * experience bullets (Deloitte AI Analyst → nonsense Software Engineer lines).
+ * Soft skills belong on the Professional line via softSkillsFor — not here.
+ */
+const JUNK_ATS_PHRASE =
+  /\b(object[- ]oriented design|programming principles|software principles|design patterns|best practices|coding standards|problem solving|attention to detail|communication skills|written communication|verbal communication|organizational skills|written and verbal|team player|fast[- ]paced|willingness to learn|self[- ]motivat|collaborat(?:ion|ive) skills|work ethic)\b/i;
+const JUNK_ATS_TOKEN =
+  /^(java\s*python|python\s*java|artificialintelligence|machinelearning|objectoriented|programmingprinciples)$/i;
+
+/** Soft concepts and glued garbage — never score, never boost into bullets. */
+export function isJunkAtsPhrase(term: string): boolean {
+  const t = term.trim().toLowerCase();
+  if (!t) return true;
+  if (JUNK_ATS_TOKEN.test(t)) return true;
+  if (JUNK_ATS_PHRASE.test(t)) return true;
+  if (/^(java|python|javascript|typescript|kotlin|c\+\+|c#|golang|rust|scala)(\s+(java|python|javascript|typescript|kotlin|c\+\+|c#|golang|rust|scala))+$/i.test(t)) {
+    return true;
+  }
+  return false;
+}
+
 /** Scoring weight of a JD term under a structured analysis (flat 1 without one). */
 function termWeight(term: string, analysis?: JdAnalysis | null): number {
   if (!analysis) return 1;
@@ -340,7 +367,7 @@ export function uncoveredTerms(terms: string[], resumeTex: string): string[] {
   const plain = plainTex(resumeTex);
   const plainSquash = plain.replace(/\s+/g, "");
   const segments = segmentsOf(plain);
-  return terms.filter((t) => !covered(t, plain, plainSquash, segments));
+  return terms.filter((t) => !isJunkAtsPhrase(t) && !covered(t, plain, plainSquash, segments));
 }
 
 export function matchScore(
@@ -353,13 +380,16 @@ export function matchScore(
   if (!jobDescription.trim()) return null; // no JD to score against — display as "—", not 0%
   // The claimable lexicon is tech-shaped; the analysis carries the posting's own
   // business requirements ("microsoft office", "data integrity"), so score both.
+  const businessPosting =
+    (Boolean(jobTitle) && !/\b(engineer|developer|software|data engineer|ml engineer)\b/i.test(jobTitle)) ||
+    BUSINESS_SIGNAL.test(`${jobTitle}\n${jobDescription.slice(0, 2500)}`);
   const terms = [
     ...new Set([
       ...claimableJdTerms(jobDescription, 40, companyName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean), jobTitle),
       ...(analysis?.mustHaves ?? []),
       ...(analysis?.niceToHaves ?? []),
     ]),
-  ];
+  ].filter((t) => !isJunkAtsPhrase(t) && !(businessPosting && isUnclaimableBusinessTool(t)));
   if (terms.length === 0) return null;
   const plain = plainTex(resumeTex);
   const plainSquash = plain.replace(/\s+/g, "");
@@ -483,8 +513,15 @@ const BUSINESS_DROP = new Set(
  * which is exactly what the bullet audit bans.
  */
 const BUSINESS_VENDOR_DROP = new Set(
-  "successfactors workday hris confirmit sas vba tableau powerbi alteryx qualtrics nielsen iqvia spss salesforce crm pitchbook".split(" ")
+  "successfactors workday hris confirmit sas vba tableau powerbi alteryx qualtrics nielsen iqvia spss salesforce crm pitchbook visio access".split(" ")
 );
+
+/** Office apps this candidate cannot defend. Scoring them makes every Office-suite posting look like a failed match. */
+function isUnclaimableBusinessTool(term: string): boolean {
+  const t = term.toLowerCase().trim();
+  if (t === "microsoft project" || t === "ms project") return true;
+  return t.split(/\s+/).some((w) => BUSINESS_VENDOR_DROP.has(w));
+}
 
 const BUSINESS_SIGNAL =
   /successfactors|hr technology|hris|techno-?functional|associate consultant|strategy insights|decision analytics|competitive intelligence|business analyst|insights associate/i;
@@ -502,7 +539,7 @@ export function claimableJdTerms(
     terms = terms.filter((t) => !t.split(/\s+/).some((w) => BUSINESS_DROP.has(w)));
   }
   if (businessPosting) {
-    terms = terms.filter((t) => !t.split(/\s+/).some((w) => BUSINESS_VENDOR_DROP.has(w)));
+    terms = terms.filter((t) => !isUnclaimableBusinessTool(t));
   }
   // "Java Script" written as two words means the poster meant JavaScript (IBM
   // HR-tech). \s+ not \s*: a JD listing real Java alongside "JavaScript" keeps java.

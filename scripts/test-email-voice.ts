@@ -1,8 +1,14 @@
 import { classifyRecipient, polishEmail, projectsFromResumeTex, EMAIL_SIGNATURE } from "../lib/tailor/email";
+import { gmailComposeUrl, mailtoUrl } from "../lib/email-compose";
 
 const cases: [string, string][] = [
   ["University Recruiter", "campus"],
   ["Technical Recruiter", "recruiter"],
+  ["Talent Acquisition Partner", "recruiter"],
+  ["Sourcing Specialist", "recruiter"],
+  ["HR Business Partner", "recruiter"],
+  ["Head of Talent", "recruiter"],
+  ["People and Culture", "recruiter"],
   ["Engineering Manager", "manager"],
   ["Hiring Manager", "manager"],
   ["Software Engineer", "engineer"],
@@ -196,16 +202,60 @@ const recruiter = polishEmail(
     subject: "Role",
     body: "Hi Priya,\n\nI'm Kabir, I recently graduated from Seneca Polytechnic.\n\nWhat I like about this team is the data work.\n",
   },
-  { signOff: "Kabir", recipientFirst: "Priya", company: "National Bank of Canada", kind: "recruiter" }
+  { signOff: "Kabir", recipientFirst: "Priya", company: "National Bank of Canada", kind: "recruiter", role: "Associate" }
 );
-if (!/take a look at my online application/i.test(recruiter.body)) {
-  console.log("FAIL recruiter should ask about the online application\n", recruiter.body);
+if (!/already applied for the associate role/i.test(recruiter.body) || !/highly interested/i.test(recruiter.body)) {
+  console.log("FAIL recruiter should say they applied and are highly interested\n", recruiter.body);
   failed++;
-} else if (/coffee chat|referral/i.test(recruiter.body)) {
-  console.log("FAIL recruiter should not ask for a coffee chat\n", recruiter.body);
+} else if (/appreciate a referral|fair shot|coffee chat/i.test(recruiter.body)) {
+  console.log("FAIL recruiter should not ask for a referral\n", recruiter.body);
+  failed++;
+} else if (!/attached my resume/i.test(recruiter.body) || !/connect on LinkedIn/i.test(recruiter.body)) {
+  console.log("FAIL recruiter should mention the resume and LinkedIn\n", recruiter.body);
   failed++;
 } else {
-  console.log("ok  recruiter ask: look at the application");
+  console.log("ok  recruiter ask: applied + interested, no referral");
+}
+
+const withPosting = polishEmail(
+  {
+    subject: "Role",
+    body: "Hi Priya,\n\nI'm Kabir, I recently graduated from Seneca Polytechnic.\n\nWhat I like about this team is the data work.\n",
+  },
+  {
+    signOff: "Kabir",
+    recipientFirst: "Priya",
+    company: "BMO",
+    kind: "recruiter",
+    role: "Associate, KYC Requirements & Outreach",
+    postingUrl: "https://bmo.wd3.myworkdayjobs.com/en-US/External/job/Toronto/Associate--KYC_R123",
+  }
+);
+if (!withPosting.body.includes("https://bmo.wd3.myworkdayjobs.com/en-US/External/job/Toronto/Associate--KYC_R123")) {
+  console.log("FAIL posting link missing\n", withPosting.body);
+  failed++;
+} else if (!/here is the posting if you want to take a look/i.test(withPosting.body)) {
+  console.log("FAIL posting line missing\n", withPosting.body);
+  failed++;
+} else {
+  console.log("ok  posting link included");
+}
+
+const recruiterWithReferral = polishEmail(
+  {
+    subject: "Role",
+    body: "Hi Priya,\n\nI'm Kabir, I recently graduated from Seneca Polytechnic.\n\nIf you think I could be a fit, I would really appreciate a referral.\n",
+  },
+  { signOff: "Kabir", recipientFirst: "Priya", company: "National Bank of Canada", kind: "recruiter", role: "Associate" }
+);
+if (/appreciate a referral|coffee chat/i.test(recruiterWithReferral.body)) {
+  console.log("FAIL an HR draft that asks for a referral should have that line removed\n", recruiterWithReferral.body);
+  failed++;
+} else if (!/already applied/i.test(recruiterWithReferral.body)) {
+  console.log("FAIL HR closer missing\n", recruiterWithReferral.body);
+  failed++;
+} else {
+  console.log("ok  HR referral line replaced with applied + interested");
 }
 
 const manager = polishEmail(
@@ -213,16 +263,38 @@ const manager = polishEmail(
     subject: "Role",
     body: "Hi Julien,\n\nI'm Kabir, I recently graduated from Seneca Polytechnic.\n\nWhat I like about this team is the data work.\n",
   },
-  { signOff: "Kabir", recipientFirst: "Julien", company: "National Bank of Canada", kind: "manager" }
+  { signOff: "Kabir", recipientFirst: "Julien", company: "National Bank of Canada", kind: "manager", role: "Associate" }
 );
-if (!/coffee chat/i.test(manager.body) || !/referral/i.test(manager.body)) {
-  console.log("FAIL manager should ask for a coffee chat or referral\n", manager.body);
+if (
+  !/coffee chat/i.test(manager.body) ||
+  !/appreciate a referral/i.test(manager.body) ||
+  !/fit for the associate role/i.test(manager.body) ||
+  !/fair shot/i.test(manager.body) ||
+  !/attached my resume/i.test(manager.body) ||
+  !/connect on LinkedIn/i.test(manager.body)
+) {
+  console.log("FAIL manager should ask for a coffee chat and a referral for this role\n", manager.body);
   failed++;
-} else if (/take a look at my online application/i.test(manager.body)) {
-  console.log("FAIL manager should not ask HR to review the ATS\n", manager.body);
+} else if (/already applied for/i.test(manager.body)) {
+  console.log("FAIL manager should not get the HR closer\n", manager.body);
   failed++;
 } else {
-  console.log("ok  manager ask: coffee chat / referral");
+  console.log("ok  manager ask: coffee chat + referral for the role");
+}
+
+const gmail = gmailComposeUrl("kunal.madhani@colliers.com", "Research role - Kabir Narula", "Hi Kunal,\n\nThanks,");
+if (!gmail.startsWith("https://mail.google.com/mail/?") || !gmail.includes("to=kunal.madhani") || !gmail.includes("view=cm")) {
+  console.log("FAIL gmail compose URL", gmail);
+  failed++;
+} else {
+  console.log("ok  gmail compose URL");
+}
+const mt = mailtoUrl("kunal.madhani@colliers.com", "Hi", "Line 1\nLine 2");
+if (!mt.startsWith("mailto:kunal.madhani@colliers.com?") || !mt.includes("%0D%0A")) {
+  console.log("FAIL mailto URL", mt);
+  failed++;
+} else {
+  console.log("ok  mailto URL uses CRLF");
 }
 
 if (failed) {

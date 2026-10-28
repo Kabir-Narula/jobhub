@@ -368,6 +368,19 @@ export function assembleProjectsSection(section: ProjectsSection, entries: Proje
   return out;
 }
 
+/** Appends one project after the ones already on the page (no rebuild of existing bullets). */
+export function appendProjectEntry(tex: string, entry: ProjectEntry): string {
+  const section = parseProjectsSection(tex);
+  const nl = section.nl;
+  const insertAt = tex.length - section.after.length;
+  let block = `${nl}    \\resumeProjectHeading${nl}`;
+  block += `      {\\textbf{${escapeLatex(entry.name)}} $|$ \\href{${entry.githubUrl}}{\\underline{GitHub}} $|$ \\emph{${escapeLatex(entry.techLine)}}}{${escapeLatex(entry.year)}}${nl}`;
+  block += `      \\resumeItemListStart${nl}`;
+  for (const b of entry.bullets) block += `        \\resumeItem{${escapeLatex(b)}}${nl}`;
+  block += `      \\resumeItemListEnd`;
+  return tex.slice(0, insertAt) + block + tex.slice(insertAt);
+}
+
 // ---------- Skills section (re-rank only, closed vocabulary) ----------
 
 export interface SkillsSection {
@@ -549,7 +562,9 @@ export function pinBusinessSkills(
   const notSwe = (item: string) => {
     const plain = item.replace(/\\([&%$#_{}])/g, "$1").toLowerCase();
     if (BUSINESS_NEVER_INVENT.test(plain)) return false;
-    if (/^(microsoft word|word)$/i.test(plain.trim())) return false;
+    // Word is noise unless this posting actually lists it. Excel/PowerPoint stay.
+    if (/^(microsoft word|word)$/i.test(plain.trim()) && !/\bword\b/i.test(jd)) return false;
+    if (/^rest apis?$/.test(plain.trim()) && !/\b(?:rest\s+)?apis?\b/i.test(jd)) return false;
     // Repo languages (C, C++, Java) read as noise on a business page unless the posting asks.
     if (/^(c|c\+\+|java|kotlin|typescript)$/.test(plain.trim())) {
       const re = new RegExp(`(^|[^a-z])${plain.trim().replace(/[+]/g, "\\+")}([^a-z+#]|$)`, "i");
@@ -569,13 +584,23 @@ export function pinBusinessSkills(
     return "Methods";
   };
   const professionalLines: string[] = [];
+  const professionalKeys = new Set<string>();
+  for (const orig of section.lines) {
+    if (!isProfessionalLabel(orig.label)) continue;
+    for (const item of orig.items.filter(notSwe)) professionalKeys.add(unescape(item).toLowerCase().replace(/\s+/g, " ").trim());
+  }
   for (const orig of section.lines) {
     const items = orig.items.filter(notSwe);
     if (isProfessionalLabel(orig.label)) {
       professionalLines.push(`      \\textbf{${orig.label}}{: ${clampBusinessSkillLine(items, maxItemsPerLine).join(", ")} \\\\}`);
       continue;
     }
-    for (const item of items) buckets[bucketOf(item)].push(item);
+    for (const item of items) {
+      // "Problem Solving" on Methods and again on Professional is the same claim twice.
+      const key = unescape(item).toLowerCase().replace(/\s+/g, " ").trim();
+      if (professionalKeys.has(key)) continue;
+      buckets[bucketOf(item)].push(item);
+    }
   }
   const lines = Object.entries(buckets)
     .map(([label, items]) => {
@@ -614,6 +639,34 @@ export function pinBusinessSkills(
  * so it emits an equivalent single list: 0.3in left margin and the same
  * level-2 bullet glyph. Items must already be LaTeX-safe.
  */
+/**
+ * Frozen Education line — core Seneca BSD courses, not electives. Kept off the
+ * SWE master (that page is already full) and injected at assemble time so
+ * campus/analyst screens get the coursework checkbox without a second page.
+ */
+export const EDUCATION_COURSEWORK =
+  "Database Design, Data Structures \\& Algorithms, Operating Systems, Systems Analysis";
+
+export function insertCoursework(tex: string): string {
+  if (/Relevant Coursework/.test(tex)) return tex;
+  const nl = tex.includes("\r\n") ? "\r\n" : "\n";
+  const needle = "{Honours Bachelor of Technology, Software Development}{08/2026}";
+  const idx = tex.indexOf(needle);
+  if (idx < 0) return tex;
+  const block =
+    `${needle}${nl}      \\resumeItemListStart${nl}` +
+    `        \\resumeItem{\\textbf{Relevant Coursework:}{ ${EDUCATION_COURSEWORK}}}${nl}` +
+    `      \\resumeItemListEnd`;
+  return tex.slice(0, idx) + block + tex.slice(idx + needle.length);
+}
+
+export function stripCoursework(tex: string): string {
+  return tex.replace(
+    /\r?\n\s*\\resumeItemListStart\r?\n\s*\\resumeItem\{\\textbf\{Relevant Coursework:\}[^]*?\\resumeItemListEnd/,
+    ""
+  );
+}
+
 export function insertAchievements(tex: string, items: string[]): string {
   if (items.length === 0) return tex;
   const nl = tex.includes("\r\n") ? "\r\n" : "\n";

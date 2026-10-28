@@ -220,7 +220,7 @@ export function JobsClient({ jobs: initialJobs, lastRun, bucketCounts, appliedJo
           if (job) toggleDismiss(job);
           break;
         case "t":
-          if (job) router.push(`/tailor/${job.id}`);
+          if (job) window.open(`/tailor/${job.id}`, "_blank", "noopener,noreferrer");
           break;
         case "m":
           if (job) markApplied(job);

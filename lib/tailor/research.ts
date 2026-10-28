@@ -101,8 +101,9 @@ async function fetchDeepPages(homepageUrl: string): Promise<string> {
 }
 
 /**
- * Real company research: homepage content (when reachable) + the model's own
- * knowledge, grounded by the actual job description. Cached on the Job row.
+ * Real company research: homepage (+ deep about/careers/blog when deep),
+ * PullPush Reddit intel, model knowledge, grounded by the JD.
+ * Always called before resume generate (`requireResearch`); cached on Job.
  */
 export async function researchCompany(input: {
   company: string;

@@ -1,6 +1,13 @@
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 
 /**
+ * Full page is ~0.92–0.96 (bottom margin). 0.85 still leaves ~1.5in of white
+ * at the foot of a letter page — visible empty space a third project or
+ * Achievements should take, not a "reads full" cutoff.
+ */
+export const FILL_TARGET = 0.92;
+
+/**
  * Objective page-fill metric: how far the content extends toward the bottom
  * of page 1, as a fraction of page height. PDF y=0 is the bottom edge, so
  * fill = (height - lowestTextBaseline) / height. A full page is ~0.92-0.96

@@ -1,4 +1,4 @@
-﻿import { PROJECTS } from "./projects";
+import { PROJECTS } from "./projects";
 import { model, openai, parseJson, type CompanyResearch } from "./research";
 
 export interface EmailDraft {
@@ -48,7 +48,7 @@ const INTEREST_PROMPT = `You write ONE short paragraph (1-2 sentences, max 45 wo
 The rest of the email is already written:
   "Hi {name}, I'm Kabir, I recently graduated from Seneca Polytechnic with an Honours Bachelor of Technology in Software Development. I just applied to the {role} role at {company} and I'm really interested in working there."
   {YOUR PARAGRAPH}
-  {the ask: application review, or coffee chat / referral}
+  {the ask is added in code: HR/recruiting gets applied + interested, everyone else gets a referral for this role}
 Do not repeat any of that. No greeting, no intro, no ask, no sign-off.
 
 HOW TO MAKE IT AUTHENTIC:
@@ -88,7 +88,7 @@ export interface NewsHeadline {
 }
 
 export interface DraftInput {
-  job: { title: string; company: string; description: string };
+  job: { title: string; company: string; description: string; postingUrl?: string };
   contact: { name: string; role: string; email: string; why?: string } | null;
   research: CompanyResearch | null;
   projects: EmailProject[];
@@ -97,12 +97,16 @@ export interface DraftInput {
   news?: NewsHeadline[];
 }
 
-export function classifyRecipient(role: string | undefined | null): RecipientKind {
-  const t = role ?? "";
-  if (/university|campus|early[- ]career|new[- ]?grad|student program|emerging talent|graduate program/i.test(t)) {
+export function classifyRecipient(role: string | undefined | null, extra?: string | null): RecipientKind {
+  const t = `${role ?? ""} ${extra ?? ""}`;
+  if (/university|campus|early[- ]career|new[- ]?grad|student program|emerging talent|graduate program|university relations/i.test(t)) {
     return "campus";
   }
-  if (/recruit|talent|sourcer|staffing|people ops|people partner|\bhr\b|human resources|hrbp/i.test(t)) {
+  if (
+    /recruit|talent acquisition|\btalent\b|sourc(?:er|ing)|staffing|people ops|people partner|people operations|people (?:and|&) culture|human resources|human capital|\bhr\b|hrbp|employer brand|candidate experience|hiring coordinator/i.test(
+      t
+    )
+  ) {
     return "recruiter";
   }
   if (/engineering manager|hiring manager|director|head of|team lead|tech lead|\bvp\b|vice president|\bcto\b|founder|\bmanager\b/i.test(t)) {
@@ -144,16 +148,40 @@ function researchForEmail(research: CompanyResearch | null) {
 
 const isHrKind = (kind: RecipientKind) => kind === "recruiter" || kind === "campus";
 
-function askFor(kind: RecipientKind): string {
-  return isHrKind(kind)
-    ? "It would be great if you could take a look at my online application when you get a chance."
-    : "Would you be open to a quick coffee chat sometime? And if you think I'd be a good fit, I'd really appreciate a referral.";
+function rolePhrase(role?: string): string {
+  const t = (role ?? "").replace(/\s+/g, " ").trim();
+  return t ? `the ${t} role` : "this role";
+}
+
+const RESUME_LINKEDIN =
+  "I attached my resume in case you want more context, and I would be happy to connect on LinkedIn as well.";
+
+/** HR / recruiting: they already own the application. No referral ask. */
+function hrClose(role?: string): string {
+  return `I already applied for ${rolePhrase(role)} and I'm highly interested. ${RESUME_LINKEDIN}`;
+}
+
+/** Everyone else: referral named to this position, plus resume and LinkedIn. */
+function referralClose(role?: string): string {
+  return `Would you be open to a quick coffee chat sometime? If you think I could be a fit for ${rolePhrase(role)}, I would really appreciate a referral. These roles get a lot of applicants, and I just want a fair shot at showing I can do the work. ${RESUME_LINKEDIN}`;
+}
+
+function askFor(kind: RecipientKind, role?: string): string {
+  return isHrKind(kind) ? hrClose(role) : referralClose(role);
+}
+
+/** A real http(s) posting link, or nothing. Never invent a URL. */
+function postingLine(url?: string): string | null {
+  const u = (url ?? "").trim();
+  if (!/^https?:\/\//i.test(u)) return null;
+  return `Here is the posting if you want to take a look: ${u}`;
 }
 
 const ASK_RE_BY_HR = {
-  hr: /take a look at my (online )?application/i,
-  other: /coffee chat|referral/i,
+  hr: /already applied for/i,
+  other: /appreciate a referral/i,
 };
+const REFERRAL_ASK = /appreciate a referral|fair shot|coffee chat/i;
 
 const SIMPLE_QUESTION = "Is this still open?";
 const COMMANDING_CLOSE =
@@ -268,7 +296,7 @@ function greetingLine(opts: { recipientFirst: string | null; company: string }):
  */
 export function polishEmail(
   draft: EmailDraft,
-  opts: { signOff: string; recipientFirst: string | null; company: string; kind?: RecipientKind }
+  opts: { signOff: string; recipientFirst: string | null; company: string; kind?: RecipientKind; role?: string; postingUrl?: string }
 ): EmailDraft {
   const subject = String(draft.subject ?? "")
     .replace(/^["']|["']$/g, "")
@@ -304,9 +332,10 @@ export function polishEmail(
   if (paras.length === 1) paras = splitWall(paras[0]);
   paras = paras.map((p) => stripClerkTalk(p)).filter(Boolean).slice(0, 4);
   if (opts.kind) {
-    const ask = askFor(opts.kind);
+    const ask = askFor(opts.kind, opts.role);
     const askRe = isHrKind(opts.kind) ? ASK_RE_BY_HR.hr : ASK_RE_BY_HR.other;
     paras = paras.filter((p) => !FAKE_HUMILITY.test(p));
+    if (isHrKind(opts.kind)) paras = paras.filter((p) => !REFERRAL_ASK.test(p));
     const last = paras[paras.length - 1];
     if (!last || !askRe.test(last)) {
       paras = paras.filter((p) => !ASK_RE_BY_HR.hr.test(p) && !ASK_RE_BY_HR.other.test(p) && !COMMANDING_CLOSE.test(p));
@@ -317,6 +346,11 @@ export function polishEmail(
       paras[paras.length - 1] = SIMPLE_QUESTION;
     }
     if (!paras.some((p) => /\?\s*$/.test(p))) paras.push(SIMPLE_QUESTION);
+  }
+  const link = postingLine(opts.postingUrl);
+  if (link) {
+    paras = paras.filter((p) => !/here is the posting/i.test(p) && !(opts.postingUrl && p.includes(opts.postingUrl)));
+    paras.push(link);
   }
   if (paras.length === 0) paras = [SIMPLE_QUESTION];
 
@@ -430,7 +464,9 @@ function polishOpts(input: DraftInput) {
     signOff: CANDIDATE.signOff,
     recipientFirst: recipientFirst(input.contact),
     company: input.job.company,
-    kind: classifyRecipient(input.contact?.role),
+    kind: classifyRecipient(input.contact?.role, (input.contact?.email ?? "").split("@")[0]?.replace(/[._+-]+/g, " ")),
+    role: cleanRoleTitle(input.job.title),
+    postingUrl: input.job.postingUrl,
   };
 }
 
@@ -441,7 +477,7 @@ function polishOpts(input: DraftInput) {
  *
  * {why this company + his area of interest}
  *
- * {recruiter/campus: look at my online application | everyone else: coffee chat or referral}
+ * {HR/recruiting/campus: already applied and highly interested | everyone else: referral for this role}
  */
 export async function draftOutreachEmail(rawInput: DraftInput): Promise<EmailDraft> {
   const input = { ...rawInput, job: { ...rawInput.job, company: displayCompany(rawInput.job.company) } };
@@ -455,7 +491,7 @@ export async function draftOutreachEmail(rawInput: DraftInput): Promise<EmailDra
   } catch {
     interest = "";
   }
-  const body = [introLine(input), cleanInterest(interest, input), askFor(opts.kind)].join("\n\n");
+  const body = [introLine(input), cleanInterest(interest, input), askFor(opts.kind, opts.role)].join("\n\n");
   return polishEmail(
     { subject: subject.trim() || `${cleanRoleTitle(input.job.title)} - ${CANDIDATE.fullName}`, body },
     opts
@@ -474,7 +510,7 @@ export async function draftFollowUpEmail(rawInput: DraftInput & { daysSinceAppli
       role,
       company: input.job.company,
       days_since_applied: input.daysSinceApplied,
-      ask: askFor(opts.kind),
+      ask: askFor(opts.kind, opts.role),
       do_not_invent_new_work: true,
     },
     "cheap"
@@ -486,7 +522,7 @@ export async function draftFollowUpEmail(rawInput: DraftInput & { daysSinceAppli
       body: [
         `I applied about ${input.daysSinceApplied} days ago for the ${role} role at ${input.job.company} and I'm still really interested.`,
         "",
-        askFor(opts.kind),
+        askFor(opts.kind, opts.role),
       ].join("\n"),
     } satisfies EmailDraft);
   if (!raw.subject.trim()) raw.subject = `following up - ${role}`;

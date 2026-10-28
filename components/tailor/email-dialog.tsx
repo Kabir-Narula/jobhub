@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Copy, Loader2, RefreshCw, Send } from "lucide-react";
+import { gmailComposeUrl, mailtoUrl } from "@/lib/email-compose";
 
 interface Props {
   jobId: string;
@@ -56,10 +57,8 @@ export function EmailDialog({ jobId, contact, open, onClose, mode = "outreach", 
     toast.success(`${what} copied`);
   }
 
-  const mailBody = body.replace(/\n/g, "\r\n");
-  const mailto = contact
-    ? `mailto:${contact.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(mailBody)}`
-    : `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(mailBody)}`;
+  const gmail = gmailComposeUrl(contact?.email ?? "", subject, body);
+  const mailto = mailtoUrl(contact?.email ?? "", subject, body);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -90,7 +89,7 @@ export function EmailDialog({ jobId, contact, open, onClose, mode = "outreach", 
               />
             </div>
             <p className="text-[11px] text-[#a8a294]">
-              Recent-grad note, not a student pitch. Spacing is locked to greeting / paragraphs / Thanks + name. Tweak words if needed, attach resume + cover, then send.
+              Open in Gmail, attach the resume there, then send. Do not use the Windows Mail app — Colliers-style gateways reject those messages as “Missing Header.” mailto cannot attach a PDF.
             </p>
             <div className="flex flex-wrap items-center justify-end gap-2">
               <Button size="sm" variant="outline" className="border-[#e6e3db]" onClick={draft} disabled={loading}>
@@ -102,8 +101,22 @@ export function EmailDialog({ jobId, contact, open, onClose, mode = "outreach", 
               <Button size="sm" variant="outline" className="border-[#e6e3db]" onClick={() => copy(body, "Body")}>
                 <Copy className="size-3.5" /> Body
               </Button>
-              <Button size="sm" className="bg-[#c2410c] text-[#fdf8f3] hover:bg-[#9a3412]" nativeButton={false} render={<a href={mailto} />}>
-                <Send className="size-3.5" /> Open in mail app
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-[#e6e3db]"
+                nativeButton={false}
+                render={<a href={mailto} />}
+              >
+                Mail app
+              </Button>
+              <Button
+                size="sm"
+                className="bg-[#c2410c] text-[#fdf8f3] hover:bg-[#9a3412]"
+                nativeButton={false}
+                render={<a href={gmail} target="_blank" rel="noopener noreferrer" />}
+              >
+                <Send className="size-3.5" /> Open in Gmail
               </Button>
             </div>
           </div>

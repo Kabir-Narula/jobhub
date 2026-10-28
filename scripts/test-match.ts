@@ -2,7 +2,7 @@
  * Deterministic checks for the ATS scoring engine. No LLM, no database, no cost.
  * Run: npx tsx scripts/test-match.ts
  */
-import { claimableJdTerms, isTechTerm, matchScore, uncoveredTerms, type JdAnalysis } from "../lib/tailor/match";
+import { claimableJdTerms, isJunkAtsPhrase, isTechTerm, matchScore, uncoveredTerms, type JdAnalysis } from "../lib/tailor/match";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = "") {
@@ -131,12 +131,58 @@ Learn HR Technology Platforms such as SAP SuccessFactors.
 Required: Java Script or Python, knowledge of APIs. SuccessFactors SuccessFactors.`;
 const ibmTerms = claimableJdTerms(JD_IBM_M, 40, ["ibm"], "HR Technology Developer Associate");
 check("successfactors is not a claimable term", !ibmTerms.some((t) => /successfactors/i.test(t)), ibmTerms.join(", "));
+const HRIS_ANALYSIS: JdAnalysis = {
+  mustHaves: ["hris", "onboarding"],
+  niceToHaves: [],
+  domain: null,
+  workTypes: [],
+  seniority: null,
+  analyzedAt: "",
+  source: "test",
+};
+const RESUME_ONBOARD = String.raw`\section{Experience}\resumeItem{Led onboarding sessions for incoming students.}`;
+check(
+  "HRIS in must-haves is not scored on a People posting",
+  matchScore("HRIS and onboarding support.", RESUME_ONBOARD, "AlayaCare", "Associate People Business Partner", HRIS_ANALYSIS) === 100,
+  `score=${matchScore("HRIS and onboarding support.", RESUME_ONBOARD, "AlayaCare", "Associate People Business Partner", HRIS_ANALYSIS)}`
+);
 check("two-word 'Java Script' does not extract java", !ibmTerms.includes("java"), ibmTerms.join(", "));
 const JD_JAVA_BOTH = `Requirements: Java and JavaScript. Java is required. JavaScript is required.`;
 check(
   "a real Java + JavaScript JD keeps java",
   claimableJdTerms(JD_JAVA_BOTH, 25, [], "Software Engineer").includes("java"),
   claimableJdTerms(JD_JAVA_BOTH, 25, [], "Software Engineer").join(", ")
+);
+
+console.log("\n8) soft-skill must-haves never score or boost");
+check("verbal communication is junk", isJunkAtsPhrase("verbal communication"));
+check("organizational skills is junk", isJunkAtsPhrase("organizational skills"));
+check("written communication is junk", isJunkAtsPhrase("written communication"));
+check("artificialintelligence is junk", isJunkAtsPhrase("artificialintelligence"));
+check("powerpoint is not junk", !isJunkAtsPhrase("powerpoint"));
+check(
+  "uncoveredTerms ignores soft-skill must-haves",
+  !uncoveredTerms(["verbal communication", "excel"], String.raw`\resumeItem{Built Excel trackers.}`).includes("verbal communication")
+);
+
+console.log("\n9) Office-suite duplicates and unclaimable apps");
+const OFFICE_ANALYSIS: JdAnalysis = {
+  domain: null,
+  source: "test",
+  mustHaves: ["microsoft excel", "excel", "microsoft visio", "microsoft access", "microsoft project", "requirements analysis"],
+  niceToHaves: [],
+  workTypes: [],
+  seniority: "junior",
+  analyzedAt: "",
+};
+const RESUME_EXCEL = String.raw`\section{Experience}
+\resumeItem{Built Excel trackers covering 20 open requests.}
+\resumeItem{Wrote the requirements analysis note the team used.}`;
+const officeJd = "Client working sessions and written proposals.";
+check(
+  "Excel covers microsoft excel, and Visio/Access/Project are not scored",
+  matchScore(officeJd, RESUME_EXCEL, "Cognizant", "Consultant - Cognizant Consulting", OFFICE_ANALYSIS) === 100,
+  `score=${matchScore(officeJd, RESUME_EXCEL, "Cognizant", "Consultant - Cognizant Consulting", OFFICE_ANALYSIS)}`
 );
 
 console.log(failures === 0 ? "\nall match checks passed" : `\n${failures} check(s) FAILED`);

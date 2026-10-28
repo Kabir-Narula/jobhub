@@ -55,7 +55,7 @@ outreach email to go with them.
 - **True LaTeX** (Tectonic), never HTML-to-PDF. Your master `.tex` files are the permanent source of truth.
 - The LLM returns **JSON only**; a deterministic assembler re-injects it into the frozen template skeleton.
   Fonts, margins, section order, education, and company names **cannot** change — by construction.
-- From-scratch, recruiter-tuned bullets (3 per entry, 18–28 words, punchy), skills re-ranked within your
+- From-scratch, recruiter-tuned bullets (3 per entry, best length ~14–24 words — clear scenes, not stubs or fluff), skills re-ranked within your
   real vocabulary, **best-2-projects picked from your actual repos** for each role, title optimization
   within honesty rules (same seniority, same function).
 - **Structured JD analysis**: every run first parses the posting into must-have vs nice-to-have

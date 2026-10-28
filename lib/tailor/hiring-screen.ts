@@ -71,7 +71,8 @@ responsibilities · environment · business context · technologies · workflows
 Rewrite weak, vague, repetitive, generic, or underdeveloped material into stronger professional evidence:
 - BAD: "giving partners repeatable intelligence inputs", "helping technical and non-technical partners choose a path", "reducing manual checks before findings reached stakeholders"
 - GOOD: name the artifact (source refresh, brief, tracker), the problem (incomplete/fragmented inputs, late file, chase), the method, and the observable outcome (chase stopped, brief used, report went out clean)
-- Every bullet must answer: what changed, for whom, and why a screener for THIS role would care.
+- Every bullet must answer: what changed, for whom, and why a screener for THIS role would care (ATS + HR skim + interview probe).
+- Best length: long enough to be a clear scene, short enough to skim — never hollow "N use cases" / "N-slide brief" stubs, never padded fluff.
 - Drop low-value wording. Prefer the posting's domain nouns for core responsibilities; keep preferred tools in skills unless a bullet truly used that work type.`;
 
 /** JD-derived screen when Reddit/research returns nothing usable. */
@@ -91,7 +92,7 @@ export function hiringScreenFallback(
       "Non-bridge titles: Insights Analyst or Strategy Analyst — never Consultant, never leave Software Engineer",
       "Quantify ownership and follow-through (deliverables owned, sources compared, hours/cycle, briefs); Achievements help prove initiative and work ethic ZS screens for",
       "Every claim must survive an EBI probe — interviewers walk the resume line by line (r/zs_associates)",
-      "At least two magnitudes on the page; HyFlex 30+ rooms counts as only one",
+      "TWO of THREE bullets in each expanded software/analysis entry carry a junior-scope number; campus-ops keep source counts; HyFlex 30+ is already one",
     ];
   }
   if (flavor === "zs-da") {
@@ -103,7 +104,7 @@ export function hiringScreenFallback(
       "Non-bridge titles: Analytics Analyst or Decision Analytics Analyst — analysis + client communication, not release QA",
       "Synthesize results into oral/written presentation language: brief, deck, status update, recommendation a client could act on",
       "Resume will be probed deeply (projects, internships, puzzles/calm under EBI) — every bullet must be interview-defensible",
-      "At least two magnitudes on the page; HyFlex 30+ rooms counts as only one",
+      "TWO of THREE bullets in each expanded software/analysis entry carry a junior-scope number; campus-ops keep source counts; HyFlex 30+ is already one",
     ];
   }
   if (flavor === "hr-tech") {
@@ -112,10 +113,11 @@ export function hiringScreenFallback(
       "Show client/stakeholder workshops or discovery walkthroughs mapped from real advising, faculty walkthroughs, or requirements conversations",
       "Document requirements / process gaps / data-flow or handoff notes a senior consultant could use — never API field dumps",
       "When the JD names SuccessFactors/Workday/HRIS: never claim you used the product; map to HR process learning, integration needs, SSO/identity clarification, and acceptance testing",
-      "CS bridge: at most ONE light Python/API/automation bullet ending in stakeholder or process use; other two bullets = requirements, workshop/handoff, or UAT/test scripts",
+      "CS bridge title is Systems Analyst Intern (Co-op), never Software Engineer Intern — programming still shows in at most one bullet",
+      "CS bridge bullets: at most ONE light Python/API/automation bullet ending in stakeholder or process use; other two = requirements, workshop/handoff, or UAT/test scripts",
       "Non-bridge software rows: HR Technology Analyst / Systems Analyst language — process, requirements, acceptance — not REST handoffs or release regressions",
       "Evidence of initiative and follow-through (hackathons, academic projects, self-directed builds) belongs in Achievements when the JD asks for dedication",
-      "At least two magnitudes on the page; HyFlex 30+ rooms counts as only one",
+      "TWO of THREE bullets in each expanded software/analysis entry carry a junior-scope number; campus-ops keep source counts; HyFlex 30+ is already one",
     ];
   }
   if (flavor === "competitive-intel") {
@@ -125,7 +127,7 @@ export function hiringScreenFallback(
       "When the JD asks for Python/SQL/automation: keep ONE engineer/CS-titled role whose bullets build the systems that produce intelligence, ending in stakeholder use",
       "Other software co-ops become Analyst/Insights language: fragmented sources → shared definitions → decision, not mobile/web or release QA",
       "Never invent PitchBook/Tableau/IQVIA/Confluence as tools you used; map vendors to intern-defensible synthesis",
-      "Put at least two magnitudes on the page (counts of sources/briefs/sites, cycle time) — HyFlex's 30+ rooms counts as only one",
+      "TWO of THREE bullets in each expanded software/analysis entry carry a junior-scope number (sources/briefs/sites, cycle time); campus-ops keep source counts; HyFlex 30+ is already one",
       "Bullets must show concrete artifacts + outcomes — ban vague 'intelligence inputs' / 'helping partners choose a path' filler",
     ];
   }
@@ -135,7 +137,7 @@ export function hiringScreenFallback(
       "Dashboards/KPIs/segmentation language only when the posting makes them real; never stamp INDEX/MATCH",
       "Keep one CS bridge if the JD is technical; otherwise lead with analysis and recommendation",
       "Map Qualtrics/Nielsen/Tableau JD words to secondary research / Excel dashboard — do not invent those products",
-      "At least two magnitudes on the page; HyFlex 30+ counts as only one",
+      "TWO of THREE bullets in each expanded software/analysis entry carry a junior-scope number; campus-ops keep source counts; HyFlex 30+ is already one",
       "Rewrite vague 'supported analysis' lines into artifact + method + stakeholder use",
     ];
   }
@@ -145,7 +147,7 @@ export function hiringScreenFallback(
       "Do not fill a tool-silent posting with Pivot Tables, INDEX/MATCH, or Power Query",
       "ZERO engineering titles on a no-coding posting — every software row becomes an Analyst-family title that fits the role; a CS bridge exists only if the JD names Python/SQL/automation",
       "Campus ops stay real (HyFlex restore, office tracker) — never rewrite as Excel jobs",
-      "At least two magnitudes; prefer hours saved / cycle time / stakeholder counts over automation %",
+      "TWO of THREE bullets in each expanded software/analysis entry carry a junior-scope number; prefer hours saved / cycle time / stakeholder counts over automation %",
       "Mandatory vs preferred: only mirror tools the JD actually requires; judgment beats keyword density",
     ];
   }
@@ -153,8 +155,8 @@ export function hiringScreenFallback(
     return [
       "CAR shape; diagnosis and stakeholder use must be visible on a 10-second skim",
       "Methods come from THIS posting — do not stamp a fixed Excel-function template",
-      "One CS bridge title max; campus-ops titles frozen",
-      "At least two magnitudes on the page",
+      "One CS bridge title only when the posting names programming (Python, SQL, coding). A no-coding consulting posting gets zero engineering titles",
+      "TWO of THREE bullets in each expanded software/analysis entry carry a junior-scope number; campus-ops keep source counts",
       "Analyze mandatory vs preferred vs low-value wording before choosing skills or bullet framing",
     ];
   }
@@ -163,9 +165,17 @@ export function hiringScreenFallback(
       "Users, tradeoffs, stakeholders — not a stack dump",
       "Keep one CS bridge; frame other work toward product decisions",
       "Evidence axes: ownership, collaboration, delivery, outcomes — not feature laundry lists",
+      "TWO of THREE bullets in each expanded entry carry a junior-scope number (users walked, tradeoffs compared, cycle time)",
     ];
   }
-  return [];
+  // SWE / data-ml / infra — research is mandatory for resume gen; never leave an empty screen.
+  return [
+    "TWO of THREE bullets in each expanded entry carry a junior-scope number (counts, durations, defects)",
+    "Each expanded entry: one build, one fix, one piece of work involving other people",
+    "Name concrete artifacts (endpoint, job, schema, test, report) — not soft-skill labels",
+    "Put JD languages/frameworks in Skills; invent junior-scope use in experience only when the posting asks",
+    "Prefer interview-defensible scenes over keyword paste",
+  ];
 }
 
 export function flavorDirective(flavor: PostingFlavor): string {
@@ -175,7 +185,7 @@ export function flavorDirective(flavor: PostingFlavor): string {
     case "zs-da":
       return `POSTING FLAVOR = ZS Decision Analytics Associate. Reader is a ZS analytics consulting screener. Shape every non-campus entry as: business question → quantitative method → analysis artifact (Excel model, SQL pull, Python script, Excel dashboard) → client decision or recommendation. CS bridge: up to TWO Python/SQL/automation bullets ending in stakeholder use; one synthesis/presentation bullet. Non-bridge titles: Analytics Analyst or Decision Analytics Analyst. NEVER invent Tableau, SAS, R, VBA, or Hadoop as tools you used — map to Python, SQL, Excel analysis, and Excel dashboards. Ban SWE release-QA language. Synthesize into presentation/brief language. Every bullet must be EBI-defensible.`;
     case "hr-tech":
-      return `POSTING FLAVOR = hr-tech / techno-functional consulting (IBM-style HR Technology Associate). Reader is an HR-tech consulting screener, not MBB case partners and not a staff engineer. Every non-campus entry must advance: client/stakeholder workshops or discovery; requirements or process-gap notes; techno-functional integration clarification (SSO/identity/API handoffs as coordination, not building the service); UAT / test scripts / acceptance; or project coordination. CS bridge: at most ONE light Python/API/automation bullet ending in stakeholder or process use; the other two = requirements, workshop/handoff, or acceptance testing. Non-bridge titles: HR Technology Analyst or Systems Analyst — never leave them as Software Engineer, never Consultant. NEVER invent SuccessFactors, Workday, SAP, or any HRIS as a product you used — if the JD names them, map to "documented HR process / integration needs / test cases for an HR platform rollout". Ban REST API data-handoff and release-regression language as the story. Prefer Achievements when the JD asks for hackathons / dedication / self-directed work.`;
+      return `POSTING FLAVOR = hr-tech / techno-functional consulting (IBM-style HR Technology Associate). Reader is an HR-tech consulting screener, not MBB case partners and not a staff engineer. Every non-campus entry must advance: client/stakeholder workshops or discovery; requirements or process-gap notes; techno-functional integration clarification (SSO/identity/API handoffs as coordination, not building the service); UAT / test scripts / acceptance; or project coordination. CS bridge TITLE is Systems Analyst Intern (Co-op), never Software Engineer Intern. CS bridge bullets: at most ONE light Python/API/automation bullet ending in stakeholder or process use; the other two = requirements, workshop/handoff, or acceptance testing. Non-bridge titles: HR Technology Analyst or Systems Analyst — never leave them as Software Engineer, never Consultant. NEVER invent SuccessFactors, Workday, SAP, or any HRIS as a product you used — if the JD names them, map to "documented HR process / integration needs / test cases for an HR platform rollout". Ban REST API data-handoff and release-regression language as the story. Prefer Achievements when the JD asks for hackathons / dedication / self-directed work.`;
     case "competitive-intel":
       return `POSTING FLAVOR = competitive-intelligence. Every software entry (except HyFlex/office) must advance source monitoring, fragmented/incomplete sources, landscape synthesis, or an executive-ready brief. CS bridge: Python/SQL/scheduled refresh that produces intelligence inputs, plus one synthesis/recommendation bullet. Non-bridge software: Analyst language — never "mobile and web", release defects, authentication, or infrastructure tradeoffs. Never invent Confluence/PitchBook/Tableau. Prefer JobHub/Expense Manager projects for multi-source refresh. Ban vague filler ("repeatable intelligence inputs", "helping partners choose a path").`;
     case "insights":
@@ -183,7 +193,7 @@ export function flavorDirective(flavor: PostingFlavor): string {
     case "silent-mbb":
       return `POSTING FLAVOR = tool-silent consulting. Diagnosis and recommendation over tools. Do not invent Excel function names. ZERO engineering titles unless the JD names programming tools — all-Analyst page.`;
     case "consulting-general":
-      return `POSTING FLAVOR = consulting. CAR bullets; tools only when the JD makes them relevant.`;
+      return `POSTING FLAVOR = consulting. Reader is a consulting recruiter, not a staff engineer. Shape every non-campus entry as a client problem, a working session or requirements note, and a recommendation or proposal a teammate could use. ZERO engineering titles unless the JD names programming (Python, SQL, coding) — a Consultant posting does not keep "Software Engineer". Ban extraction delays, service handoffs, sprint planning, and REST stories. Put Office tools the JD names (Excel, PowerPoint) in skills. Never invent Visio, Access, or Microsoft Project as tools you used. Campus-ops stay frozen source text.`;
     case "analyst-general":
       return `POSTING FLAVOR = analyst. Methods from the JD; no Pivot/INDEX-MATCH stamp.`;
     default:

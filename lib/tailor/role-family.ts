@@ -35,6 +35,10 @@ const PRODUCT_TITLE = /\b(product (manager|owner|analyst|associate)|program mana
 const INFRA_TITLE =
   /\b(devops|sre|site reliability|platform engineer|it (support|analyst|consultant)|help ?desk|systems? admin|technical support|desktop support|hyflex)\b/i;
 
+/** HR / People seats. These are not software jobs even when the employer builds software. */
+const PEOPLE_TITLE =
+  /\b(people business partner|hr business partner|human resources business partner|people partner|hrbp|people operations|people ops|human resources|employee experience|total rewards|talent partner|hr generalist|hr coordinator|people coordinator|people advisor|hr advisor)\b|\b(people|hr|human resources|talent)\b[^,\n]{0,40}\b(partner|generalist|coordinator|advisor|adviser)\b/i;
+
 const GENERIC_ANALYST_TITLE = /\banalyst\b/i;
 const TECH_ANALYST_TITLE =
   /\b(software|systems?|it|security|soc|cyber|network|qa|test|programmer|application support|technical support|devops)\b[^,]{0,20}\banalyst\b|\banalyst\b[^,]{0,20}\b(developer|programmer|security|soc)\b/i;
@@ -54,6 +58,7 @@ export function detectRoleFamily(title: string, company: string, description = "
   if (CONSULTING_TITLE.test(title)) return "analyst";
   if (PRODUCT_TITLE.test(title)) return "product";
   if (INFRA_TITLE.test(title)) return "infra";
+  if (PEOPLE_TITLE.test(title)) return "analyst";
   // "Junior Analyst Data CIB", "Analyst, Capital Markets", "Analyst I - Operations":
   // word order defeats ANALYST_TITLE, but an Analyst title outside IT/security is a business seat.
   if (GENERIC_ANALYST_TITLE.test(title) && !TECH_ANALYST_TITLE.test(title)) return "analyst";
@@ -61,9 +66,19 @@ export function detectRoleFamily(title: string, company: string, description = "
   // IBM Consulting / Associate Consultant body copy without a classic MBB title.
   if (CONSULTING_FIRM.test(company) && CONSULTING_JD.test(body.slice(0, 4000))) return "consulting";
   if (CONSULTING_JD.test(`${title}\n${body.slice(0, 4000)}`)) return "consulting";
+  // "Consultant - Cognizant Consulting" is a consulting seat. The title is not
+  // "Business Analyst" and the firm is not McKinsey, so the checks above miss it
+  // and the page is written as a generic analyst resume.
+  if (
+    /\bconsultant\b/i.test(title) &&
+    !/\b(it|technical|technology|sap|salesforce|cloud|security|infrastructure|software)\s+consultant\b/i.test(title) &&
+    /consulting/i.test(`${title}\n${company}\n${body.slice(0, 2000)}`)
+  ) {
+    return "consulting";
+  }
 
   const head = `${title}\n${body.slice(0, 4000)}`.toLowerCase();
-  const analystHits = (head.match(/\b(excel|powerpoint|microsoft (office|suite)|o365|stakeholders?|workstream|insights?|market research|business analyst|data analyst|data entry|data integrity|reports?|competitive intelligence|competitive landscape|segmentation|kpi|brief|capital markets)\b/g) ?? []).length;
+  const analystHits = (head.match(/\b(excel|powerpoint|microsoft (office|suite)|o365|stakeholders?|workstream|insights?|market research|business analyst|data analyst|data entry|data integrity|reports?|competitive intelligence|competitive landscape|segmentation|kpi|brief|capital markets|onboarding|hris|human resources|employee lifecycle|people partner|employee engagement|performance management|hr administration)\b/g) ?? []).length;
   const sweHits = (head.match(/\b(software engineer|backend|frontend|full[- ]?stack|fastapi|kubernetes|react|kotlin)\b/g) ?? []).length;
   if (analystHits >= 2 && analystHits >= sweHits) return "analyst";
   return "swe";
@@ -112,7 +127,18 @@ const PROGRAMMING_ASK =
   /\b(python|javascript|typescript|java(?!script)|\bsql\b|c\+\+|c#|scala|kotlin|golang|rust|\br\b|coding|programming|software (?:engineer|develop\w*)|automation|apis?\b|machine learning|data pipelines?|algorithms?|debugging|scripts?|statistical (?:models?|analysis)|vba|macros?|databases?|data management|data integrity|data quality|technical proficiency|technical skills|artificial intelligence|ai tools?|power query|etl)\b/i;
 
 export function jdWantsProgramming(jobDescription: string, jobTitle = ""): boolean {
-  return PROGRAMMING_ASK.test(`${jobTitle}\n${jobDescription}`);
+  // "AI and automation" on a People/HR seat is not a software requirement.
+  if (PEOPLE_TITLE.test(jobTitle)) {
+    return /\b(python|javascript|typescript|java(?!script)|\bsql\b|coding|programming)\b/i.test(`${jobTitle}\n${jobDescription}`);
+  }
+  // "reviewed without the use of artificial intelligence screening tools" is a
+  // legal disclaimer, not a coding requirement. Leaving it in forced a Software
+  // Engineer title onto every consulting resume from that employer.
+  const body = jobDescription.replace(
+    /[^.!\n]*\b(?:without|not|no|never|do not|does not)\b[^.!\n]*\bartificial intelligence\b[^.!\n]*/gi,
+    " "
+  );
+  return PROGRAMMING_ASK.test(`${jobTitle}\n${body}`);
 }
 
 /** Optional ATS seeds — empty for business families so silent JDs stay silent. */

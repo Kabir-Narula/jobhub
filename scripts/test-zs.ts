@@ -172,7 +172,7 @@ const goodSip = auditExperienceBullets(
       title: "Software Engineer Intern (Co-op)",
       bullets: [
         "Compared 3 incomplete data sources, then built a Python refresh so partners could trust weekly insight inputs.",
-        "Synthesized mismatched platform metrics into a short recommendation the project lead used in sprint planning.",
+        "Synthesized mismatched platform metrics into 2 short recommendations the project lead used in sprint planning.",
         "Walked technical and non-technical partners through tradeoffs before agreeing on the next analysis path.",
       ],
     },
@@ -180,8 +180,8 @@ const goodSip = auditExperienceBullets(
       company: "PHC",
       title: "Insights Analyst (Co-op)",
       bullets: [
-        "Ran desk research across client workflows, turning recurring gaps into a shared requirements brief.",
-        "Built an Excel tracker that surfaced open follow-ups so owners stopped losing items between meetings.",
+        "Ran desk research across 5 client workflows, turning recurring gaps into a shared requirements brief.",
+        "Built an Excel tracker that surfaced 8 open follow-ups so owners stopped losing items between meetings.",
         "Presented synthesized findings to campus partners, prompting orientation notes to update before the next intake.",
       ],
     },

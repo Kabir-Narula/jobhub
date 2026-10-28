@@ -50,7 +50,7 @@ export async function POST(request: Request) {
   );
 
   const base = {
-    job: { title: job.title, company: job.company, description: job.description },
+    job: { title: job.title, company: job.company, description: job.description, postingUrl: job.applyUrl || job.sourceUrl || "" },
     contact,
     research,
     projects: projectsFromResumeTex(doc?.texContent),

@@ -13,6 +13,7 @@ import {
   bannedNumberShapes,
 } from "../lib/tailor/bullet-quality";
 import { polishBullet, alignByCompany, keepTitleQualifier, clampConsultingTitle, finalizeBusinessTitle } from "../lib/tailor/generate";
+import { pinBusinessSkills } from "../lib/tailor/latex";
 
 let failures = 0;
 function check(name: string, cond: boolean, detail = "") {
@@ -40,7 +41,7 @@ const AFTER = [
     company: "Seneca Polytechnic — INNWIL Lab | VYBE Platform",
     bullets: [
       "Moved document extraction off the FastAPI request path into a background worker after large uploads began timing out, cutting waits from about 40 seconds to under 5.",
-      "Traced a batch of empty extraction results to a PDF parser dropping scanned pages, then added a fixture-based test for the case.",
+      "Traced 8 empty extraction results to a PDF parser dropping scanned pages, then added a fixture-based test for the case.",
       "Walked the research lead through the new LangChain fallback behaviour at sprint review, then wrote the runbook the next intern used.",
     ],
   },
@@ -203,7 +204,7 @@ const quantified = auditExperienceBullets(
       company: "A",
       bullets: [
         "Cut the nightly PostgreSQL export from about 40 minutes to under 5 by batching the writes into one transaction.",
-        "Traced duplicate totals to a fan-out join, corrected the grouping key, and stopped inflated figures reaching the report.",
+        "Traced duplicate totals across 4 source files to a fan-out join, corrected the grouping key, and stopped inflated figures reaching the report.",
         "Paired with a senior engineer on the migration, then documented the backfill steps in the runbook the team used.",
       ],
     },
@@ -241,7 +242,7 @@ const once = auditExperienceBullets(
       company: "Lab",
       bullets: [
         "Moved extraction off the FastAPI request path into a worker after large uploads timed out, cutting waits from 40 seconds to under 5.",
-        "Traced empty results to a parser dropping scanned pages, then added a fixture-based test for the case.",
+        "Traced 6 empty results to a parser dropping scanned pages, then added a fixture-based test for the case.",
         "Walked the research lead through the new export format at sprint review, then wrote the runbook.",
       ],
     },
@@ -341,8 +342,8 @@ const bridgeBalanced = auditExperienceBullets(
       title: "Software Engineer Intern (Co-op)",
       bullets: [
         "Built a Python refresh that joined 3 incomplete source files so the weekly occupancy SQL stayed trustworthy.",
-        "Found occupancy mismatches across sites, synthesized the gap into a short brief, and the ops lead used it to set follow-ups.",
-        "Walked stakeholders through the recommendation so the chase on Friday files stopped.",
+        "Found occupancy mismatches across 4 sites, synthesized the gap into a short brief, and the ops lead used it to set follow-ups.",
+        "Walked stakeholders through the occupancy recommendation so the Friday chase on late files stopped for good.",
       ],
     },
     {
@@ -351,7 +352,7 @@ const bridgeBalanced = auditExperienceBullets(
       bullets: [
         "Found a mismatch in the weekly report file, reconciled the source in Excel, and the report went out without a chase.",
         "Sized the variance across 4 sites after the Friday file kept arriving late, then documented the gap.",
-        "Walked the ops lead through the occupancy recommendation so they stopped chasing the weekly spreadsheet.",
+        "Walked the ops lead through 2 occupancy recommendations so they stopped chasing the weekly spreadsheet each Friday.",
       ],
     },
   ],
@@ -368,7 +369,7 @@ const bridgeMissing = auditExperienceBullets(
       company: "Seneca Polytechnic — INNWIL Lab | VYBE Platform",
       title: "Business Analyst (Co-op)",
       bullets: [
-        "Found a mismatch in the weekly occupancy file, reconciled the source in Excel, and the report went out without a chase.",
+        "Found a mismatch in 2 weekly occupancy files, reconciled the source in Excel, and the report went out without a chase.",
         "Built an Excel occupancy model after the Friday file kept arriving late, then sized the gap across 3 sites.",
         "Walked the ops lead through the occupancy recommendation so they stopped chasing the weekly spreadsheet.",
       ],
@@ -471,22 +472,53 @@ check(
     /exactly 2/.test(i.message)
   )
 );
+check(
+  "business JobHub tailored-resume copy is high",
+  auditProjectBullets(
+    [
+      {
+        id: "jobhub",
+        bullets: [
+          "Job-search platform that gathers postings and generates a tailored resume for every role.",
+          "PostgreSQL stores every status change so the board stays reviewable.",
+        ],
+      },
+    ],
+    { family: "analyst" }
+  ).some((i) => i.severity === "high" && /tailored resume/i.test(i.message))
+);
+check(
+  "partner-questions-became fog is high on analyst pages",
+  auditExperienceBullets(
+    [
+      {
+        company: "INNWIL",
+        bullets: [
+          "Partner questions became reporting requirements and validation rules that reviewers used as acceptance criteria for each delivery.",
+          "Automated extraction checks with Python across 3 service outputs so internal reporting no longer required manual review.",
+          "Documented data-flow tradeoffs and handoff notes so technical and non-technical partners followed consistent field definitions.",
+        ],
+      },
+    ],
+    { family: "analyst", expandedCount: 1 }
+  ).some((i) => i.severity === "high" && /vague evidence|shared reference|partner questions|field definitions/i.test(i.message))
+);
 
 const CONSULTING_ENTRY = [
   {
     company: "Seneca Polytechnic — INNWIL Lab | VYBE Platform",
     bullets: [
-      "Found a mismatch in the weekly occupancy file, reconciled the source in Excel, and the report went out without a chase.",
+      "Found a mismatch in 2 weekly occupancy files, reconciled the source in Excel, and the report went out without a chase.",
       "Built an Excel occupancy model after the Friday file kept arriving late, then sized the gap across 3 sites.",
-      "Walked the ops lead through the occupancy recommendation so they stopped chasing the weekly spreadsheet.",
+      "Walked the ops lead through the occupancy recommendation so they stopped chasing the weekly spreadsheet each Friday.",
     ],
   },
   {
     company: "Project Human City",
     bullets: [
-      "Compared 4 incomplete source files into one brief so the ops lead stopped reconciling by hand each Friday.",
-      "Sized the variance after late files arrived, then documented the gap for the next planning review.",
-      "Walked stakeholders through the recommendation so the chase on Friday files stopped.",
+        "Compared 4 incomplete source files into one brief so the ops lead stopped reconciling by hand each Friday.",
+        "Sized the variance after 5 late files arrived, then documented the gap for the next planning review.",
+        "Walked stakeholders through the occupancy recommendation so the Friday chase on late files stopped for good.",
     ],
   },
 ];
@@ -707,17 +739,17 @@ const ciFraming = auditExperienceBullets(
       title: "Software Engineer Intern (Co-op)",
       bullets: [
         "Built a Python refresh that joined 3 incomplete source files so the weekly source refresh stayed trustworthy.",
-        "Found fragmented occupancy signals, synthesized them into a short competitive-landscape brief the ops lead used.",
-        "Walked stakeholders through the recommendation so the Friday chase stopped.",
+        "Found fragmented occupancy signals, synthesized them into 2 short competitive-landscape briefs the ops lead used at review.",
+        "Walked stakeholders through the occupancy recommendation so the Friday chase on late files stopped for good.",
       ],
     },
     {
       company: "Project Human City",
       title: "Insights Analyst (Co-op)",
       bullets: [
-        "Mapped inconsistent third-party source fields into shared definitions across 4 feeds for comparable briefs.",
-        "Found recurring gaps in incomplete market signals before the weekly stakeholder review, then flagged them.",
-        "Reconciled client feedback with constraints, helping the team prioritize feasible changes before release.",
+        "Mapped inconsistent third-party source fields into shared definitions across 4 feeds so briefs stayed comparable week to week.",
+        "Found recurring gaps in 5 incomplete market signals before the weekly stakeholder review, then flagged them.",
+        "Reconciled client feedback with operating constraints so the team prioritized feasible changes before the next release.",
       ],
     },
   ],
@@ -735,7 +767,7 @@ check(
 );
 
 // --------------------------------------- per-entry magnitude rule
-// Every expanded entry needs at least one number suited to its scenario.
+// Every expanded software/analysis entry needs TWO numbered bullets (2 of 3).
 const noNumbers = auditExperienceBullets(
   [
     {
@@ -765,9 +797,28 @@ check(
   messages(noNumbers)
 );
 check(
-  "entry with one number is not flagged",
-  !noNumbers.some((i) => i.company === "Project Human City" && /no bullet in this entry carries a visible metric/.test(i.message)),
+  "entry with one number is flagged for needing two",
+  noNumbers.some((i) => i.company === "Project Human City" && i.severity === "high" && /only 1 visible metric/.test(i.message)),
   messages(noNumbers)
+);
+const twoNumbers = auditExperienceBullets(
+  [
+    {
+      company: "Project Human City",
+      title: "Software Developer (Freelance)",
+      bullets: [
+        "Mapped 4 inconsistent source feeds into shared definitions for comparable reports.",
+        "Fixed recurring mismatches across 3 weekly reviews, then flagged them for the team.",
+        "Reconciled client feedback with constraints before release.",
+      ],
+    },
+  ],
+  { expandedCount: 1 }
+);
+check(
+  "entry with two numbered bullets passes the magnitude floor",
+  !twoNumbers.some((i) => i.company === "Project Human City" && /visible metric/.test(i.message)),
+  messages(twoNumbers)
 );
 // Written counts of abstractions don't register; written counts of work units do.
 const weakVsStrong = auditExperienceBullets(
@@ -784,7 +835,7 @@ const weakVsStrong = auditExperienceBullets(
       company: "B",
       bullets: [
         "Traced six release defects through logs and debugger sessions before the release.",
-        "Fixed a slow SQL report by filtering before the join, then documented the change.",
+        "Fixed a slow SQL report that analysts waited 12 minutes on by filtering before the join, then documented the change.",
         "Walked the ops lead through the new export format at sprint review.",
       ],
     },
@@ -808,7 +859,7 @@ const anchorExempt = auditExperienceBullets(
       company: "A",
       bullets: [
         "Built a Python refresh that cut the weekly export from 40 minutes to under 5.",
-        "Fixed a slow SQL report by filtering before the join, then documented it in the runbook.",
+        "Fixed a slow SQL report that analysts waited 12 minutes on by filtering before the join, then documented it in the runbook.",
         "Walked the ops lead through the new export format at sprint review.",
       ],
     },
@@ -816,7 +867,7 @@ const anchorExempt = auditExperienceBullets(
       company: "B",
       bullets: [
         "Shipped 3 internal dashboards for the support team after repeated ticket requests.",
-        "Traced a flaky test to a timezone bug and pinned the fixture clock in CI.",
+        "Traced a flaky test to a timezone bug across 6 CI runs and pinned the fixture clock.",
         "Split the export work with another developer behind a feature flag.",
       ],
     },
@@ -832,10 +883,205 @@ const anchorExempt = auditExperienceBullets(
   { expandedCount: 2 }
 );
 check(
-  "anchor entry (not expanded) keeps no-number exemption",
+  "non-expanded entry keeps no-number exemption",
   !anchorExempt.some((i) => i.company === "C" && /no bullet in this entry carries a visible metric/.test(i.message)),
   messages(anchorExempt)
 );
+
+const hyflexFrozen = auditExperienceBullets(
+  [
+    {
+      company: "Seneca Polytechnic — ITS",
+      title: "Student HyFlex Ambassador + Lab Monitor (Contract, Part-time)",
+      bullets: [
+        "Supported 30+ HyFlex hybrid classrooms with front-line troubleshooting across Windows and Linux systems, projectors, and audio setups, resolving issues in person and remotely.",
+        "Installed and configured operating systems and classroom peripherals, keeping daily performance stable across lab spaces for students and faculty.",
+        "Documented HyFlex procedures and trained faculty, reducing repeat support tickets; logged and escalated incidents per ITIL best practices.",
+      ],
+    },
+  ],
+  { expandedCount: 1, family: "consulting", jobTitle: "Consultant", jobDescription: "Client working sessions and proposals." }
+);
+check(
+  "frozen HyFlex prose is not flagged as an unfalsifiable ending",
+  !hyflexFrozen.some((i) => /unfalsifiable/.test(i.message)),
+  messages(hyflexFrozen)
+);
+
+const extractionPlot = auditExperienceBullets(
+  [
+    {
+      company: "Seneca Polytechnic — INNWIL Lab",
+      title: "Business Analyst (Co-op)",
+      bullets: [
+        "Clarified 6 platform requirements with internal partners, separating extraction delays from user-facing needs before sprint planning.",
+        "Analyzed 8 service handoffs and summarized operational impacts in a requirements note used during team reviews.",
+        "Walked partners through the recommendation so the client working session ended with a written next step.",
+      ],
+    },
+  ],
+  {
+    expandedCount: 1,
+    family: "consulting",
+    jobTitle: "Consultant - Cognizant Consulting",
+    jobDescription: "Facilitate working sessions with clients and write proposals. Excel and PowerPoint.",
+  }
+);
+check(
+  "extraction-delay paraphrase is rejected on a no-coding consulting page",
+  extractionPlot.some((i) => i.severity === "high" && /extraction delays|service handoffs|sprint planning/i.test(i.message)),
+  messages(extractionPlot)
+);
+
+const phcParaphrase = auditExperienceBullets(
+  [
+    {
+      company: "Project Human City",
+      title: "Full-Stack Software Developer (Co-op)",
+      bullets: [
+        "Integrated third-party REST APIs into production clients, mapping external payloads into stable internal contracts across mobile and web surfaces.",
+        "During 3 Agile release cycles, traced backend defects through HTTP logs and patched error handling before post-release delivery.",
+        "Incorporated code review feedback into React components and added boundary checks, stopping malformed API responses from breaking community-facing screens.",
+      ],
+    },
+  ],
+  {
+    expandedCount: 1,
+    sourceEntries: [
+      {
+        company: "Project Human City",
+        bullets: [
+          "Integrated third-party REST APIs into production clients, mapping external payloads into stable internal contracts across mobile and web surfaces.",
+          "Developed Kotlin Android and TypeScript React features against shared backends, keeping authentication and error handling consistent across clients.",
+          "Diagnosed and fixed backend defects during release cycles, restoring reliability for community-facing users under real traffic.",
+        ],
+      },
+    ],
+  }
+);
+check(
+  "reworded Project Human City master bullet is flagged as generic fallback",
+  phcParaphrase.some((i) => i.severity === "high" && /reworded master|generic/i.test(i.message)),
+  messages(phcParaphrase)
+);
+
+const shortStub = auditExperienceBullets(
+  [
+    {
+      company: "Project Human City",
+      title: "Full-Stack Software Developer (Co-op)",
+      bullets: [
+        "Translated three partner use cases into a TypeScript and React prototype.",
+        "Resolved 8 JavaScript client defects across testing and release cycles by normalizing API errors before they reached shared screens.",
+        "During Agile development, incorporated review feedback into shared authentication flows, preventing inconsistent error states across both production clients.",
+      ],
+    },
+  ],
+  { expandedCount: 1 }
+);
+check(
+  "11-word expanded stub is high severity fallback",
+  shortStub.some((i) => i.severity === "high" && /only 11 words|fallback/i.test(i.message)),
+  messages(shortStub)
+);
+
+const softStuff = auditExperienceBullets(
+  [
+    {
+      company: "Seneca Polytechnic — INNWIL Lab | VYBE Platform",
+      title: "Software Engineer Intern (Co-op)",
+      bullets: [
+        "Prioritized 6 artificial intelligence use cases from extraction bottlenecks.",
+        "Built an 8-slide PowerPoint brief comparing automation options, so technical and business reviewers agreed on implementation scope.",
+        "Applied organizational skills to consolidate sprint evidence into governance notes the delivery team used as a review checklist.",
+      ],
+    },
+  ],
+  { expandedCount: 1, family: "analyst", jobTitle: "Analyst - AI & Data", jobDescription: "PowerPoint Excel workshops." }
+);
+check(
+  "organizational skills pasted into experience is high severity",
+  softStuff.some((i) => i.severity === "high" && /organizational skills|soft-skill/i.test(i.message)),
+  messages(softStuff)
+);
+
+const innwilHollow = auditExperienceBullets(
+  [
+    {
+      company: "Seneca Polytechnic — INNWIL Lab | VYBE Platform",
+      title: "Software Engineer Intern (Co-op)",
+      bullets: [
+        "Framed 6 Artificial Intelligence use cases around the extraction prototype.",
+        "Automated prototype data checks with Python, then summarized LLM limitations for nontechnical partners reviewing the proof of concept.",
+        "Converted sprint findings into a 7-slide PowerPoint brief.",
+      ],
+    },
+  ],
+  { expandedCount: 1 }
+);
+check(
+  "INNWIL hollow use-case stub is high severity",
+  innwilHollow.some((i) => i.severity === "high" && /hollow|use cases/i.test(i.message)),
+  messages(innwilHollow)
+);
+check(
+  "INNWIL 7-slide PowerPoint stub is high severity",
+  innwilHollow.some((i) => i.severity === "high" && /hollow|slide|PowerPoint|brief/i.test(i.message)),
+  messages(innwilHollow)
+);
+check(
+  "INNWIL under-floor stubs are high severity",
+  innwilHollow.some((i) => i.severity === "high" && /only \d+ words/i.test(i.message)),
+  messages(innwilHollow)
+);
+
+const inventOk = auditExperienceBullets(
+  [
+    {
+      company: "Seneca Polytechnic — INNWIL Lab | VYBE Platform",
+      title: "Backend Software Developer Intern (Co-op)",
+      bullets: [
+        "Built a Python extraction service that moved 8 long-running tasks off request threads, preventing internal API timeouts during concurrent use.",
+        "After code review exposed duplicated handlers, applied object-oriented design across Java and C++ API prototypes covered by 6 tests.",
+        "Walked the team through the assigned component at sprint review after incorporating reviewer feedback.",
+      ],
+    },
+  ],
+  {
+    expandedCount: 1,
+    sourceEntries: [
+      {
+        company: "Seneca Polytechnic — INNWIL Lab | VYBE Platform",
+        bullets: [
+          "Built Python (FastAPI) REST services, decoupling heavy extraction from client paths so platform APIs stayed responsive under concurrent internal load.",
+          "Automated GitHub Actions CI/CD with review gates and tests, standardizing how services reached production with fewer release regressions.",
+          "Documented infrastructure tradeoffs in Confluence and worked Agile sprints, explaining reliability decisions to technical and non-technical partners.",
+        ],
+      },
+    ],
+  }
+);
+check(
+  "inventing Java/C++ on experience is allowed (not flagged as invent)",
+  !inventOk.some((i) => /invents (java|c\+\+)/i.test(i.message)),
+  messages(inventOk)
+);
+
+const skillTex = String.raw`\section{Skills}
+\begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+      \textbf{Methods}{: Requirements Gathering, Problem Solving, REST APIs \\}
+      \textbf{Analytics \& Tools}{: PowerPoint, Word \\}
+      \textbf{Professional}{: Communication, Problem Solving \\}
+    }}
+\end{itemize}
+\section{Projects}`;
+const pinned = pinBusinessSkills(skillTex, 0, { jobDescription: "Excel, Word, and PowerPoint for client proposals." });
+const methods = pinned.match(/textbf\{Methods\}\{:([^}]*)\}/)?.[1] ?? "";
+check("Problem Solving is not repeated under Methods", !/problem solving/i.test(methods), methods);
+check("Problem Solving stays on Professional", /Problem Solving/.test(pinned));
+check("REST APIs drop when the posting does not ask for APIs", !/REST APIs/i.test(pinned));
+check("Word stays when the posting lists Word", /\bWord\b/.test(pinned), pinned.slice(pinned.indexOf("Skills"), pinned.indexOf("Projects")));
 
 console.log(failures === 0 ? "all bullet-quality checks passed" : `${failures} check(s) failed`);
 process.exitCode = failures === 0 ? 0 : 1;

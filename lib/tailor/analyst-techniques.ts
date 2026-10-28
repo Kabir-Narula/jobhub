@@ -364,7 +364,7 @@ const BUSINESS_JD_EXTRAS: { item: string; bucket: BusinessSkillBucket; jd: RegEx
  * in bullet-quality.ts audits the output. Edit all three together.
  */
 export const BUSINESS_NEVER_INVENT =
-  /\b(?:tableau|power bi|powerbi|alteryx|qualtrics|nielsen|iqvia|spss|sas|think-?cell|salesforce|\bcrm\b|confluence|notion|airtable|pitchbook|cb insights|successfactors|workday|sap successfactors|confirmit|microsoft access|\bvba\b|visual basic|\bhadoop\b)\b/i;
+  /\b(?:tableau|power bi|powerbi|alteryx|qualtrics|nielsen|iqvia|spss|sas|think-?cell|salesforce|\bcrm\b|confluence|notion|airtable|pitchbook|cb insights|successfactors|workday|sap successfactors|confirmit|microsoft access|\bvisio\b|microsoft project|\bvba\b|visual basic|\bhadoop\b)\b/i;
 
 function dedupeSkills(items: string[]): string[] {
   const seen = new Set<string>();

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -20,7 +19,6 @@ type Mode = "link" | "details";
 const labelClass = "font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground";
 
 export function AddJobDialog({ open, onClose }: Props) {
-  const router = useRouter();
   const [mode, setMode] = useState<Mode>("link");
   const [loading, setLoading] = useState(false);
   const [url, setUrl] = useState("");
@@ -49,7 +47,7 @@ export function AddJobDialog({ open, onClose }: Props) {
         data.existing ? `${data.job.company} — already on your board, opening tailor` : `${data.job.title} @ ${data.job.company} added — opening tailor`
       );
       onClose();
-      router.push(`/tailor/${data.job.id}`);
+      window.open(`/tailor/${data.job.id}`, "_blank", "noopener,noreferrer");
     } catch {
       toast.error("Couldn't add the job");
       setLoading(false);

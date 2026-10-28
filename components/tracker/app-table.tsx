@@ -206,7 +206,7 @@ export function AppTable({
                     >
                       <Pencil className="size-3.5" />
                     </Button>
-                    <Button size="sm" variant="ghost" className="h-7 px-2 text-[#6e6b61]" nativeButton={false} render={<Link href={`/tailor/${app.jobId}`} />}>
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-[#6e6b61]" nativeButton={false} render={<Link href={`/tailor/${app.jobId}`} target="_blank" rel="noopener noreferrer" />}>
                       <Sparkles className="size-3.5" />
                     </Button>
                     <Button size="sm" variant="ghost" className="h-7 px-2 text-[#6e6b61]" nativeButton={false} render={<a href={app.job.applyUrl} target="_blank" rel="noreferrer" />}>

@@ -113,7 +113,17 @@ export function metricGuidanceFor(family: RoleFamily): MetricGuidance {
   const g = GUIDANCE[family] ?? GUIDANCE.swe;
   return {
     family,
-    allowedShapes: g.allowedShapes,
+    // Zhang & Schwarz (JCR 2012; JESP 2013): fine-grained uneven quantities
+    // ("14 minutes", "6 files") are read as measured; round marketing figures
+    // ("30%", "10x", "50") are read as estimates. Precision on every line
+    // looks automated, and the precision advantage disappears when the
+    // source looks non-human. So invent two uneven counts, not a round
+    // percent on every bullet. Parsers (Textkernel, RChilli, Daxtra) store
+    // the digit inside the bullet text; they do not score its size.
+    allowedShapes: [
+      "uneven junior counts (3, 6, 8, 14), not round tens (10, 20, 50) and not a percent",
+      ...g.allowedShapes,
+    ],
     ceilings: [...(g.ceilings ?? []), ...BASE_BANNED],
     bannedShapes: BASE_BANNED,
   };

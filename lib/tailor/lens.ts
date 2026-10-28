@@ -186,9 +186,9 @@ export function lensInstruction(lens: Lens | null): string {
 Foreground ONLY: ${lens.foreground.join("; ")}.
 Do NOT mention these in experience or lead skills with them: ${lens.suppress.join(", ")}.
 Read the full job.description (from job.posting_url) before writing. FOLLOW hiring_screen_from_research and reddit_intel when present. YOU invent methods for THIS posting — do not stamp Pivot/INDEX-MATCH/Power Query.
-Titles: keep EXACTLY ONE software/CS-titled internship (cs_bridge_company); reword other software rows to Analyst / Business Analyst / Insights Analyst. NEVER retitle campus-ops. Never Consultant. Never Academic WIL.
+Titles: keep EXACTLY ONE software/CS-titled internship (cs_bridge_company) except hr-tech, where the most recent co-op is Systems Analyst Intern — never Software Engineer Intern. Reword other software rows to Analyst / Business Analyst / Insights Analyst. NEVER retitle campus-ops. Never Consultant. Never Academic WIL.
 Bullets: Context-Analysis-Result, exactly 3 per entry. CS bridge balances automation with stakeholder judgment when the posting asks for technical work. BANNED as the story: payloads, authentication, execution plans, deployment checklists, API fields.
-Campus-ops: write from source facts (HyFlex = classroom/lab restore; Office Assistant = request tracking + advising). At least TWO magnitudes on the page (HyFlex 30+ counts as only one).`;
+Campus-ops: write from source facts (HyFlex = classroom/lab restore; Office Assistant = request tracking + advising). TWO of THREE bullets in each expanded software/analysis entry carry a junior-scope number; campus-ops keep source counts only (HyFlex 30+ is already one).`;
   }
   if (lens.id === "analyst") {
     return `ANALYST / INSIGHTS / COMPETITIVE-INTELLIGENCE ROLE FAMILY — beats every SWE rule. ${ANALYST_RESUME_NORMS}
@@ -197,7 +197,7 @@ Foreground ONLY: ${lens.foreground.join("; ")}.
 Suppress in experience: ${lens.suppress.join(", ")}.
 Read job.description (live posting at job.posting_url) first. FOLLOW hiring_screen_from_research and reddit_intel strictly. Competitive intelligence / market research → source monitoring, synthesis, executive-ready briefs. Insights/KPI → question → method → stakeholder use. Never invent Tableau, Qualtrics, Nielsen, IQVIA, PitchBook, SPSS.
 Titles: keep EXACTLY ONE engineer/CS-titled software internship (cs_bridge_company) with JD-balanced automation + analysis when the posting asks for technical work. Other software rows → Analyst / Insights Analyst. Campus ops titles frozen.
-Prefer campus ops over a third project. Invent methods from the posting — do not stamp Excel-function templates. At least TWO magnitudes (HyFlex 30+ = one).`;
+Prefer campus ops over a third project. Invent methods from the posting — do not stamp Excel-function templates. TWO of THREE bullets in each expanded software/analysis entry carry a junior-scope number; campus-ops keep source counts only.`;
   }
   if (lens.id === "product") {
     return `PRODUCT ROLE FAMILY. ${PRODUCT_RESUME_NORMS} Foreground: ${lens.foreground.join("; ")}. Suppress: ${lens.suppress.join(", ")}. Tools only when the JD makes them real — do not stamp Excel.`;

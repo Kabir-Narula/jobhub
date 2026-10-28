@@ -64,9 +64,9 @@ When role_family is "consulting", "analyst", or "product", this block BEATS ever
 - SPEAK THE POSTING'S DOMAIN: when job_analysis.domain or dominant_work_types name a world (supply chain, logistics, fintech, insurance, telecom), frame the candidate's real work with those domain nouns where truthful — a supply-chain posting should read operations / network / distribution / cost, not generic process talk. Never invent domain experience; re-label real work only.
 - Follow resume_taste_principles as fallback taste only when live Reddit/hiring_screen is thin.
 - consulting/analyst: Context-Analysis-Result. A partner must see a business problem, how you worked it, and what changed. Tools in skills when they belong; at most TWO experience bullets name Excel/Word/PowerPoint on the whole page.
-- CS BRIDGE (conditional on the posting's technical ask): when cs_bridge_company is set, that ONE software entry keeps an engineer/CS title (Software Engineer Intern, Software Developer, Data Automation Engineer, etc., keeping Co-op/Freelance). That entry's THREE bullets balance technical work AND business judgment, weighted by the posting:
+- CS BRIDGE (conditional on the posting's technical ask): when cs_bridge_company is set, that ONE software entry keeps an engineer/CS title (Software Engineer Intern, Software Developer, Data Automation Engineer, etc., keeping Co-op/Freelance) — EXCEPT posting_flavor hr-tech, where the bridge title is Systems Analyst Intern / Systems Analyst (Co-op). HR/systems screens die in 8 seconds on "Software Engineer Intern". That entry's THREE bullets balance technical work AND business judgment, weighted by the posting:
   - JD asks for Python/SQL/pipelines/automation: up to two technical bullets ending in a decision/stakeholder use; one synthesis/recommendation.
-  - When posting_flavor is hr-tech: at most ONE light Python/API/automation bullet ending in stakeholder or process use; the other two = requirements clarification, workshop/handoff, or UAT/test scripts.
+  - When posting_flavor is hr-tech: at most ONE light Python/API/automation bullet ending in stakeholder or process use; the other two = requirements clarification, workshop/handoff, or UAT/test scripts. Title is Systems Analyst, never Software Engineer.
   - Never payloads, authentication, deployment checklists, or API field dumps — even on the bridge.
 - role_family "analyst" (bank / insurer / ops / data-team analyst postings — data entry, data integrity, databases, reports, Microsoft 365): the reader is a hiring manager on a data or operations team, NOT a consulting partner. Every bullet = the data problem (duplicates, mismatched fields, missing follow-ups, slow manual steps) → the method he used (Python script, SQL query, validation checks, Excel tracker, AI-assisted step) → who relied on the result. Real artifacts only: tracker, query, script, validation check, report, summary. NEVER invent decks, process maps, decision briefs, workshops, or "infrastructure options" comparisons. When the posting values AI tools, his real LLM work (JobHub tailoring pipeline, BetterMind companion) is the evidence — say what the AI step did in plain words.
 - WHEN cs_bridge_company IS NULL — the posting names no programming, coding, or automation requirement (e.g. a classic Bain/McKinsey strategy Associate posting) — keep ZERO engineering titles on the page. Reword EVERY software entry toward Analyst-family titles that fit THIS posting (Business Analyst / Strategy Analyst / Insights Analyst / Operations Analyst / Research Analyst — choose what matches the role's actual work), with diagnosis, analysis, and stakeholder bullets only. An engineering title on a no-coding posting reads as a mismatch, not a strength.
@@ -75,13 +75,15 @@ When role_family is "consulting", "analyst", or "product", this block BEATS ever
 - FOUR experience entries, THREE CAR bullets each.
 - CAMPUS OPS: keep real titles including (Contract, Part-time). Never retitle them to Analyst. Never write Academic WIL. Write HyFlex and Office Assistant from source facts (classroom/lab restore; request tracking + advising) — never as Excel/Word jobs. Peer Mentor MUST show people leadership: led/facilitated small groups of incoming students through onboarding or time-management — not only passive one-on-ones. That "led" is campus leadership evidence, not software-scope inflation.
 - Never invent Tableau, Power BI, Alteryx, Qualtrics, Nielsen, IQVIA, SPSS, Salesforce, CRM, PitchBook, CB Insights, Think-Cell, Confluence, Notion, Airtable, SuccessFactors, Workday, SAP, Confirmit, Microsoft Access, SAS, VBA, or Hadoop as something you used. If the JD names them, map to an intern-defensible equivalent (secondary research, Excel dashboard, SQL reconciliation, a written brief, HR process/integration requirements, UAT/test cases, Python analysis). Do not invent R as a language you used unless it is already in the candidate skills pool — prefer Python/SQL/Excel.
-- Prefer campus ops over a third GitHub project. Prefer Expense Manager / JobHub when the posting is about source monitoring or multi-source refresh.
+- Prefer campus ops over a third GitHub project. Prefer Expense Manager / JobHub. Never pick Windows Booster or VertexFlow on consulting/analyst/product pages.
+- SCENE TEST: every business bullet must name (1) a thing you could hold or point at (tracker, query, script, notice, rooms, scenarios, report) (2) who used it (3) what stopped or started. The Student Services Excel-tracker bullet is the template. Banned fog: "partner questions became requirements", "shared reference", "consistent field definitions", "technical and non-technical partners followed", "acceptance criteria for each delivery" with no artifact. Do not translate software work into abstract consulting.
+- CAMPUS-OPS BULLETS ARE FROZEN: return the source HyFlex and Office Assistant bullets unchanged. Do not rewrite them.
 - Skills: YOU rank 4 rich lines (5-7 items) from the verified pools that fit THIS posting + hiring screen. Competitive-intel postings can use Secondary Research, Competitive Intelligence, Segmentation, Market Research, Dashboard Reporting, KPI Tracking when claimable. HR-tech postings: Requirements Gathering, Workshop Facilitation, UAT / Test Scripts, Process Mapping, REST APIs, Python/JavaScript when the JD names them — never Segmentation from hiring cohorts, never Distributed Systems/CI/CD leftovers. Silent MBB stays lighter. NEVER Node, Stripe, Fastify, OpenAI, Supabase, Vercel, TypeScript, C++, React, Prisma, Express, Machine Learning, Word-as-flex, Tableau-you-do-not-have, or IQVIA.
-- Magnitudes: at least TWO bullets on the page carry an allowed metric_guidance magnitude. HyFlex's 30+ rooms counts as only ONE of them — put a second magnitude on a software or analysis entry (sources compared, briefs delivered, sites, hours, cycle time). Never invent deal sizes or dollars.
+- Magnitudes: TWO of THREE bullets in each expanded software/analysis entry carry an allowed metric_guidance number (one number per bullet). Campus-ops keep source counts only — HyFlex's 30+ rooms is already one and is not invented. Never invent deal sizes or dollars.
 - When posting_flavor is competitive-intel: non-bridge software bullets MUST read as fragmented sources → synthesis → stakeholder brief/decision. Banned on those rows: mobile and web, release defects, authentication, infrastructure tradeoffs, community-facing workflows.
 - When posting_flavor is hr-tech: non-bridge software bullets MUST read as workshops/discovery, requirements/process notes, techno-functional integration clarification, UAT/acceptance, or project coordination. Banned on those rows: REST API data handoffs, release regressions, backend workflows, third-party integration internals without business acceptance language.
-- When posting_flavor is zs-sip: non-bridge bullets MUST read as desk/market research → Excel analysis → synthesized insight → client recommendation. Ban SWE internals. Never invent Confirmit/Access/ZS proprietary tools. Ban "infrastructure tradeoffs", REST handoffs, and stub bullets under 14 words — every bullet needs a full CAR sentence with an observable result.
-- When posting_flavor is zs-da: non-bridge bullets MUST read as business question → quantitative method (Excel/SQL/Python) → client decision. Never invent Tableau/SAS/R/VBA/Hadoop; map to Python/SQL/Excel. Ban release-QA language and "infrastructure tradeoffs". At least TWO magnitudes outside HyFlex (e.g. sources reconciled, briefs, hours). CS bridge may use Python/SQL heavily.
+- When posting_flavor is zs-sip: non-bridge bullets MUST read as desk/market research → Excel analysis → synthesized insight → client recommendation. Ban SWE internals. Never invent Confirmit/Access/ZS proprietary tools. Ban "infrastructure tradeoffs", REST handoffs, and hollow stubs (count+deliverable with no scene) — every bullet needs a clear CAR sentence a partner could probe.
+- When posting_flavor is zs-da: non-bridge bullets MUST read as business question → quantitative method (Excel/SQL/Python) → client decision. Never invent Tableau/SAS/R/VBA/Hadoop; map to Python/SQL/Excel. Ban release-QA language and "infrastructure tradeoffs". TWO numbered bullets per expanded software/analysis entry (sources reconciled, briefs, hours). CS bridge may use Python/SQL heavily.
 
 TECHNOLOGY DISCIPLINE — product names vs portable terms:
 - PORTABLE (repeat freely): SQL, REST API, HTTP, CI, tests, schema, index, query, queue, pipeline, worker, Git, Linux, report, export. These transfer across companies. Prefer them.
@@ -101,7 +103,7 @@ Every experience bullet is assembled from the slots below. Each bullet must carr
 RESULT RULES — this is exactly where resumes turn vague and where they get caught:
 - A real result is something a former colleague could confirm: a step that no longer exists, an error that stopped happening, a duration that dropped, a manual process that became automatic, a person or team that stopped being blocked, a report that started running on its own.
 - A result is NEVER an abstract quality. Banned as an ending in any wording: "ensuring reliability", "keeping the API responsive", "improving maintainability", "allowing scalability", "for better performance", "to improve efficiency", "making the system more robust". These are unfalsifiable, and every screener in group 3 and 4 knows it on sight.
-- NOT EVERY bullet needs a result — but see the entry rule below, because an entry with no result anywhere is the single most common reason a technically strong resume reads as a list of tasks. In the software-anchor entry only, where nothing may be invented, ending on the artifact and mechanism is fine.
+- NOT EVERY bullet needs a result — but see the entry rule below, because an entry with no result anywhere is the single most common reason a technically strong resume reads as a list of tasks.
 
 ENTRY COMPOSITION — an entry must read like a JOB, not a portfolio:
 When role_family is consulting/analyst/product: STOP. Use CAR only (diagnose → analyze → stakeholder result). HyFlex is a restore/fix job. CS bridge may name Python/SQL/automation only when the posting asks for it. Do NOT stamp Excel/Word or INDEX/MATCH. Do NOT require BUILD/OPERATE/endpoint quotas — those are software-only below. Skip the rest of this ENTRY COMPOSITION block.
@@ -114,29 +116,33 @@ Within each expanded software entry the bullets must cover DIFFERENT KINDS of wo
 INTERN AND JUNIOR REALITY — get this wrong and nothing else matters: at this level you do not own systems, you own tasks inside them. Scope verbs that fit: added, fixed, moved, wired, tested, documented, migrated, instrumented, extended, traced, cut, shipped. Scope verbs that read as inflated and get resumes discarded: architected, owned, led, drove, spearheaded, designed-from-scratch, re-platformed. A staff engineer spots inflated scope faster than anything else on the page.
 
 BULLET MECHANICS:
-- Bullet COUNT and WORD COUNT per experience entry come from the bullet_count_rule field. That field is the single authority — follow it exactly and ignore any other count implied anywhere in these instructions. Projects are always exactly 2 bullets (purpose, then implementation) — bullet_count_rule does not apply to them.
-- One idea per bullet. Two short bullets beat one long one — split compound thoughts. Fill the page with MORE short bullets, never with longer ones.
-- VARY THE OPENING AND THE SHAPE. No two bullets in one entry may start with the same verb, and no entry may repeat the same skeleton (e.g. three consecutive "Verb + object, gerund-clause + noun" sentences). Identical rhythm across bullets is a known machine-written signature. Mix shapes: lead with the trigger sometimes ("After users hit timeouts on large uploads, moved..."), lead with the action other times, lead with the result occasionally.
-- NEVER SELF-APPLY THE POSTING'S EVALUATION ADJECTIVES: "maintainable", "testable", "performant", "analytical", "clean", "efficient", "robust" read as the job description echoed back at the person who wrote it. Name the practice that proves it instead: tests in CI, code review gates, indexed queries, small modules.
-- CUT ruthlessly: no "in order to", no stacked "and/while/by" clauses, no filler ("worked on", "helped with", "was responsible for", "assisted with", "various", "multiple", "successfully", "utilized"). If a word earns nothing, delete it.
+- Bullet COUNT and length band come from bullet_count_rule — that field is the single authority. Projects are always exactly 2 bullets (purpose, then implementation).
+- BEST LENGTH, not max length: pick the shortest wording that still reads as a real scene to ATS, HR, and an interviewer. Inside the band, a clear 16-word line beats a padded 24-word one. Never pad with filler to hit a target. Never ship a hollow stub to look "punchy".
+- One idea per bullet. A complete scene = problem or trigger → what you did → who used it or what changed. Prefer that over splitting into empty fragments.
+- BANNED HOLLOW STUBS (rewrite even if word count looks fine): "Framed/Prioritized N use cases…", "Converted findings into an N-slide PowerPoint brief", "Summarized LLM limitations…" with no method/result, or digit + deliverable noun and nothing else. A number is not a scene. Invent freely to replace them.
+- INNWIL / VYBE / AI co-op: YOU MAY invent junior-defensible extraction/LLM/prototype work — e.g. Python checks on sample docs, prompt tests that caught a failure mode, a small review checklist partners used, a timed comparison of 2 approaches.
+- VARY THE OPENING AND THE SHAPE. No two bullets in one entry may start with the same verb, and no entry may repeat the same skeleton. Mix shapes: lead with the trigger, the action, or the result.
+- NEVER SELF-APPLY THE POSTING'S EVALUATION ADJECTIVES: "maintainable", "testable", "performant", "analytical", "clean", "efficient", "robust". Name the practice that proves it instead.
+- CUT filler only: no "in order to", no "worked on/helped with/was responsible for/assisted with/various/multiple/successfully/utilized". Never cut the problem, method, or result just to look short.
 
-NUMBERS AND OUTCOMES — role-mapped plausibility (metric_guidance is the authority):
-- candidate_verified_numbers are TRUE facts. Use 2-3 across the whole resume, never inflated, never the same one twice, never two numbers in one bullet.
-- Beyond those, in the TWO most relevant entries you MAY invent outcomes that fit metric_guidance.allowed_shapes for THIS job family — before/after durations, junior-known counts, baseline-named percentages. The GPT side of the research is on you: pick the shape that fits THIS posting's work (a pipeline job gets rows/night and duration; a reliability job gets failure counts and deploy time; an analysis job gets hours saved and cycle time).
-- metric_guidance.ceilings are hard caps — never exceed them, and metric_guidance.banned_shapes are never allowed anywhere. A number above the ceiling is the fabrication tell that gets a resume dismissed.
-- At most ONE number per bullet, and a number in at most HALF the bullets on the page. Uniformly quantified bullets are as machine-written as uniformly unquantified ones.
-- Prefer a qualitative state change over a weak number. "The nightly reconciliation stopped failing on partial files" is stronger AND safer than "improved reliability by 30%".
-- Magnitude rule: EVERY experience entry carries at least one bullet with a number IN DIGITS that fits THAT entry's scenario — a duration before/after (400ms to 120ms), a count of concrete artifacts (six defects, 3 dashboards), rows or records per run, hours saved per week, cycle time. Digits catch the 10-second skim; written-out counts of abstractions ("two release cycles") do not. Pick the shape from metric_guidance.allowed_shapes that matches the work; a strong count or duration beats a weak percentage. Consulting/analyst needs at least TWO magnitudes on the page, and HyFlex's 30+ rooms counts as only one of them — put a second on a software or analysis entry. Campus-ops uses real source counts (30+ HyFlex rooms). The verbatim-true anchor entry is exempt — never invent there. Prefer qualitative state changes alongside numbers when both strengthen the skim. Never invent deal sizes or dollars.
+NUMBERS AND OUTCOMES — invent two uneven magnitudes per expanded software/analysis entry (metric_guidance is the bound, not a reason to skip):
+- YOU ARE AUTHORIZED to invent the two numbers when the source bullet has none. Do not leave an expanded software/analysis entry with only one number out of caution. Invent inside metric_guidance ceilings. Never invent years of experience, employment dates, deal sizes, dollars, or tools the candidate did not use — those are the fields parsers and knockout questions actually filter (Textkernel/RChilli store skill + years + last-used; Workday/Taleo tenure filters read dates).
+- WHAT THE SYSTEMS SCORE: Textkernel (SuccessFactors and many others), RChilli, and Daxtra keep an achievement number inside the bullet string. They do not have a "metric score." iCIMS Role Fit and Eightfold rank skills, titles, and recency. Greenhouse Talent Matching ranks calibrated skills; a longer keyword list does not raise the score. iCIMS NEAR ranks a profile higher when two searched terms sit close together — so put ONE claimable posting skill in the same bullet as the number. Taleo and base Workday are literal term match. HiredScore/Eightfold embeddings match skills, not digit density.
+- WHAT A HUMAN SCORES: Reyt, Rubineau, and Wiesenfeld (Academy of Management Proceedings, 2016) found more concrete entry-level resumes received more interview invites. Zhang and Schwarz (Journal of Consumer Research, 2012; Journal of Experimental Social Psychology, 2013) found fine-grained uneven quantities are read as measured, and round figures as estimates; the precision advantage disappears when every line looks machine-written. NBER W30886: clearer sentences raised hires about 8%; extra keywords did not. Bright and Hutton (International Journal of Selection and Assessment, 2000): naming the job's competencies raised shortlist ratings; where on the page did not. TheLadders eye-tracking: recruiters skim titles and the left edge in about 7 seconds, and keyword stuffing made resumes worse for the human.
+- So write TWO of THREE bullets with one uneven digit-grade number (6 files, 14 minutes, 3 sites, a slow step cut from a long wait to a short one). Not 10, 20, 25, 50, not a percent, not 3x. The third bullet is a qualitative result with no digit. Never two numbers in one bullet. Never number all three.
+- candidate_verified_numbers are TRUE facts. Use one when it fits, never twice, never inflated.
+- Campus-ops keep real source counts only (30+ HyFlex rooms, 20+ requests, 8–12 students). Do not invent a second campus count — a campus interviewer can check it, and the parser will not score it.
+- metric_guidance.ceilings are hard caps. metric_guidance.banned_shapes are never allowed. A number above the ceiling is the fabrication tell.
 
 THE AUTHENTICITY BALANCE (user-authorized expanded mode):
 - When role_family is consulting/analyst/product: skip the junior-engineer codebase rewrite below. Compose CAR bullets from source facts + THIS posting + hiring_screen. Campus-ops stay restore/tracker jobs. CS bridge may stretch automation only when the JD asks for Python/SQL/pipelines. Do not invent software services from "digital" or "analytics".
-- When role_family is swe/data-ml/infra: COMPOSE THE TWO MOST RELEVANT SOFTWARE ENTRIES AS IF THE ORIGINAL BULLETS DID NOT EXIST. Read the source bullets only to learn what kind of company it was, what the product did, and roughly what the candidate touched — then write a fresh, coherent account of a junior engineer's few months on that team, aimed at THIS posting. Do not paraphrase the source bullets, do not preserve their order, do not keep their sentence skeletons. If a new bullet reads like a rewording of a source bullet, replace it.
-- candidate_experience items marked kind "campus-ops" are never the software-anchor and never become internships. HyFlex stays troubleshooting for professors and labs. Office Assistant stays the request tracker + advising. Not endpoints.
+- When role_family is swe/data-ml/infra: COMPOSE EVERY software entry (including the oldest freelance job) AS IF THE ORIGINAL BULLETS DID NOT EXIST. Each gets a full junior scene for THIS posting — invent posting-aligned tools/work as needed (Java/C++/code review/prototypes when the JD asks). Project Human City and Three of Cups must NOT ship as short keyword stubs or lightly reworded master REST/Kotlin/Postgres bullets; same invent + scene energy as the newest co-op. Read source only for company/product context. Do not paraphrase the source. If a new bullet reads like a rewording of a source bullet, replace it.
+- candidate_experience items marked kind "campus-ops" never become internships. HyFlex stays troubleshooting for professors and labs. Office Assistant stays the request tracker + advising. Not endpoints.
 - Software families only: the invented work must be INTERNALLY CONSISTENT — one believable team, product surface, and few months (build, fix, handoff). Consulting/analyst consistency is diagnosis → method → stakeholder use across an entry.
 - You MAY embed the posting's required technologies as work the candidate did — written plausibly, small in scope — ONLY for software families. If the posting is consulting/insights, do not invent software services from "digital" or "analytics".
 - Stretch ONLY toward what the posting explicitly names (target_keywords and the JD text). If the posting names few or no concrete tools, embed nothing extra.
 - EVERY INVENTED CLAIM MUST BE INTERVIEW-DEFENSIBLE. Shrink until a junior could describe the artifact, the problem, and how they checked it.
-- ANCHOR (software families): the last software (kind "software") entry stays 100% true to the source material. Campus-ops entries are not the anchor.
+- Campus-ops titles and bullets stay frozen source text. Every software (kind "software") entry is rewritten for THIS posting — do not leave a master-copy "fallback" job on the page.
 - Company names, employers, dates, and education never change. Seniority never inflates.
 - Software families: stretched content prefers technologies plausible-adjacent to the candidate's world; a stretched technology appears in EXACTLY ONE experience entry.
 
@@ -167,6 +173,7 @@ Choose the library projects that best match this posting AND cover DIFFERENT req
 - BULLET 1 (WHAT IT IS): one sentence a 10-second scanner, a recruiter, and an ATS can all parse. Name the product in plain English, who it is for, and the user-visible loop (what happens after they use it). Ground this in the library summary, not in a rewrite of an implementation bullet. A reader who stops after this line must still know what was built. Technologies here are optional and at most one; start with the user or the job the product does, never the stack. BAD: "Added OpenAI API inference pipelines to a Next.js product, recording sentiment scores for downstream analysis." GOOD: "Mental wellness app that scores daily journal entries and surfaces mood patterns so a companion chat can answer from the user's own history."
 - BULLET 2 (HOW, ALIGNED TO THIS JOB): three things in one sentence — (1) a distinctive feature that is not the stack (the scheduler, the undo journal, the heuristic that works without an LLM key, the fuzzy dedupe, the spatial review pins), (2) at most two named technologies, (3) the specific technique used to implement them, framed toward THIS posting. A staff engineer should be able to ask a follow-up about that distinctive choice. Same facts as the library; sharper framing, never invented scope.
 - Both bullets stay inside the library. Do not invent a product the repo is not. Do not paste the summary verbatim into bullet 1 and the first library bullet into bullet 2 — rewrite for this posting, keep the facts.
+- When role_family is consulting/analyst/product: JobHub bullet 1 is the application tracker and follow-up loop. NEVER "generates a tailored resume", LaTeX, or LLM pipeline — campus/HR/bank recruiters read that as application spam. Expense Manager bullet 1 is the shared budget dashboard, not React.
 
 COVER LETTER v2 (this is where interviews are won or lost — the first line decides if it gets read):
 - PARAGRAPH 1 (the hook): name the exact role, then ONE specific reason this team's work fits what the candidate already does — anchored in what THIS team does per the posting (or the research hookFact when it is about this team's work, not corporate finance). Write it the way a sharp new grad would say it out loud: direct, specific, no throat-clearing. Never use the template "When I read that ... it caught my attention" (every AI letter opens that way). Never lead with acquisitions, earnings, deal sizes, or stock moves. Never open with "I am excited", the candidate's name, or his degree.
@@ -196,7 +203,8 @@ interface GenerateInput {
     /** Live posting URL — model reads job.description extracted from this page. */
     postingUrl?: string;
   };
-  research: CompanyResearch | null;
+  /** Required — generate route always runs company/Reddit research before the model. */
+  research: CompanyResearch;
   lensNote?: string;
   softSkills?: string[];
   targetKeywords?: string[];
@@ -248,7 +256,7 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
     soft_skills_allowed: input.softSkills ?? [],
     candidate_skills_lines: input.skills.lines,
     additional_verified_skills_pool: extraSkillsPool(),
-    candidate_project_library: projectBriefs(),
+    candidate_project_library: projectBriefs(businessFamily),
     lens_directive: input.lensNote ?? null,
     role_family: family,
     posting_flavor: flavor,
@@ -267,19 +275,17 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
       posting_url: input.job.postingUrl ?? null,
       description: input.job.description.slice(0, 12000),
     },
-    company_research: input.research
-      ? {
-          mission: input.research.mission,
-          product: input.research.product,
-          stack: input.research.stack,
-          news: input.research.news,
-          summary: input.research.summary,
-          hookFact: input.research.hookFact ?? null,
-          tone: input.research.tone ?? "casual",
-          hiring_screen_from_research: input.research.hiringScreen ?? null,
-          reddit_intel_from_real_candidates: input.research.redditIntel ?? null,
-        }
-      : null,
+    company_research: {
+      mission: input.research.mission,
+      product: input.research.product,
+      stack: input.research.stack,
+      news: input.research.news,
+      summary: input.research.summary,
+      hookFact: input.research.hookFact ?? null,
+      tone: input.research.tone ?? "casual",
+      hiring_screen_from_research: input.research.hiringScreen ?? null,
+      reddit_intel_from_real_candidates: input.research.redditIntel ?? null,
+    },
     // Length mode and ATS-boost are composable: a resume that overflowed AND
     // scored low needs both. Making them exclusive branches meant the boost
     // terms were dropped whenever compression was also required.
@@ -289,17 +295,17 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
           ? "Read this posting and write a distinct resume. Do not reuse a Pivot/INDEX-MATCH/Power Query template. Then "
           : "",
         input.shorten
-          ? "same job, second pass: the resume overflowed one page. Compress: keep 2 projects, drop the weakest 1-2 items from each skills line, cover letter to 3 paragraphs. Bullet counts and lengths come from bullet_count_rule. All other rules still apply."
+          ? "same job, second pass: the resume overflowed one page. Compress via fewer projects and thinner skills first; tighten bullet wording but every experience bullet must stay a complete scene (problem → method → result). Never gut into hollow use-case/PPT stubs. Cover letter to 3 paragraphs. Lengths stay inside bullet_count_rule."
           : input.expand
-            ? "same job, but the resume came out TOO EMPTY (large gap at the bottom). Fill the page by ADDING a third project if project_count_rule allows it, plus experience bullets and skills items, never by lengthening them. Each project stays at exactly 2 bullets (purpose, then implementation). Bullet counts and lengths come from bullet_count_rule. Keep every bullet punchy."
-            : "tailor this candidate for this job: rewrite experience bullets from scratch (page-filling; the resume also has an achievements section, so space is tight), re-rank skills, choose projects per project_count_rule, write the cover letter.",
+            ? "same job, but the resume came out TOO EMPTY (large gap at the bottom). Fill by ADDING a third project if project_count_rule allows it and by replacing any hollow/incomplete bullets with clear scenes inside bullet_count_rule — do not pad already-good bullets. Each project stays at exactly 2 bullets (purpose, then implementation)."
+            : "tailor this candidate for this job: rewrite experience bullets from scratch (best-length scenes for ATS/HR/interview; space is tight with achievements), re-rank skills, choose projects per project_count_rule, write the cover letter.",
       ]
         .filter(Boolean)
         .join(""),
       input.boost
         ? input.roleFamily && input.roleFamily !== "swe" && input.roleFamily !== "data-ml" && input.roleFamily !== "infra"
-          ? `ATS-boost pass: the draft scored low on keyword coverage. Missing terms: ${input.boost.missingTerms.join(", ")}. Add intern-defensible posting terms to SKILLS if they are in the verified pool. Weave a term into experience only when it is real work, at most once. Never invent IQVIA/Tableau/Qualtrics. Never repair by adding FastAPI, CI, Kotlin, or INDEX/MATCH as filler. Rewrite everything fresh.`
-          : `ATS-boost pass: the draft scored low on keyword coverage. Missing terms: ${input.boost.missingTerms.join(", ")}. Add them to the SKILLS lines first (that is what parsers weight). Weave a term into an experience bullet ONLY if it is a work-type (pipeline, SQL, CI) or the posting's actual core tool, and into at most ONE bullet total. Never a product the candidate would only have used if that company ran it. Do NOT keyword-stuff. Rewrite everything fresh (all other rules apply, including technology discipline).`
+          ? `ATS-boost pass: the draft scored low on keyword coverage. Missing terms: ${input.boost.missingTerms.join(", ")}. Add tools to SKILLS. Soft skills (verbal/written communication, organizational skills) go on Professional only — NEVER paste those phrases into experience. Invent real consulting/analyst scenes (workshop, PoC check, decision brief) — never hollow 'N use cases' or 'N-slide PowerPoint' stubs. Never invent IQVIA/Tableau/Qualtrics. Rewrite everything fresh.`
+          : `ATS-boost pass: the draft scored low on keyword coverage. Missing terms: ${input.boost.missingTerms.join(", ")}. Put tools in SKILLS and you MAY embed posting-required languages/frameworks as small junior-scope work across expanded experience entries. Never paste soft-skill labels into bullets. Ban hollow stubs and master paraphrases. Rewrite everything fresh.`
         : "",
       input.qualityIssues ?? "",
     ]
@@ -307,22 +313,19 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
       .join(" "),
     intern_defensible_palette: techniqueBrief(input.job.description, input.roleFamily ?? "swe"),
     metric_guidance: input.metricGuidance ?? null,
-    // Single authority for bullet count and length. The system prompt, the
-    // task text, and output_schema all defer here; stating counts in more than
-    // one place produced contradictory payloads (e.g. "exactly 3" alongside "4").
+    // Single authority for bullet count and length. Best length inside the band —
+    // not forced long, not hollow short.
     bullet_count_rule: input.shorten
-      ? input.roleFamily === "consulting" || input.roleFamily === "analyst"
-        ? "exactly 3 bullets per entry, 14-18 words each — one page is mandatory"
-        : "exactly 3 bullets per entry, 16-22 words each"
+      ? "exactly 3 complete-scene bullets per entry, best length 14-22 words (tighten for one page; ban hollow stubs)"
       : input.expand
         ? input.roleFamily === "consulting" || input.roleFamily === "analyst"
-          ? "exactly 3 bullets per entry, 16-22 words each — fill via richer CAR content and a third project if allowed, never a 4th bullet"
-          : "4 bullets per entry, 14-20 words each — more short bullets, never longer ones"
+          ? "exactly 3 CAR bullets per entry, best length 14-24 words — replace hollow lines, add a third project if allowed; do not pad good bullets"
+          : "exactly 3 complete-scene bullets per entry, best length 14-24 words — replace hollow lines; fill the page with projects/skills before padding bullets"
         : input.roleFamily === "consulting" || input.roleFamily === "analyst"
-          ? "exactly 3 CAR bullets per entry, 16-24 words each"
+          ? "exactly 3 CAR bullets per entry, best length 14-24 words — clear scene a partner can probe; invent freely; ban hollow use-case/PPT stubs"
           : input.entries.length <= 3
-            ? "3-4 short punchy bullets per entry, 16-26 words each (only 3 entries — give them more weight)"
-            : `exactly 3 short punchy bullets per entry, 16-26 words each (${input.entries.length} entries — keep the page tight)`,
+            ? "exactly 3 complete-scene bullets per entry, best length 14-24 words (only 3 entries — make each one count; ban hollow stubs)"
+            : `exactly 3 complete-scene bullets per entry, best length 14-24 words (${input.entries.length} entries — ban hollow stubs; do not pad)`,
     project_count_rule: `${input.projectCount ?? 2} projects, exactly 2 bullets each (purpose then implementation), different stacks, strongest first`,
     target_keywords: input.targetKeywords ?? [],
     job_analysis: input.jdAnalysis
@@ -340,7 +343,7 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
           company: "MUST equal the input company byte-for-byte",
           title: "final title (reworded per title rules if useful)",
           titleChanged: "boolean",
-          bullets: ["count and length per bullet_count_rule, one idea each, punchy"],
+          bullets: ["count and best length per bullet_count_rule, one complete scene each — never hollow stubs"],
         },
       ],
       skills: [{ label: "exact label from input", items: ["only items from that line's pool, re-ranked"] }],
@@ -406,8 +409,14 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
     return {
       company: e.company, // frozen — ignore whatever the model returned
       title: titled,
-      titleChanged: Boolean(gen.titleChanged) || titled !== e.title.replace(/\\&/g, "&"),
-      bullets: gen.bullets.map((b) => polishBullet(String(b).trim())).filter(Boolean),
+      titleChanged: isCampusOpsEntry(e)
+        ? false
+        : Boolean(gen.titleChanged) || titled !== e.title.replace(/\\&/g, "&"),
+      // Campus-ops source bullets already pass the scene test; rewriting them
+      // is how Peer Mentor turned into fog. Campus-ops stay frozen at assemble.
+      bullets: isCampusOpsEntry(e)
+        ? e.bullets.map((b) => String(b))
+        : gen.bullets.map((b) => polishBullet(String(b).trim())).filter(Boolean),
     };
   });
   if (input.carryCoverLetter) parsed.coverLetter = input.carryCoverLetter;
@@ -534,6 +543,12 @@ export function finalizeBusinessTitle(
 ): string {
   const orig = original.replace(/\\&/g, "&");
   if (isBridge) {
+    // HR/systems 8-second skim: "Software Engineer Intern" is a mismatch.
+    // Programming still appears in at most one bullet; the title matches the job.
+    if (flavor === "hr-tech") {
+      const intern = /\bintern\b/i.test(orig) ? "Systems Analyst Intern" : "Systems Analyst";
+      return clampConsultingTitle(orig, intern);
+    }
     let t = clampConsultingTitle(orig, proposed);
     // Model often over-corrects the bridge into Business Analyst — restore CS.
     if (!CS_BRIDGE_TITLE.test(t)) {

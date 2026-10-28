@@ -14,6 +14,7 @@ const VERIFIED_NUMBERS: { fact: string; usage: string }[] = [
   { fact: "20+ open departmental requests tracked in Excel (Student Services)", usage: "an Excel tracker covering 20+ open departmental items" },
   { fact: "top 5 recurring process questions standardized into a faculty notice", usage: "the top 5 recurring process questions" },
   { fact: "peer-mentor groups of 8-12 incoming students", usage: "groups of 8-12 incoming students" },
+  { fact: "30+ HyFlex hybrid classrooms supported (ITS)", usage: "30+ HyFlex rooms" },
 ];
 
 export function verifiedNumbersBrief(): string {

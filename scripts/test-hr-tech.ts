@@ -85,10 +85,9 @@ check(
     "Systems Analyst (Co-op)"
 );
 check(
-  "hr-tech still keeps CS bridge",
-  /software engineer intern/i.test(
-    finalizeBusinessTitle("Software Engineer Intern (Co-op)", "Business Analyst (Co-op)", true, "hr-tech")
-  )
+  "hr-tech CS bridge is Systems Analyst Intern, not Software Engineer",
+  finalizeBusinessTitle("Software Engineer Intern (Co-op)", "Business Analyst (Co-op)", true, "hr-tech") ===
+    "Systems Analyst Intern (Co-op)"
 );
 check(
   "non-hr-tech still forces Business Analyst",
@@ -138,10 +137,10 @@ const good = auditExperienceBullets(
   [
     {
       company: "INNWIL",
-      title: "Software Engineer Intern (Co-op)",
+      title: "Systems Analyst Intern (Co-op)",
       bullets: [
-        "Clarified integration requirements with partners before a Python job moved extraction outside client workflows.",
-        "Ran acceptance checks against expected handoffs, then documented gaps for technical and non-technical stakeholders.",
+        "Clarified 4 integration requirements with partners before a Python job moved extraction outside client workflows.",
+        "Ran 6 acceptance checks against expected handoffs, then documented gaps for technical and non-technical stakeholders.",
         "Walked teammates through unresolved delivery risks in sprint reviews so process owners could prioritize fixes.",
       ],
     },
@@ -149,7 +148,7 @@ const good = auditExperienceBullets(
       company: "PHC",
       title: "Systems Analyst (Co-op)",
       bullets: [
-        "Facilitated discovery walkthroughs to capture third-party integration requirements and acceptance criteria.",
+        "Facilitated 3 discovery walkthroughs to capture third-party integration requirements and acceptance criteria.",
         "Documented process gaps across client workflows, then handed a requirements note to developers before launch.",
         "Compared issues across 2 client engagements and turned recurring onboarding gaps into delivery recommendations.",
       ],

@@ -17,7 +17,7 @@
  */
 
 import { prisma } from "@/lib/db";
-import { claimableJdTerms, type JdAnalysis } from "./match";
+import { claimableJdTerms, isJunkAtsPhrase, type JdAnalysis } from "./match";
 import { model, openai, parseJson } from "./research";
 
 // ---------- section parsing (deterministic) ----------
@@ -132,7 +132,7 @@ function cleanPhrases(raw: unknown, cap: number): string[] {
   const out: string[] = [];
   for (const r of raw) {
     const t = String(r ?? "").trim().toLowerCase().replace(/[.;:]+$/, "");
-    if (!t || t.split(/\s+/).length > 4 || UNCLAIMABLE.test(t)) continue;
+    if (!t || t.split(/\s+/).length > 4 || UNCLAIMABLE.test(t) || isJunkAtsPhrase(t)) continue;
     if (!out.includes(t)) out.push(t);
   }
   return out.slice(0, cap);
@@ -163,8 +163,8 @@ async function llmLabels(input: {
             `- "domain": the business domain whose vocabulary this posting speaks — one short lowercase string like "fintech", "healthtech", "e-commerce", "developer tools", "gaming", "telecom", "insurance", "logistics", "education", "advertising". null if unclear.`,
             `- "workTypes": up to 4 dominant KINDS of work this role does, as short lowercase phrases — e.g. "data pipelines", "REST services", "query optimization", "frontend UI", "CI/CD", "ML inference", "ETL", "stakeholder analysis", "reporting dashboards". Kinds of work, never product names.`,
             `- "seniority": the seniority this posting actually seeks: "junior" (0-2 years, new grad, entry), "mid" (3-4 years), or "senior" (5+ years, senior/staff/lead signals). Use the years-of-experience requirement over the title when they disagree.`,
-            `- "mustHaves": up to 8 ATS skill keywords (1-3 words) the posting REQUIRES — skills and tools a recruiter would type into an ATS search, in their standard names: "Microsoft Office" (not "Microsoft Suite" + "O365" separately), "data entry", "data validation", "SQL", "Python", "reporting", "attention to detail". NOT duty phrases ("strategic initiatives", "project implementation", "support operations"), NOT the industry/domain ("capital markets", "banking"), NOT degrees, years, spoken languages, location, or work authorization.`,
-            `- "niceToHaves": up to 6 phrases the posting marks as an asset, preferred, or bonus, same format.`,
+            `- "mustHaves": up to 8 ATS skill keywords (1-3 words) the posting REQUIRES — searchable tools only: "Python", "Excel", "PowerPoint", "SQL", "Agile". One language per item. NOT soft skills ("verbal communication", "written communication", "organizational skills", "problem solving", "attention to detail") — those go on a Professional line elsewhere. NOT duty phrases, NOT domain, NOT degrees/years/location.`,
+            `- "niceToHaves": up to 6 preferred tools/skills, same format (still no soft-skill phrases).`,
           ].join("\n"),
         },
       ],
@@ -210,8 +210,8 @@ async function analyzeJobDescription(input: {
 
 // ---------- cache on the Job row ----------
 
-/** Bump when the analysis shape/meaning changes so cached rows recompute. v2: LLM must-haves. */
-const JD_ANALYSIS_VERSION = 3;
+/** Bump when the analysis shape/meaning changes so cached rows recompute. v4: drop soft-skill must-haves. */
+const JD_ANALYSIS_VERSION = 4;
 
 /**
  * Cached analysis for a job. Recomputed only when stale — currently that means

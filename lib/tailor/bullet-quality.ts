@@ -9,7 +9,8 @@
  * quality-tier LLM call, so cosmetic drift never doubles the request.
  */
 
-import { jdWantsProgramming } from "./role-family";
+import { isCampusOpsEntry, jdWantsProgramming } from "./role-family";
+import { bulletsTooAlike } from "./projects";
 
 export interface BulletIssue {
   company: string;
@@ -23,7 +24,14 @@ const FILLER =
 
 /** Empty professional-sounding tails that avoid naming an artifact or outcome. */
 const VAGUE_EVIDENCE =
-  /\b(?:helping (?:technical and non-technical )?partners?|repeatable intelligence inputs|intelligence inputs|choose a path|findings reached stakeholders|supported (?:the )?(?:team|analysis|insights)|drove improvements?|improved (?:processes?|efficiency|communication))\b/i;
+  /\b(?:helping (?:technical and non-technical )?partners?|repeatable intelligence inputs|intelligence inputs|choose a path|findings reached stakeholders|supported (?:the )?(?:team|analysis|insights)|drove improvements?|improved (?:processes?|efficiency|communication)|partner questions became|shared reference|consistent field definitions|data-flow tradeoffs|acceptance criteria for each delivery|technical and non-technical partners followed)\b/i;
+
+/**
+ * Soft-skill names pasted into experience for ATS. Belong on Professional skills
+ * only — "Applied organizational skills…" is the Deloitte nonsense tell.
+ */
+const SOFT_SKILL_STUFFING =
+  /\b(?:organizational skills|verbal communication|written communication|communication skills|attention to detail|problem[- ]solving skills)\b/i;
 /** Arabic digits or small written counts (model often writes "eight sources"). */
 const HAS_MAGNITUDE =
   /\d|\b(?:two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|twenty|thirty)\b/i;
@@ -80,7 +88,7 @@ const ANALYST_ARTIFACT =
 
 /** Software internals a consulting/CI screener cannot use as a case story. */
 const SWE_INTERNALS =
-  /\b(?:payloads?|authentication|error-handling|execution plans?|deployment checklist|api fields?|processing logs?|backend workflows?|extraction workflows?|mobile and web|third-party data|shared backend|user-facing requests|feature behaviour|backend defects?|backend rules?|release defects?|community-facing|infrastructure tradeoffs?|confluence|operating approach|lower-risk operating)\b/i;
+  /\b(?:payloads?|authentication|error-handling|execution plans?|deployment checklist|api fields?|processing logs?|backend workflows?|extraction workflows?|extraction delays?|service handoffs?|user-facing needs|sprint planning|mobile and web|third-party data|shared backend|user-facing requests|feature behaviour|backend defects?|backend rules?|release defects?|community-facing|infrastructure tradeoffs?|confluence|operating approach|lower-risk operating)\b/i;
 
 /** Extra SWE phrasing banned on HR-tech / techno-functional consulting resumes. */
 const HR_TECH_SWE_INTERNALS =
@@ -94,7 +102,7 @@ const HR_TECH_SWE_INTERNALS =
  * Edit all three together.
  */
 const BUSINESS_INVENTED_TOOLS =
-  /\b(?:confluence|notion|airtable|miro|asana|monday\.com|pitchbook|cb insights|tableau|power bi|powerbi|qualtrics|iqvia|salesforce|alteryx|looker|spss|successfactors|workday|confirmit|\bSAS\b|\bVBA\b|visual basic|microsoft access|\bhadoop\b)\b/i;
+  /\b(?:confluence|notion|airtable|miro|asana|monday\.com|pitchbook|cb insights|tableau|power bi|powerbi|qualtrics|iqvia|salesforce|alteryx|looker|spss|successfactors|workday|confirmit|\bSAS\b|\bVBA\b|visual basic|microsoft access|\bvisio\b|microsoft project|\bhadoop\b)\b/i;
 
 /** A result is a state change: something stopped, dropped, or went away. */
 const RESULT_SIGNAL =
@@ -102,7 +110,7 @@ const RESULT_SIGNAL =
 
 /** Evidence other humans existed: the slot that makes an entry read like a job. */
 const TEAM_SIGNAL =
-  /\b(?:code review|reviewed?|review ?gate|pair\w*|sprint|standup|stand-up|demo|retro|design doc|runbook|documented|documentation|handed off|handoff|onboard\w*|stakeholder|ops lead|product manager|senior (?:engineer|developer)|teammate|another developer|on-?call|support ticket|walked .* through|jira|staff|faculty|professors?|instructors?|front desk|partners?|reviewers?|ITS|brief(?:ing)?)\b/i;
+  /\b(?:code review|reviewed?|review ?gate|pair\w*|sprint|standup|stand-up|demo|retro|design doc|runbook|documented|documentation|handed off|handoff|onboard\w*|stakeholder|ops lead|product manager|senior (?:engineer|developer)|teammate|another developer|on-?call|support ticket|walked .* through|walkthroughs?|cross-functional|jira|staff|faculty|professors?|instructors?|front desk|partners?|reviewers?|ITS|brief(?:ing)?)\b/i;
 
 /**
  * Work that is not greenfield building. Includes the language engineers use for
@@ -141,6 +149,27 @@ const ABSTRACT_ENDING =
 const wordCount = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
 const firstWord = (s: string) => (s.trim().split(/\s+/)[0] ?? "").toLowerCase().replace(/[^a-z]/g, "");
 
+/**
+ * Count + deliverable with no real scene — the INNWIL "Framed 6 use cases" /
+ * "7-slide PowerPoint brief" failure. A digit is not evidence.
+ */
+const HOLLOW_USE_CASE =
+  /\b(?:framed|prioritized|mapped|translated|identified|listed|outlined|selected)\b[\s\S]{0,90}\b(?:\d+|two|three|four|five|six|seven|eight|nine|ten)\b[\s\S]{0,50}\b(?:artificial intelligence\s+)?use cases?\b/i;
+const HOLLOW_SLIDE_BRIEF =
+  /\b(?:converted|turned|summarized|packaged|built|wrote|prepared)\b[\s\S]{0,80}\b(?:\d+|six|seven|eight|nine|ten)[- ]?(?:slide|page)\s+(?:powerpoint\s+)?(?:brief|deck|presentation)\b/i;
+const HOLLOW_LLM_LIMIT =
+  /\bsummariz\w+\b[\s\S]{0,70}\b(?:llm|model|language model)\s+limitations?\b/i;
+
+function isHollowStub(b: string): boolean {
+  const hit = HOLLOW_USE_CASE.test(b) || HOLLOW_SLIDE_BRIEF.test(b) || HOLLOW_LLM_LIMIT.test(b);
+  if (!hit) return false;
+  const rich =
+    wordCount(b) >= 20 &&
+    RESULT_SIGNAL.test(b) &&
+    (ARTIFACT.test(b) || CONSULTING_ARTIFACT.test(b) || ANALYST_ARTIFACT.test(b) || TECHNIQUE_SIGNAL.test(b));
+  return !rich;
+}
+
 /** "Verb ..., gerund-clause ..." — the shape the model repeats until every bullet matches. */
 const GERUND_SKELETON = /^\w+\b[^,]{10,},\s+\w+ing\b/i;
 
@@ -150,8 +179,7 @@ export interface AuditOptions {
   maxWords?: number;
   /**
    * How many leading entries are in expanded mode. Only those are held to the
-   * composition rules — the trailing anchor entry stays verbatim-true and is
-   * allowed to be a plain, unembellished account.
+   * composition / invent rules — campus-ops are still frozen at assemble time.
    */
   expandedCount?: number;
   /** consulting = partner-style CAR; analyst = data/ops/insights screens. Neither gets SWE mechanism quotas. */
@@ -159,13 +187,36 @@ export interface AuditOptions {
   /** Full JD — enables posting-flavor gates (e.g. competitive-intel framing). */
   jobDescription?: string;
   jobTitle?: string;
+  /**
+   * Master bullets by company. Used only to catch generic fallbacks (reworded
+   * master lines). Inventing JD languages in experience is allowed — this does
+   * not ban new tech.
+   */
+  sourceEntries?: { company: string; bullets: string[] }[];
+}
+
+function companyKey(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
 export function auditExperienceBullets(
   entries: { company: string; title?: string; bullets: string[] }[],
   opts: AuditOptions = {}
 ): BulletIssue[] {
-  const { minWords = 14, maxWords = 28, expandedCount = 2, family, jobDescription = "", jobTitle = "" } = opts;
+  const {
+    // Floor catches useless stubs; ceiling catches essay padding. Best length
+    // sits inside — hollow stubs fail even when word count looks fine.
+    minWords = 14,
+    maxWords = 26,
+    expandedCount = 2,
+    family,
+    jobDescription = "",
+    jobTitle = "",
+    sourceEntries = [],
+  } = opts;
+  const sourceByCompany = new Map(
+    sourceEntries.map((e) => [companyKey(e.company), e.bullets.map((b) => b.trim()).filter(Boolean)])
+  );
   const consulting = family === "consulting";
   const business = consulting || family === "analyst";
   const issues: BulletIssue[] = [];
@@ -180,7 +231,7 @@ export function auditExperienceBullets(
     consulting &&
     /competitive intelligence|market(?:ing)? intelligence|\bcompetitive landscape\b|source monitor/i.test(postingHead);
   const isHrTech =
-    consulting &&
+    business &&
     /successfactors|hr technology|hris|\bhcm\b|techno-?functional|\bworkday\b|client workshop|test scripts?|\buat\b|hr apis?|hr systems?/i.test(
       postingHead
     );
@@ -194,6 +245,9 @@ export function auditExperienceBullets(
   entries.forEach((entry, entryIdx) => {
     const { company, bullets } = entry;
     if (!bullets.length) return;
+    // Campus-ops bullets are frozen source text. Style flags on them can never
+    // be repaired, so every resume that keeps HyFlex showed the same "mistake".
+    const campusOps = isCampusOpsEntry({ company, title: entry.title ?? "" });
     const expanded = entryIdx < expandedCount;
 
     for (const b of bullets) {
@@ -211,6 +265,23 @@ export function auditExperienceBullets(
         );
       }
 
+      const softStuff = SOFT_SKILL_STUFFING.exec(b);
+      if (softStuff) {
+        add(
+          company,
+          "high",
+          `"${short}" pastes soft-skill label "${softStuff[0]}" into experience — put that on Professional skills; invent a real workshop, use-case, deck, or fix scene for THIS posting`
+        );
+      }
+
+      if (!campusOps && isHollowStub(b)) {
+        add(
+          company,
+          "high",
+          `"${short}" is a hollow count/deliverable stub (use cases / slide brief / LLM limitations) — rewrite to a clear junior scene ATS/HR/interviewers can probe: bottleneck, what you did, who used it, what changed (best length, not padding)`
+        );
+      }
+
       const scope = INFLATED_SCOPE.exec(b);
       if (scope) {
         add(company, "high", `"${short}" claims senior scope with "${scope[0]}" — a junior engineer owns tasks, not systems`);
@@ -225,9 +296,23 @@ export function auditExperienceBullets(
       if (techNames.length > 2) {
         add(company, "high", `"${short}" names ${techNames.length} technologies (${techNames.join(", ")}) — max 2 per bullet, or it reads as a keyword list`);
       }
+      // Expanded rows must be fresh scenes — not a lightly reworded master bullet
+      // (Project Human City / Three of Cups "fallback resume" feel).
+      if (expanded && !campusOps) {
+        const source = sourceByCompany.get(companyKey(company)) ?? [];
+        if (source.some((src) => bulletsTooAlike(b, src))) {
+          add(
+            company,
+            "high",
+            `"${short}" reads as a reworded master bullet — invent a fresh junior scene for THIS posting (tools from the JD are fine); do not ship a generic REST/auth/Postgres paraphrase`
+          );
+        }
+      }
       if (business) {
         // Data/ops analyst screens value real pipeline and validation work; only partner-style consulting bans it.
-        const leak = consulting ? SWE_INTERNALS.exec(b) || (isHrTech ? HR_TECH_SWE_INTERNALS.exec(b) : null) : null;
+        const banSwePlot =
+          consulting || Boolean(jobDescription && !jdWantsProgramming(jobDescription, jobTitle));
+        const leak = banSwePlot ? SWE_INTERNALS.exec(b) || (isHrTech ? HR_TECH_SWE_INTERNALS.exec(b) : null) : null;
         if (leak) {
           add(
             company,
@@ -274,18 +359,19 @@ export function auditExperienceBullets(
         );
       }
 
-      if (ABSTRACT_ENDING.test(b)) {
+      if (!campusOps && ABSTRACT_ENDING.test(b)) {
         add(company, "high", `"${short}" ends on an unfalsifiable quality claim — replace with a real state change or drop the tail`);
       }
 
       const w = wordCount(b);
-      if (w < minWords - 4) {
-        // A stub next to full-length neighbours looks like the writer ran out of
-        // things to say about that job — visible at a glance, unlike a word or
-        // two of drift.
-        add(company, "high", `"${short}" is only ${w} words next to full-length bullets (target ${minWords}-${maxWords}) — it reads as nothing left to say`);
+      // Under-floor = useless stub. Over-ceiling = padding (low). Hollow stubs
+      // are caught above even when length is inside the band.
+      if (expanded && !campusOps && w < minWords) {
+        add(company, "high", `"${short}" is only ${w} words (best band ${minWords}-${maxWords}) — too thin for ATS/HR/interview; rewrite as a clear scene, not a longer fluff line`);
+      } else if (!campusOps && w < Math.max(10, minWords - 3)) {
+        add(company, "high", `"${short}" is only ${w} words — it reads as nothing left to say; rewrite the scene`);
       } else if (w < minWords || w > maxWords) {
-        add(company, "low", `"${short}" is ${w} words (target ${minWords}-${maxWords})`);
+        add(company, "low", `"${short}" is ${w} words (best band ${minWords}-${maxWords})`);
       }
     }
 
@@ -298,17 +384,24 @@ export function auditExperienceBullets(
       if (!bullets.some((b) => RESULT_SIGNAL.test(b) || HAS_MAGNITUDE.test(b))) {
         add(company, "high", `no bullet in this entry states what changed — at least one needs a concrete result (a step removed, an error that stopped, a duration that dropped)`);
       }
-      // Every expanded entry carries at least one magnitude suited to THAT
-      // entry's work (a duration, a count, rows per run, hours saved, rooms or
-      // sites covered) — strong enough to register on a skim: digits, or a
-      // written count attached to a concrete work unit. The verbatim-true
-      // anchor entry is exempt (never in the expanded set); campus-ops uses
-      // real source counts.
-      if (!bullets.some((b) => STRONG_MAGNITUDE.test(b))) {
+      // Expanded software/analysis entries need TWO visible metrics (2 of 3).
+      // Parsers store the digit inside the bullet; they do not score how many
+      // there are (Textkernel, RChilli, Daxtra). Reyt et al. 2016: concreteness
+      // raised entry-level interview invites. Zhang & Schwarz 2012/2013:
+      // uneven quantities read as measured; a precise number on every line
+      // reads as automated and loses that advantage. Campus-ops stay on real
+      // source counts.
+      const magCount = bullets.filter((b) => STRONG_MAGNITUDE.test(b)).length;
+      const magFloor = campusOps ? 1 : 2;
+      if (magCount < magFloor) {
         add(
           company,
           "high",
-          `no bullet in this entry carries a visible metric — give this entry's strongest bullet one digit-grade number that fits its scenario (a duration before/after, a count of artifacts, rows per run, hours saved, rooms/sites/sources); written-out counts of abstractions don't register on a skim`
+          campusOps
+            ? `no bullet in this entry carries a visible metric — campus-ops uses a real source count (30+ rooms, 20+ requests, 8-12 students)`
+            : magCount === 0
+              ? `no bullet in this entry carries a visible metric — put a junior-scope number on TWO of the THREE bullets (duration, count, rows, hours, sites, sources); written-out counts of abstractions don't register on a skim`
+              : `this entry has only ${magCount} visible metric — a second of the three bullets needs a junior-scope number (duration, count, rows, hours, sites, sources); never two numbers in one bullet, never quantify every clause`
         );
       }
       if (!bullets.some((b) => TEAM_SIGNAL.test(b))) {
@@ -333,7 +426,7 @@ export function auditExperienceBullets(
         );
       }
       if (business) {
-        const diagnose = /\b(?:found|mismatch|reconcil\w*|gap|variance|diagnos\w+|traced|investigat\w+|noticed|caught|corrected)\b/i;
+        const diagnose = /\b(?:found|mismatch|reconcil\w*|gap|variance|diagnos\w+|traced|investigat\w+|noticed|caught|corrected|issues?|unclear|resolv\w*)\b/i;
         if (!bullets.some((b) => diagnose.test(b) || FIX_SIGNAL.test(b))) {
           add(
             company,
@@ -429,8 +522,8 @@ export function auditExperienceBullets(
   }
 
   if (business) {
-    // Business resumes need TWO magnitudes; HyFlex's 30+ rooms is only one of them.
-    // Count written numbers ("eight sources") — the model often avoids digits.
+    // Safety net if a short fixture skipped per-entry floors: at least two
+    // magnitudes on the page, and HyFlex's 30+ cannot be the only one.
     const withNum = allBullets.filter((b) => HAS_MAGNITUDE.test(b));
     const nonHyflexNum = withNum.filter(
       (b) => !(/30\+|thirty/i.test(b) && /room|hyflex|faculty|classroom|instruction/i.test(b))
@@ -439,7 +532,7 @@ export function auditExperienceBullets(
       add(
         entries[0].company,
         "high",
-        `consulting/analyst needs at least TWO magnitudes on the page — HyFlex's 30+ rooms counts as only one; add a second on a software or analysis entry (sources, briefs, sites, hours, cycle time)`
+        `consulting/analyst needs TWO numbered bullets per expanded software/analysis entry — HyFlex's 30+ rooms is a campus-ops source count, not a substitute for INNWIL/PHC magnitudes (sources, briefs, sites, hours, cycle time)`
       );
     }
 
@@ -537,7 +630,15 @@ export function auditExperienceBullets(
       const engineerTitled = entries.filter(
         (e) => e.title && CS_TITLE.test(e.title) && !ANALYST_ONLY.test(e.title)
       );
-      if (!wantsProgramming) {
+      if (isHrTech) {
+        if (engineerTitled.length > 0) {
+          add(
+            engineerTitled[0].company,
+            "high",
+            `HR systems page still has engineering title "${engineerTitled[0].title}" — use Systems Analyst / HR Technology Analyst so the 8-second skim matches the posting`
+          );
+        }
+      } else if (!wantsProgramming) {
         if (engineerTitled.length > 0) {
           add(
             engineerTitled[0].company,
@@ -613,6 +714,13 @@ export function auditProjectBullets(
       continue;
     }
     const [purpose, how] = bullets;
+    if (bulletsTooAlike(purpose, how)) {
+      add(
+        name,
+        "high",
+        `bullet 2 repeats bullet 1 — the second line has to add a new fact (status history, the duplicate check, the chart), not rephrase the product`
+      );
+    }
     const purposeShort = purpose.length > 60 ? `${purpose.slice(0, 60)}...` : purpose;
     const howShort = how.length > 60 ? `${how.slice(0, 60)}...` : how;
 
@@ -654,13 +762,20 @@ export function auditProjectBullets(
         `bullet 2 ("${howShort}") never states how the product produces an insight or decision — name the analysis or the distinctive feature`
       );
     }
+    if (consulting && /tailored resume|latex resume|generates? (?:a )?tailored|llm[- ]generated/i.test(bullets.join(" "))) {
+      add(
+        name,
+        "high",
+        `business-page project mentions generating tailored resumes — rewrite as the tracker, status data, and follow-up loop (campus/HR recruiters read resume-generation as application spam)`
+      );
+    }
   }
   return issues;
 }
 
 /** Feedback block for the repair pass. Specific failures only — generic scolding changes nothing. */
 const ANALYST_COMPOSE =
-  "Do not simply reword the flagged bullets. Recompose from source facts + THIS posting + hiring_screen. Analyst screeners (banks, insurers, ops/data teams) want: the data problem you found (errors, duplicates, mismatched fields, slow manual steps, missing follow-ups) -> the method YOU used (a Python script, a SQL query, validation checks, an Excel tracker, an AI-assisted step) -> what changed for the people who relied on it. When the posting asks for technical proficiency, databases, data integrity, or data management, KEEP the real technical substance of software entries and translate it into data-quality language; do NOT invent consulting artifacts (decks, process maps, decision briefs, workshops) that never existed. Three bullets per entry, at least one number per entry, at least two numbers on the page, plain English a non-engineer reads in one pass. For projects: bullet 1 says what it is and who it helps; bullet 2 says how it turns data into something useful.";
+  "Do not simply reword the flagged bullets. Recompose from source facts + THIS posting + hiring_screen. YOU MAY INVENT junior-defensible scenes (Python checks, LLM prompt tests, extraction samples, review checklists, timed comparisons). Ban hollow 'N use cases' / 'N-slide PowerPoint brief' / bare 'LLM limitations' stubs. Best length 14-24 words: clear enough for ATS/HR/interview, never padded fluff, never useless short. Analyst screeners want: data/AI problem -> method YOU used -> what changed. Write like the Student Services tracker: artifact + who used it + what stopped. Do NOT translate software into fog. Three bullets per entry; TWO of THREE carry one junior-scope number. Campus-ops keep source counts. Put claimable must-haves in skills. Projects: what it is, then how it helps. JobHub is a tracker, never a resume generator.";
 
 export function qualityFeedback(issues: BulletIssue[], family?: "consulting" | "analyst"): string {
   const high = issues.filter((i) => i.severity === "high");
@@ -670,8 +785,8 @@ export function qualityFeedback(issues: BulletIssue[], family?: "consulting" | "
     family === "analyst"
       ? ANALYST_COMPOSE
       : family === "consulting"
-      ? "Do not simply reword the flagged bullets. Recompose from source facts + THIS posting + hiring_screen/reddit intel + posting_flavor + jd_deep_analysis_protocol. Analyze mandatory vs preferred and core responsibilities before writing. CAR, THREE bullets per entry. Keep AT MOST ONE engineer/CS-titled software entry — only when the posting asks for programming; a no-coding posting gets ZERO engineering titles (all Analyst). Other software rows stay Analyst language (HR Technology Analyst / Systems Analyst when hr-tech; Insights Analyst / Strategy Analyst when zs-sip; Analytics Analyst when zs-da). Invent methods that fit the posting — do not paste a Pivot/INDEX-MATCH template. Competitive-intel needs source monitoring / synthesis / executive brief framing on at least two bullets. HR-tech needs workshop / requirements / process / UAT / acceptance framing on at least two bullets — never invent SuccessFactors/Workday use. ZS SIP needs desk/market research → insight → client recommendation; never invent Confirmit/Access. ZS DA needs quantitative Excel/SQL/Python analysis → client decision; never invent Tableau/SAS/R/VBA. Never invent IQVIA/Tableau/Qualtrics/PitchBook/CRM/Confluence. Ban vague tails (giving partners, intelligence inputs, choose a path). Campus-ops from source facts. EVERY entry carries at least one number that fits its scenario; at least TWO magnitudes on the page (HyFlex 30+ counts as only one). Do NOT repair by adding FastAPI, indexes, Node, Stripe, mobile-and-web, release-defect, or REST-handoff language. For projects: bullet 1 is the business problem; bullet 2 is how it produces an insight — not React/Express."
-      : "Do not simply reword the flagged bullets. Recompose affected experience entries so each one reads like a real few months on a real team: one build, one fix, one piece of work involving other people, each with a concrete artifact, at most two named technologies, and at least one number that fits the entry's scenario (a duration, a count, rows per run, hours saved). For projects: bullet 1 is what the product is (plain English, at most one technology); bullet 2 is distinctive features + tech + technique, framed to this posting. Rewrite vague or generic lines into artifact + method + outcome.";
+      ? "Do not simply reword the flagged bullets. Recompose from source facts + THIS posting + hiring_screen/reddit intel + posting_flavor + jd_deep_analysis_protocol. YOU MAY INVENT junior CAR scenes — ban hollow 'N use cases' / 'N-slide PowerPoint brief' / bare 'LLM limitations' stubs. Best length 14-24 words (clear for ATS/HR/interview; do not pad). CAR, THREE bullets per entry. AT MOST ONE engineer/CS title when the posting asks for programming; else ZERO engineering titles. HR-tech: Systems Analyst / HR Technology Analyst only. Other rows: Analyst language (Insights/Strategy when zs-sip; Analytics when zs-da). Invent methods for THIS posting — no Pivot/INDEX-MATCH stamp. CI: source monitoring / synthesis / brief. HR-tech: workshop / requirements / UAT. ZS SIP/DA: research or quant → recommendation. Never invent IQVIA/Tableau/Qualtrics/PitchBook/CRM/Confluence/SuccessFactors/Workday/Confirmit. Ban vague tails. Artifact + who used it + what changed. Campus-ops stay source. TWO numbered bullets per expanded entry. No FastAPI/REST-handoff repairs. Projects: problem then insight. JobHub is a tracker. Never Windows Booster."
+      : "Do not simply reword the flagged bullets. Recompose BOTH expanded software entries as junior scenes for THIS posting — invent freely when the JD asks. Best length 14-24 words: clear for ATS/HR/interview, not essay-long, not hollow. Ban 'N use cases' / 'N-slide PowerPoint brief' with no method or result. Each entry: one build, one fix, one team beat; concrete artifacts; at most two named technologies per bullet; TWO numbered bullets (2 of 3). Projects: what it is, then distinctive feature + tech + technique.";
   return [
     "QUALITY REPAIR PASS. Your previous draft failed these specific checks. Rewrite the flagged experience and project bullets from scratch to fix every one of them while following all original rules (bullet_count_rule still governs experience count and length; projects stay at exactly 2 bullets — purpose, then implementation):",
     ...lines,

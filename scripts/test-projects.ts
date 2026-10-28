@@ -2,7 +2,7 @@
  * Slot count and diversity ranking for the project library. No LLM, no DB.
  * Usage: npx tsx scripts/test-projects.ts
  */
-import { PROJECTS, projectSlots, rankProjects } from "../lib/tailor/projects";
+import { PROJECTS, projectSlots, rankProjects, resolveProjects } from "../lib/tailor/projects";
 
 let failures = 0;
 function check(name: string, cond: boolean, detail = "") {
@@ -54,6 +54,76 @@ check(
   consultingPick.join(", ")
 );
 check("consulting ranking leads with Expense Manager", consultingPick[0] === "expense_manager", consultingPick.join(", "));
+check(
+  "business pages never rank Windows Booster in the first two slots",
+  !consultingPick.includes("windows_booster") && !consultingPick.includes("vertexflow"),
+  consultingPick.join(", ")
+);
+
+const pythonHr = rankProjects(
+  "Consultant HR System Analytics Python SQL Excel Workday data quality validation",
+  2,
+  [],
+  { business: true }
+).map((p) => p.id);
+check(
+  "a Python-heavy HR posting still prefers Expense Manager/JobHub over Windows Booster",
+  pythonHr[0] === "expense_manager" || pythonHr[0] === "jobhub",
+  pythonHr.join(", ")
+);
+check("Windows Booster is not on a business HR page", !pythonHr.includes("windows_booster"), pythonHr.join(", "));
+
+const resolved = resolveProjects(
+  [
+    { id: "jobhub", bullets: ["Job-search platform that generates a tailored resume for every role.", "PostgreSQL stores status."] },
+    { id: "windows_booster", bullets: ["Windows cleanup tool that analyzes files before moving them.", "Python classifies file content."] },
+  ],
+  2,
+  "Consultant HR System Analytics Python SQL Excel data quality",
+  true
+);
+check(
+  "business resolveProjects ignores the model's Windows Booster pick",
+  !resolved.chosen.includes("windows_booster"),
+  resolved.chosen.join(", ")
+);
+check(
+  "business resolveProjects leads with Expense Manager or JobHub",
+  resolved.chosen[0] === "expense_manager" || resolved.chosen[0] === "jobhub",
+  resolved.chosen.join(", ")
+);
+const jobhubEntry = resolved.entries.find((e) => /jobhub/i.test(e.name));
+check(
+  "JobHub business copy never mentions generating a tailored resume",
+  Boolean(jobhubEntry) && !/tailored resume|latex/i.test(jobhubEntry!.bullets.join(" ")),
+  jobhubEntry?.bullets.join(" | ")
+);
+check(
+  "JobHub fallback second bullet is the status loop, not a second tracker sentence",
+  /postgresql|page-visibility|status/i.test(jobhubEntry?.bullets[1] ?? ""),
+  jobhubEntry?.bullets.join(" | ")
+);
+
+const twins = resolveProjects(
+  [
+    {
+      id: "jobhub",
+      bullets: [
+        "Application tracker that pulls job postings, records every application, and flags follow-ups so a search stays current.",
+        "Application tracker that pulls postings from many boards, records each application, and flags follow-ups so nothing sits stale.",
+      ],
+    },
+  ],
+  2,
+  "Innovation and Integration Analyst data quality dashboards",
+  true
+);
+const twinJobhub = twins.entries.find((e) => /jobhub/i.test(e.name));
+check(
+  "two JobHub tracker sentences are not both shipped",
+  Boolean(twinJobhub) && /postgresql|page-visibility|status|boards is dropped/i.test(twinJobhub!.bullets[1] ?? "") && !/pulls postings from many boards/i.test(twinJobhub!.bullets[1] ?? ""),
+  twinJobhub?.bullets.join(" | ")
+);
 
 const expense = PROJECTS.find((p) => p.id === "expense_manager");
 const jobhub = PROJECTS.find((p) => p.id === "jobhub");

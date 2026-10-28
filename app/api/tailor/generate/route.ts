@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { createTwoFilesPatch } from "diff";
 import { prisma } from "@/lib/db";
 import {
@@ -12,10 +13,10 @@ import {
   assembleSkillsSection,
   pinBusinessSkills,
   insertAchievements,
+  insertCoursework,
   injectPdfMeta,
   ensureSkillsTerms,
   type ResumeUpdate,
-  type ProjectEntry,
 } from "@/lib/tailor/latex";
 import { ACHIEVEMENTS, jdSignalsAchievements } from "@/lib/tailor/achievements";
 import { generateContent, findNewNumbers, type GeneratedContent } from "@/lib/tailor/generate";
@@ -31,8 +32,9 @@ import { researchCompany, type CompanyResearch } from "@/lib/tailor/research";
 import { compileLatex } from "@/lib/tailor/compile";
 import { matchScore, missingTerms, claimableJdTerms, isTechTerm, placementGaps, uncoveredTerms, hasWord } from "@/lib/tailor/match";
 import { getJdAnalysis } from "@/lib/tailor/jd-analysis";
-import { pageFill } from "@/lib/tailor/fill";
-import { PROJECTS, projectById, projectSlots, rankProjects } from "@/lib/tailor/projects";
+import { FILL_TARGET, pageFill } from "@/lib/tailor/fill";
+import { packClampAttempts } from "@/lib/tailor/pack";
+import { PROJECTS, projectSlots, resolveProjects } from "@/lib/tailor/projects";
 import { ensureBucket, uploadPdf } from "@/lib/supabase";
 import { claimableBusinessSkillItems } from "@/lib/tailor/analyst-techniques";
 import { metricGuidanceFor, jdTechHome, displayTech } from "@/lib/tailor/metric-guidance";
@@ -41,47 +43,60 @@ export const maxDuration = 300;
 
 const RESUME_PAGE_LIMIT = 1;
 const COVER_PAGE_LIMIT = 1; // master cover template is single-page
-const FILL_TARGET = 0.85; // below this, run one auto-expand pass (no empty bottom); 85-90% already reads full
 
-async function getResearch(jobId: string, refresh = false): Promise<CompanyResearch | null> {
+/**
+ * Company research is mandatory for resume generation (homepage + Reddit +
+ * hiring screen). Cache is reused only when it already has a real hiring screen.
+ * Always deep-fetches on refresh so cover + resume share the same intel.
+ */
+async function requireResearch(jobId: string, refresh = false): Promise<CompanyResearch> {
   const job = await prisma.job.findUniqueOrThrow({ where: { id: jobId } });
   const cached = job.companyResearch as unknown as CompanyResearch | null;
-  // Stale caches from before hiringScreen existed silently starved the model.
   const thin = Boolean(cached && !(cached.hiringScreen && cached.hiringScreen.length >= 3));
   if (cached && !refresh && !thin) return cached;
+
+  const { detectRoleFamily } = await import("@/lib/tailor/role-family");
+  const { ensureHiringScreen, detectEmployerArchetype, archetypeScreen, mergeScreenLines } = await import(
+    "@/lib/tailor/hiring-screen"
+  );
+  const family = detectRoleFamily(job.title, job.company, job.description);
+  const arch = archetypeScreen(detectEmployerArchetype(job.company, job.title, job.description));
+
   try {
     const research = await researchCompany({
       company: job.company,
       jobTitle: job.title,
       jobDescription: job.description,
-      deep: refresh || Boolean(thin),
+      deep: true,
     });
+    const hiringScreen = mergeScreenLines(
+      ensureHiringScreen(research.hiringScreen, family, job.title, job.description),
+      arch
+    );
+    const full: CompanyResearch = { ...research, hiringScreen };
     await prisma.job.update({
       where: { id: job.id },
-      data: { companyResearch: research as never, researchedAt: new Date() },
+      data: { companyResearch: full as never, researchedAt: new Date() },
     });
-    return research;
+    return full;
   } catch {
-    // Still return JD-derived hiring screen so business gens are not blind.
-    try {
-      const { detectRoleFamily } = await import("@/lib/tailor/role-family");
-      const { ensureHiringScreen } = await import("@/lib/tailor/hiring-screen");
-      const family = detectRoleFamily(job.title, job.company, job.description);
-      const hiringScreen = ensureHiringScreen(undefined, family, job.title, job.description);
-      if (!hiringScreen.length) return null;
-      return {
-        mission: "",
-        product: "",
-        stack: [],
-        news: [],
-        summary: "",
-        homepageUsed: null,
-        hiringScreen,
-        generatedAt: new Date().toISOString(),
-      };
-    } catch {
-      return null;
-    }
+    // OpenAI/Reddit/homepage failed — still ship JD + archetype screen so resume is never blind.
+    const hiringScreen = mergeScreenLines(ensureHiringScreen(undefined, family, job.title, job.description), arch);
+    const fallback: CompanyResearch = {
+      mission: "",
+      product: "",
+      stack: [],
+      news: [],
+      summary: `${job.company} — research call failed; hiring screen derived from the posting only.`,
+      homepageUsed: null,
+      hiringScreen,
+      generatedAt: new Date().toISOString(),
+    };
+    await prisma.job.update({
+      where: { id: job.id },
+      data: { companyResearch: fallback as never, researchedAt: new Date() },
+    });
+    return fallback;
   }
 }
 
@@ -98,59 +113,37 @@ async function nextVersion(jobId: string, kind: "RESUME" | "COVER"): Promise<num
   return (agg._max.version ?? 0) + 1;
 }
 
-function ensurePeriod(s: string): string {
-  const t = s.trim();
-  if (!t) return t;
-  return /[.!?]$/.test(t) ? t : `${t}.`;
-}
+/**
+ * Wipe research + JD analysis cache and DRAFT document versions so a deep
+ * regenerate cannot reuse stale hiring-screen / ATS memory. FINAL docs linked
+ * to an application stay (unlink first if they were somehow still DRAFT).
+ */
+async function clearPriorGeneration(jobId: string): Promise<{ draftsDeleted: number }> {
+  const app = await prisma.application.findFirst({ where: { jobId } });
+  // Never delete the application's linked FINAL resume/cover.
+  const protectedIds = [app?.resumeVersionId, app?.coverVersionId].filter(
+    (id): id is string => Boolean(id)
+  );
 
-function projectPair(profile: { summary: string; bullets: string[] }, generated?: string[]): string[] {
-  const fromModel = (generated ?? []).map((b) => b.trim()).filter(Boolean).slice(0, 2);
-  if (fromModel.length >= 2) return fromModel;
-  return [ensurePeriod(profile.summary), profile.bullets[0]].filter(Boolean).slice(0, 2);
-}
+  const deleted = await prisma.documentVersion.deleteMany({
+    where: {
+      jobId,
+      status: "DRAFT",
+      ...(protectedIds.length ? { id: { notIn: protectedIds } } : {}),
+    },
+  });
 
-function toEntry(profile: { name: string; githubUrl: string; techLine: string; businessTechLine?: string; year: string; summary: string; bullets: string[] }, generated?: string[], business = false): ProjectEntry {
-  return {
-    name: profile.name,
-    githubUrl: profile.githubUrl,
-    techLine: business && profile.businessTechLine ? profile.businessTechLine : profile.techLine,
-    year: profile.year,
-    bullets: projectPair(profile, generated),
-  };
-}
+  await prisma.job.update({
+    where: { id: jobId },
+    data: {
+      companyResearch: Prisma.DbNull,
+      researchedAt: null,
+      jdAnalysis: Prisma.DbNull,
+      jdAnalyzedAt: null,
+    },
+  });
 
-/** Pick + validate N projects from LLM output; fill gaps from ranked library. */
-function resolveProjects(
-  gen: GeneratedContent["projects"],
-  count: number,
-  jobText: string,
-  business = false
-): { entries: ProjectEntry[]; chosen: string[] } {
-  const valid = (gen ?? [])
-    .map((g) => {
-      const profile = projectById(String(g?.id ?? ""));
-      if (!profile) return null;
-      return { entry: toEntry(profile, Array.isArray(g.bullets) ? g.bullets.map(String) : [], business), id: profile.id };
-    })
-    .filter((x): x is { entry: ProjectEntry; id: string } => x !== null);
-
-  const unique = [...new Map(valid.map((v) => [v.id, v])).values()];
-  if (unique.length < count) {
-    for (const p of rankProjects(jobText, count, unique.map((u) => u.id), { business })) {
-      if (unique.length >= count) break;
-      unique.push({ entry: toEntry(p, undefined, business), id: p.id });
-    }
-  }
-  const picked = unique.slice(0, count);
-  if (picked.length > 0) {
-    return { entries: picked.map((u) => u.entry), chosen: picked.map((u) => u.id) };
-  }
-  const fallback = rankProjects(jobText, Math.max(count, 2), [], { business }).slice(0, Math.max(count, 2));
-  return {
-    entries: fallback.map((p) => toEntry(p, undefined, business)),
-    chosen: fallback.map((p) => p.id),
-  };
+  return { draftsDeleted: deleted.count };
 }
 
 export async function POST(request: Request) {
@@ -160,14 +153,21 @@ export async function POST(request: Request) {
   // pass allowTitleChanges: false to force original titles.
   const allowTitleChanges = body?.allowTitleChanges !== false;
   const deepResearch = Boolean(body?.deepResearch);
+  const clearPrior = Boolean(body?.clearPrior) || deepResearch;
   if (!jobId) return NextResponse.json({ error: "jobId required" }, { status: 400 });
 
-  const job = await prisma.job.findUnique({ where: { id: jobId } });
+  let job = await prisma.job.findUnique({ where: { id: jobId } });
   if (!job) return NextResponse.json({ error: "job not found" }, { status: 404 });
+
+  let cleared: { draftsDeleted: number } | null = null;
+  if (clearPrior) {
+    cleared = await clearPriorGeneration(jobId);
+    job = await prisma.job.findUniqueOrThrow({ where: { id: jobId } });
+  }
 
   // Cost guard: a generation <24h old is reused instead of spending again.
   // Force a fresh run with { force: true } or deepResearch.
-  if (!deepResearch && !body?.force) {
+  if (!deepResearch && !clearPrior && !body?.force) {
     const recent = await prisma.documentVersion.findFirst({
       where: { jobId, kind: "RESUME", createdAt: { gte: new Date(Date.now() - 86400000) } },
       orderBy: { createdAt: "desc" },
@@ -191,6 +191,13 @@ export async function POST(request: Request) {
   }
 
   const warnings: string[] = [];
+  if (cleared) {
+    warnings.push(
+      cleared.draftsDeleted > 0
+        ? `Cleared ${cleared.draftsDeleted} old draft(s) plus research/JD cache — regenerating from scratch.`
+        : "Cleared research/JD cache — regenerating from scratch."
+    );
+  }
   const requestStart = Date.now();
   // Boost / expand / repair improve a resume that already fits; a failure there
   // (quota, timeout, bad JSON) must not throw away the draft already paid for.
@@ -208,13 +215,23 @@ export async function POST(request: Request) {
   // Thin JDs (Simplify cards, Workday shells) hydrate from the live posting so
   // family detection, ATS, and the model all read the same page text.
   let hydratedNow = false;
-  if (job.description.trim().length < 400 && (job.applyUrl || job.sourceUrl)) {
+  const { needsDescriptionFetch, isClosedShell } = await import("@/lib/jobs/embedded-posting");
+  if (needsDescriptionFetch(job.description) && (job.applyUrl || job.sourceUrl)) {
     const { hydrateJobDescription } = await import("@/lib/sources/hydrate");
     const hydrated = await hydrateJobDescription(job).catch(() => "");
-    if (hydrated && hydrated.length > job.description.trim().length) {
+    const wasShell = isClosedShell(job.description);
+    if (hydrated && (hydrated.length > job.description.trim().length || wasShell)) {
       job.description = hydrated;
       hydratedNow = true;
-      await prisma.job.update({ where: { id: job.id }, data: { description: hydrated } });
+      await prisma.job.update({
+        where: { id: job.id },
+        data: {
+          description: hydrated,
+          // The closed-widget text produced a cached analysis of chrome words
+          // ("database") and research that never saw the posting.
+          ...(wasShell ? { jdAnalysis: Prisma.DbNull, companyResearch: Prisma.DbNull } : {}),
+        },
+      });
     } else if (job.description.trim().length < 200) {
       warnings.push("Job description couldn't be fetched (JS-rendered page) — tailored from the title only; ATS score unavailable.");
     }
@@ -230,8 +247,8 @@ export async function POST(request: Request) {
   }
 
   // Structured read of the posting (must/nice requirements, domain, work types,
-  // seniority) — cached on the Job row, recomputed when the JD changed.
-  const jdAnalysis = await getJdAnalysis(job, { stale: hydratedNow });
+  // seniority) — cached on the Job row, recomputed when the JD changed or cleared.
+  const jdAnalysis = await getJdAnalysis(job, { stale: hydratedNow || Boolean(cleared) });
   if (jdAnalysis.seniority === "senior") {
     warnings.push(
       "This posting reads senior-level (5+ years) — generated at honest junior scope; expect the years-of-experience screen to be the real filter, not the resume."
@@ -249,11 +266,15 @@ export async function POST(request: Request) {
   const masterTex = resumeMaster.texContent;
   const parsedResume = parseResume(masterTex);
   const skillsSection = parseSkillsSection(masterTex);
-  let research = await getResearch(job.id, deepResearch || Boolean(body?.force));
-  if (!research) {
-    warnings.push("Company research failed — generated without company intel (no hook fact or tone match). Retry for a stronger cover letter.");
-  } else if (!(research.redditIntel && research.redditIntel.length > 100) && !(research.hiringScreen?.length)) {
-    warnings.push("No hiring-screen intel for this role (Reddit and JD both thin) — force-refresh research if the resume feels generic.");
+  // Research is mandatory for every resume generate (not cover-only).
+  // Re-fetch only on clearPrior/deepResearch (or thin cache inside requireResearch).
+  // Normal force regenerate reuses solid cached research — otherwise every click
+  // paid for a full homepage+Reddit+OpenAI research pass.
+  let research = await requireResearch(job.id, deepResearch || clearPrior);
+  if (/research call failed/i.test(research.summary ?? "")) {
+    warnings.push("Live company/Reddit fetch failed — resume used posting-derived hiring screen only. Retry for fuller intel.");
+  } else if (!(research.redditIntel && research.redditIntel.length > 100)) {
+    warnings.push("No Reddit digest for this company — hiring screen is JD + family fallbacks. Deeper regenerate may still help.");
   }
 
   const jobInput = {
@@ -281,25 +302,9 @@ export async function POST(request: Request) {
   // (proof-of-impact, GitHub) pass different screens even with identical JDs.
   const employerArchetype = detectEmployerArchetype(jobInput.company, jobInput.title, jobInput.description);
   const archScreen = archetypeScreen(employerArchetype);
-  if (research) {
-    const base = business
-      ? ensureHiringScreen(research.hiringScreen, family, jobInput.title, jobInput.description)
-      : (research.hiringScreen ?? []);
-    const screen = mergeScreenLines(base, archScreen);
-    if (screen.length) research = { ...research, hiringScreen: screen };
-  } else if (archScreen.length) {
-    // Research failed but the employer archetype is known — don't generate blind.
-    research = {
-      mission: "",
-      product: "",
-      stack: [],
-      news: [],
-      summary: "",
-      homepageUsed: null,
-      hiringScreen: archScreen,
-      generatedAt: new Date().toISOString(),
-    };
-  }
+  const baseScreen = ensureHiringScreen(research.hiringScreen, family, jobInput.title, jobInput.description);
+  const screen = mergeScreenLines(baseScreen, archScreen);
+  if (screen.length) research = { ...research, hiringScreen: screen };
   const lens = detectLens(jobInput.title, jobInput.description, jobInput.company);
   const lensNote = [lensInstruction(lens), archetypeLensLine(employerArchetype)].filter(Boolean).join("\n");
   const postingFlavor = detectPostingFlavor(jobInput.title, jobInput.description, family);
@@ -336,19 +341,9 @@ export async function POST(request: Request) {
     .filter((e) => !entriesToUse.includes(e))
     .map((e) => `${e.title} at ${e.company}`);
   const parsedForJob = { ...parsedResume, entries: entriesToUse };
-  // The anchor entry (last software entry) ships VERBATIM from the master —
-  // title and bullets. This was prompt-only and the model rewrote it anyway,
-  // even parroting metric-guidance example numbers ("400ms to 120ms") into it.
-  // Discarding the model's version here makes the anchor a hard guarantee.
-  let anchorIdx = -1;
-  if (!business) {
-    for (let i = parsedForJob.entries.length - 1; i >= 0; i--) {
-      if (!isCampusOpsEntry(parsedForJob.entries[i])) {
-        anchorIdx = i;
-        break;
-      }
-    }
-  }
+  // Campus-ops stay verbatim (source counts). Every software entry is rewritten
+  // for THIS posting — freezing the last one as a master copy made Three of Cups
+  // look like a fallback resume on every SWE page.
   const projectCount = projectSlots(parsedForJob.entries.length, { business });
 
   const companyTokens = jobInput.company.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
@@ -446,8 +441,7 @@ export async function POST(request: Request) {
         company: g.company,
         from: parsedForJob.entries[i].title,
         to: g.title,
-        // the anchor ships verbatim — its title never counts as changed
-        changed: i !== anchorIdx && g.titleChanged && g.title !== parsedForJob.entries[i].title,
+        changed: g.titleChanged && g.title !== parsedForJob.entries[i].title,
       }))
       .filter((t) => t.changed);
 
@@ -458,12 +452,14 @@ export async function POST(request: Request) {
     maxProjBullets?: number; // max bullets per project (0 = no clamp)
     maxProjects?: number; // drop the last project(s) before touching experience
     achievements?: number; // max achievement items (0 = drop the section)
+    coursework?: number; // 0 = skip the Education coursework line
   }
   function buildTex(gen: GeneratedContent, clamps: Clamps = {}): string {
     const updates: ResumeUpdate[] = gen.experience.map((g, i) =>
-      // anchorIdx: empty update — assembleResume keeps title and bullets
-      // byte-for-byte from the master (escaping would corrupt master's LaTeX).
-      i === anchorIdx
+      // Empty update: assembleResume keeps title and bullets byte-for-byte
+      // from the master (escaping would corrupt master's LaTeX).
+      // Campus-ops (HyFlex, Peer Mentor) stay verbatim — real source counts.
+      isCampusOpsEntry(parsedForJob.entries[i])
         ? {}
         : {
             title: allowTitleChanges && g.titleChanged ? g.title : undefined,
@@ -533,6 +529,11 @@ export async function POST(request: Request) {
         Math.max(clamps.compactSkills || 0, 8)
       );
     }
+    // Coursework is one line. Business pages and SWE pages with ≤3 jobs have
+    // room; the 5-entry SWE master does not (it overflowed to 2 pages).
+    if (clamps.coursework !== 0 && (business || parsedForJob.entries.length <= 3)) {
+      tex = insertCoursework(tex);
+    }
     if (clamps.achievements !== 0) tex = insertAchievements(tex, ACHIEVEMENTS.slice(0, clamps.achievements ?? ACHIEVEMENTS.length));
     // ATS ranking layer: the exact-title signal lives in the most recent
     // entry's title (2-of-3 rewording rule, natural to a human reader) and in
@@ -558,6 +559,7 @@ export async function POST(request: Request) {
     maxProjBullets?: number;
     maxProjects?: number;
     achievements?: number;
+    coursework?: number;
   }[] = business
     ? keepAchievements
       ? [
@@ -566,15 +568,17 @@ export async function POST(request: Request) {
           { compactSkills: 5, maxExpBullets: 3, maxProjects: 2, maxProjBullets: 2 },
           { compactSkills: 5, maxExpBullets: 3, maxProjects: 1, maxProjBullets: 2 },
           { compactSkills: 5, maxExpBullets: 3, maxProjects: 1, maxProjBullets: 2, achievements: 2 },
-          { compactSkills: 5, maxExpBullets: 3, maxProjects: 1, maxProjBullets: 2, achievements: 0 },
+          { compactSkills: 5, maxExpBullets: 3, maxProjects: 1, maxProjBullets: 2, achievements: 0, coursework: 0 },
         ]
       : [
-          // Analyst keeps 4 jobs × 3 CAR bullets. The only real levers are skills,
-          // achievements, and (last) dropping a project — never 2-bullet stubs.
-          { compactSkills: 6, achievements: 0 },
-          { compactSkills: 5, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
+          // Analyst keeps 4 jobs × 3 CAR bullets. Drop Achievements last — the
+          // old first rung stripped them whenever the draft was 1 line over,
+          // then skipped expand and left a visible hole at the foot of the page.
+          { compactSkills: 6 },
+          { compactSkills: 5, maxProjects: 2, maxProjBullets: 2 },
+          { compactSkills: 5, maxExpBullets: 3, maxProjects: 2, maxProjBullets: 2 },
           { compactSkills: 5, maxExpBullets: 3, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
-          { compactSkills: 5, maxExpBullets: 3, maxProjects: 1, maxProjBullets: 2, achievements: 0 },
+          { compactSkills: 5, maxExpBullets: 3, maxProjects: 1, maxProjBullets: 2, achievements: 0, coursework: 0 },
         ]
     : [
         {},
@@ -584,7 +588,7 @@ export async function POST(request: Request) {
         { compactSkills: 4, maxProjects: 2 },
         { compactSkills: 4, maxExpBullets: 3, maxProjects: 2, maxProjBullets: 2 },
         { compactSkills: 4, maxExpBullets: 3, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
-        { compactSkills: 4, maxExpBullets: 2, maxProjects: 2, maxProjBullets: 2, achievements: 0 },
+        { compactSkills: 4, maxExpBullets: 2, maxProjects: 2, maxProjBullets: 2, achievements: 0, coursework: 0 },
       ];
   // The clamp step that made the page fit. Later passes must rebuild with it:
   // rebuilding unclamped guarantees an overflow and the pass gets discarded.
@@ -621,9 +625,17 @@ export async function POST(request: Request) {
 
   const auditFamily = family === "analyst" ? ("analyst" as const) : ("consulting" as const);
   const auditOpts = {
-    // Consulting: every entry is CAR, including campus-ops. SWE: last software
-    // entry stays the verbatim-true anchor.
-    expandedCount: business ? parsedForJob.entries.length : Math.min(2, parsedForJob.entries.length - 1),
+    minWords: 14,
+    maxWords: 26,
+    // Every on-page entry is expanded (campus-ops still frozen at assemble).
+    // SWE used to leave the last software job as a master copy — that read as fallback.
+    expandedCount: parsedForJob.entries.length,
+    // Catch generic master paraphrases (esp. Project Human City). Does NOT ban
+    // inventing JD languages in experience — that invent is intentional.
+    sourceEntries: parsedForJob.entries.map((e) => ({
+      company: e.company.replace(/\\&/g, "&"),
+      bullets: e.bullets.map((b) => b.replace(/\\[&%$#_{}]/g, "$1")),
+    })),
     ...(business
       ? {
           family: auditFamily,
@@ -710,11 +722,42 @@ export async function POST(request: Request) {
     }
   }
 
-  // --- closed-loop page fill: measure actual text coverage, expand if sparse ---
+  // --- closed-loop page fill: pack leftover room, then LLM-expand if still sparse ---
   let fillPct = Math.round((await pageFill(resumeResult.pdf)) * 100);
-  // Skip when the ladder already ran: asking for more content right after
-  // compressing to fit is self-defeating, and the clamps would trim the extra
-  // bullets straight back off. The sparseness there is the clamps, not the draft.
+
+  // Compress often overshoots (shorten rewrite + dropped Achievements). Put
+  // library content back with no model call; keep the fullest still-1-page draft.
+  async function packSparse() {
+    if (resumeResult.pageCount !== 1) return;
+    fillPct = Math.round((await pageFill(resumeResult.pdf)) * 100);
+    if (fillPct >= FILL_TARGET * 100) return;
+    const attempts = packClampAttempts({
+      hasAchievements: /\\section\{Achievements\}/.test(resumeTex),
+      hasCoursework: /Relevant Coursework/.test(resumeTex),
+      projectCount: parseProjectsSection(resumeTex).count,
+      activeClamps,
+      achievementCount: ACHIEVEMENTS.length,
+    });
+    let bestFill = fillPct;
+    for (const clamps of attempts) {
+      const tex = buildTex(generated, clamps);
+      const packed = await compileLatex(tex);
+      if (packed.pageCount !== 1) continue;
+      const packedFill = Math.round((await pageFill(packed.pdf)) * 100);
+      if (packedFill > bestFill) {
+        resumeTex = tex;
+        resumeResult = packed;
+        activeClamps = clamps;
+        bestFill = packedFill;
+        fillPct = packedFill;
+      }
+    }
+  }
+  await packSparse();
+
+  // Skip LLM expand when the ladder already ran: asking for more content right
+  // after compressing to fit is self-defeating, and the clamps would trim the
+  // extra bullets straight back off. Pack above already restored dropped sections.
   if (fillPct < FILL_TARGET * 100 && resumeResult.pageCount === 1 && !wasCompressed) {
     const expanded = await optionalPass("Page-fill", () => generateContent({ ...refineBase, expand: true }));
     const expandedTex = expanded ? buildTex(expanded, activeClamps) : "";
@@ -779,6 +822,8 @@ export async function POST(request: Request) {
       }
     }
   }
+  // Repair can replace the packed draft; fill the page again if it opened a hole.
+  await packSparse();
   if (highSeverityCount(bulletIssues) > 0) {
     warnings.push(
       `Bullet quality — fix before sending: ${bulletIssues
@@ -872,6 +917,7 @@ export async function POST(request: Request) {
     resume: { id: resumeDoc.id, version: resumeVersion, pageCount: resumeResult.pageCount, matchScore: score, fillPct, missingKeywords: missing, diff: resumeDiff },
     cover: { id: coverDoc.id, version: coverVersion, pageCount: coverResult.pageCount, diff: coverDiff },
     warnings,
+    clearedPrior: cleared,
     appliedTitleChanges: allowTitleChanges ? finalTitleChanges : [],
     pendingTitleChanges: allowTitleChanges ? [] : finalTitleChanges,
     chosenProjects,

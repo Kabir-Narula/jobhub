@@ -24,10 +24,12 @@ import {
   PenLine,
   Send,
   Sparkles,
+  Trash2,
   TriangleAlert,
 } from "lucide-react";
 import type { LocationBucket, WorkMode } from "@prisma/client";
 import { DiffView } from "./diff-view";
+import { gmailComposeUrl } from "@/lib/email-compose";
 import { EmailDialog } from "./email-dialog";
 
 interface JobInfo {
@@ -152,17 +154,31 @@ export function TailorClient({
     setResearching(false);
   }
 
-  async function generate(opts: { allowTitleChanges?: boolean; deepResearch?: boolean } = {}) {
+  async function generate(
+    opts: { allowTitleChanges?: boolean; deepResearch?: boolean; clearPrior?: boolean } = {}
+  ) {
+    const deep = Boolean(opts.deepResearch || opts.clearPrior);
     setGenerating(true);
     toast.loading(
-      opts.deepResearch ? "Deep-researching company, rewriting, compiling… (60–120s)" : "Researching, rewriting, compiling LaTeX… (30–90s)",
+      deep
+        ? "Clearing old drafts + cache, deep-researching, rewriting… (60–120s)"
+        : "Researching, rewriting, compiling LaTeX… (30–90s)",
       { id: "gen" }
     );
     try {
       const res = await fetch("/api/tailor/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobId: job.id, allowTitleChanges: opts.allowTitleChanges ?? true, deepResearch: opts.deepResearch ?? false }),
+        body: JSON.stringify({
+          jobId: job.id,
+          allowTitleChanges: opts.allowTitleChanges ?? true,
+          deepResearch: deep,
+          // Wipe research/JD cache + DRAFT docs so regenerate cannot reuse stale memory.
+          clearPrior: deep,
+          // An explicit click must rewrite. The 24h reuse cache is only for
+          // accidental double-posts that omit force (not this button).
+          force: true,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -170,14 +186,16 @@ export function TailorClient({
       } else {
         toast.success(
           data.reused
-            ? "Reused the draft generated less than 24h ago — “Regenerate with deeper research” forces a fresh run"
-            : "Draft documents generated",
+            ? "Reused the draft generated less than 24h ago — use “Clear cache & deep regenerate” for a fresh run"
+            : deep
+              ? "Cache cleared — fresh deep draft generated"
+              : "Draft documents generated",
           { id: "gen" }
         );
         setResult(data);
         setFinalized(false);
         const now = new Date().toISOString();
-        setDocuments((ds) => [
+        const freshDocs: DocMeta[] = [
           {
             id: data.resume.id,
             kind: "RESUME",
@@ -202,8 +220,11 @@ export function TailorClient({
                 },
               ]
             : []),
-          ...ds,
-        ]);
+        ];
+        // After clearPrior the server deleted DRAFTs — keep only FINAL leftovers + new docs.
+        setDocuments((ds) =>
+          deep ? [...freshDocs, ...ds.filter((d) => d.status === "FINAL")] : [...freshDocs, ...ds]
+        );
         if (data.research) setResearch(data.research);
       }
     } catch {
@@ -370,7 +391,7 @@ export function TailorClient({
             )}
           </div>
         ) : (
-          <p className="mt-2 text-xs text-[#8b877a]">No research yet — it runs automatically on first generation, or run it now.</p>
+          <p className="mt-2 text-xs text-[#8b877a]">Required for every resume — runs on Generate (homepage + Reddit + hiring screen). Run it now to preview.</p>
         )}
       </section>
 
@@ -440,9 +461,11 @@ export function TailorClient({
                       <Copy className="size-3.5" />
                     </button>
                     <a
-                      href={`mailto:${c.email}?subject=${encodeURIComponent(`${job.title} at ${job.company} — Kabir Narula`)}`}
+                      href={gmailComposeUrl(c.email, `${job.title} at ${job.company} — Kabir Narula`, "")}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="text-[#a8a294] transition-colors hover:text-[#c2410c]"
-                      title="Compose email"
+                      title="Compose in Gmail"
                     >
                       <Send className="size-3.5" />
                     </a>
@@ -503,25 +526,27 @@ export function TailorClient({
       <Separator className="bg-[#f1efe9]" />
 
       {/* generate */}
-      <section className="flex items-center justify-between">
-        <div>
+      <section className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
           <h2 className="flex items-center gap-2 text-sm font-medium text-[#1c1b17]">
             <Sparkles className="size-4 text-[#c2410c]" /> Tailored documents
           </h2>
           <p className="mt-1 text-xs text-[#8b877a]">
-            Rewrites experience bullets + cover letter only. Education, projects, company names, and layout are locked.
+            Each click writes a new draft (experience + cover letter). Education, company names, and layout stay locked.
+            Deep regenerate deletes old drafts and research/JD cache first.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {result && (
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {(result || documents.length > 0 || research) && (
             <Button
               variant="outline"
-              onClick={() => generate({ deepResearch: true })}
+              onClick={() => generate({ deepResearch: true, clearPrior: true })}
               disabled={generating}
+              title="Deletes DRAFT resumes/covers and research/JD cache, then deep-researches (homepage + Reddit) and regenerates"
               className="border-[#e6e3db] text-[#6e6b61] hover:border-[#c2410c]/40 hover:text-[#c2410c]"
             >
-              <FlaskConical className="size-4" />
-              Regenerate with deeper research
+              {generating ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+              Clear cache & deep regenerate
             </Button>
           )}
           <Button
