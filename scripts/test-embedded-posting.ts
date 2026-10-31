@@ -46,7 +46,7 @@ const parsed = phenomFromHtml(html);
 check("parsed", Boolean(parsed));
 check("title", parsed?.title === "Project Analyst, Technology", parsed?.title);
 check("company", parsed?.company === "Air Canada", parsed?.company);
-check("location", parsed?.location === undefined && parsed?.locationRaw.includes("TORONTO"), parsed?.locationRaw);
+check("location", Boolean(parsed?.locationRaw.includes("TORONTO")), parsed?.locationRaw);
 check("body has RAID", /RAID logs/i.test(parsed?.description ?? ""));
 check("body is not the widget", !/no longer active/i.test(parsed?.description ?? ""));
 check("quoted word survived", /scope/.test(parsed?.description ?? ""));

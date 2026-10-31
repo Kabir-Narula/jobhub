@@ -106,7 +106,7 @@ const BUSINESS_INVENTED_TOOLS =
 
 /** A result is a state change: something stopped, dropped, or went away. */
 const RESULT_SIGNAL =
-  /\b(?:stopped|no longer|eliminat\w+|removed|cut|down to|dropped from|reduced|from \d+[^.]* to \d+|unblock\w+|without manual|by hand|automatic\w*|instead of manually|freed|caught|prevent\w+ the|surfac\w+|replac\w+|restor\w+|resolved)\b/i;
+  /\b(?:stopped|no longer|eliminat\w+|removed|cut|down to|dropped from|reduced|from \d+[^.]* to \d+|unblock\w+|without manual|by hand|automatic\w*|instead of manually|freed|caught|prevent\w+ the|surfac\w+|replac\w+|restor\w+|resolved|clos\w+|ended|cleared)\b/i;
 
 /** Evidence other humans existed: the slot that makes an entry read like a job. */
 const TEAM_SIGNAL =
@@ -159,6 +159,16 @@ const HOLLOW_SLIDE_BRIEF =
   /\b(?:converted|turned|summarized|packaged|built|wrote|prepared)\b[\s\S]{0,80}\b(?:\d+|six|seven|eight|nine|ten)[- ]?(?:slide|page)\s+(?:powerpoint\s+)?(?:brief|deck|presentation)\b/i;
 const HOLLOW_LLM_LIMIT =
   /\bsummariz\w+\b[\s\S]{0,70}\b(?:llm|model|language model)\s+limitations?\b/i;
+
+/**
+ * Lead-with-a-task-count: "Clarified 6 requirements", "Reviewed 7 issues",
+ * "Analyzed 8 handoffs". Counting the task instead of the outcome is the
+ * machine-written rhythm the "two numbered bullets" rule produces when the
+ * model games it. A bullet escapes only when the count attaches to a result,
+ * a team beat, or a real mechanism.
+ */
+const TASK_COUNTER =
+  /^(?:clarified|analyzed|reviewed|coordinated|researched|translated|compared|conducted|tracked|prepared|mapped|integrated|logged|reconciled|grouped|converted|documented|summarized|framed|prioritized|outlined|selected|listed|identified|facilitated|maintained|supported|handled|managed|processed|evaluated|assessed|compiled|gathered|collected|traced)\b[\s\S]{0,45}?\b(?:\d+|two|three|four|five|six|seven|eight|nine|ten)\b/i;
 
 function isHollowStub(b: string): boolean {
   const hit = HOLLOW_USE_CASE.test(b) || HOLLOW_SLIDE_BRIEF.test(b) || HOLLOW_LLM_LIMIT.test(b);
@@ -279,6 +289,23 @@ export function auditExperienceBullets(
           company,
           "high",
           `"${short}" is a hollow count/deliverable stub (use cases / slide brief / LLM limitations) — rewrite to a clear junior scene ATS/HR/interviewers can probe: bottleneck, what you did, who used it, what changed (best length, not padding)`
+        );
+      }
+
+      // Task-counter: "Clarified 6 requirements" — the count measures the task,
+      // not the outcome. Escapes when the bullet carries a real state change,
+      // or real fix work with an artifact behind it ("traced 8 failures to a
+      // parser bug and patched it") — a passing "sprint"/"team" is not an out.
+      if (
+        !campusOps &&
+        TASK_COUNTER.test(b) &&
+        !RESULT_SIGNAL.test(b) &&
+        !(FIX_SIGNAL.test(b) && (ARTIFACT.test(b) || CONSULTING_ARTIFACT.test(b) || TECHNIQUE_SIGNAL.test(b)))
+      ) {
+        add(
+          company,
+          "high",
+          `"${short}" counts the task instead of the outcome ("did N things") — attach the number to what changed and for whom ("closed 6 recurring defects before handoff"), or drop it`
         );
       }
 
@@ -502,6 +529,22 @@ export function auditExperienceBullets(
         `"${brand}" appears in ${n} experience bullets — name a product at most once in experience and use a portable term (REST API, pipeline, SQL) elsewhere`
       );
     }
+  }
+
+  // Count-first rhythm: the "two numbered bullets" rule, gamed. When most
+  // bullets on the page open with verb + count ("Clarified 6...", "Analyzed
+  // 8...", "Reviewed 7..."), the rhythm itself is the machine-written tell —
+  // even when each bullet would pass alone.
+  const allBulletsForRhythm = entries.flatMap((e) => e.bullets);
+  const countFirst = allBulletsForRhythm.filter((b) =>
+    /^(\S+\s+){0,4}\S*(?:\d+|two|three|four|five|six|seven|eight|nine|ten)\b/i.test(b)
+  ).length;
+  if (countFirst >= 4) {
+    add(
+      entries[0].company,
+      "high",
+      `${countFirst} bullets open on a count — the number-stuffed rhythm reads machine-written; lead with the trigger or the result instead, and keep counts attached to outcomes, not tasks`
+    );
   }
 
   // Verbatim reuse of an unusual phrase across bullets is a template tell, and
@@ -775,7 +818,7 @@ export function auditProjectBullets(
 
 /** Feedback block for the repair pass. Specific failures only — generic scolding changes nothing. */
 const ANALYST_COMPOSE =
-  "Do not simply reword the flagged bullets. Recompose from source facts + THIS posting + hiring_screen. YOU MAY INVENT junior-defensible scenes (Python checks, LLM prompt tests, extraction samples, review checklists, timed comparisons). Ban hollow 'N use cases' / 'N-slide PowerPoint brief' / bare 'LLM limitations' stubs. Best length 14-24 words: clear enough for ATS/HR/interview, never padded fluff, never useless short. Analyst screeners want: data/AI problem -> method YOU used -> what changed. Write like the Student Services tracker: artifact + who used it + what stopped. Do NOT translate software into fog. Three bullets per entry; TWO of THREE carry one junior-scope number. Campus-ops keep source counts. Put claimable must-haves in skills. Projects: what it is, then how it helps. JobHub is a tracker, never a resume generator.";
+  "Do not simply reword the flagged bullets. Recompose from source facts + THIS posting + hiring_screen. YOU MAY INVENT junior-defensible scenes (Python checks, LLM prompt tests, extraction samples, review checklists, timed comparisons). Ban hollow 'N use cases' / 'N-slide PowerPoint brief' / bare 'LLM limitations' stubs. Never count the TASK — 'clarified 6 requirements', 'reviewed 7 issues', 'analyzed 8 handoffs' are banned as the number-bearer; a number earns its place on an outcome (6 defects closed) or an arena (30+ rooms). Best length 14-24 words: clear enough for ATS/HR/interview, never padded fluff, never useless short. Analyst screeners want: data/AI problem -> method YOU used -> what changed. Write like the Student Services tracker: artifact + who used it + what stopped. Do NOT translate software into fog. Three bullets per entry; TWO of THREE carry one junior-scope number. Campus-ops keep source counts. Put claimable must-haves in skills. Projects: what it is, then how it helps. JobHub is a tracker, never a resume generator.";
 
 export function qualityFeedback(issues: BulletIssue[], family?: "consulting" | "analyst"): string {
   const high = issues.filter((i) => i.severity === "high");
@@ -785,8 +828,8 @@ export function qualityFeedback(issues: BulletIssue[], family?: "consulting" | "
     family === "analyst"
       ? ANALYST_COMPOSE
       : family === "consulting"
-      ? "Do not simply reword the flagged bullets. Recompose from source facts + THIS posting + hiring_screen/reddit intel + posting_flavor + jd_deep_analysis_protocol. YOU MAY INVENT junior CAR scenes — ban hollow 'N use cases' / 'N-slide PowerPoint brief' / bare 'LLM limitations' stubs. Best length 14-24 words (clear for ATS/HR/interview; do not pad). CAR, THREE bullets per entry. AT MOST ONE engineer/CS title when the posting asks for programming; else ZERO engineering titles. HR-tech: Systems Analyst / HR Technology Analyst only. Other rows: Analyst language (Insights/Strategy when zs-sip; Analytics when zs-da). Invent methods for THIS posting — no Pivot/INDEX-MATCH stamp. CI: source monitoring / synthesis / brief. HR-tech: workshop / requirements / UAT. ZS SIP/DA: research or quant → recommendation. Never invent IQVIA/Tableau/Qualtrics/PitchBook/CRM/Confluence/SuccessFactors/Workday/Confirmit. Ban vague tails. Artifact + who used it + what changed. Campus-ops stay source. TWO numbered bullets per expanded entry. No FastAPI/REST-handoff repairs. Projects: problem then insight. JobHub is a tracker. Never Windows Booster."
-      : "Do not simply reword the flagged bullets. Recompose BOTH expanded software entries as junior scenes for THIS posting — invent freely when the JD asks. Best length 14-24 words: clear for ATS/HR/interview, not essay-long, not hollow. Ban 'N use cases' / 'N-slide PowerPoint brief' with no method or result. Each entry: one build, one fix, one team beat; concrete artifacts; at most two named technologies per bullet; TWO numbered bullets (2 of 3). Projects: what it is, then distinctive feature + tech + technique.";
+      ? "Do not simply reword the flagged bullets. Recompose from source facts + THIS posting + hiring_screen/reddit intel + posting_flavor + jd_deep_analysis_protocol. YOU MAY INVENT junior CAR scenes — ban hollow 'N use cases' / 'N-slide PowerPoint brief' / bare 'LLM limitations' stubs. Best length 14-24 words (clear for ATS/HR/interview; do not pad). CAR, THREE bullets per entry. AT MOST ONE engineer/CS title when the posting asks for programming; else ZERO engineering titles. HR-tech: Systems Analyst / HR Technology Analyst only. Other rows: Analyst language (Insights/Strategy when zs-sip; Analytics when zs-da). Invent methods for THIS posting — no Pivot/INDEX-MATCH stamp. CI: source monitoring / synthesis / brief. HR-tech: workshop / requirements / UAT. ZS SIP/DA: research or quant → recommendation. Never invent IQVIA/Tableau/Qualtrics/PitchBook/CRM/Confluence/SuccessFactors/Workday/Confirmit. Ban vague tails. Artifact + who used it + what changed. Campus-ops stay source. TWO numbered bullets per expanded entry — but never count the TASK ('clarified 6 requirements', 'reviewed 7 issues'); a number earns its place on an outcome or an arena. No FastAPI/REST-handoff repairs. Projects: problem then insight. JobHub is a tracker. Never Windows Booster."
+      : "Do not simply reword the flagged bullets. Recompose BOTH expanded software entries as junior scenes for THIS posting — invent freely when the JD asks. Best length 14-24 words: clear for ATS/HR/interview, not essay-long, not hollow. Ban 'N use cases' / 'N-slide PowerPoint brief' with no method or result. Never count the TASK ('clarified 6 requirements') — count the outcome (6 defects closed) or the arena. Each entry: one build, one fix, one team beat; concrete artifacts; at most two named technologies per bullet; TWO numbered bullets (2 of 3). Projects: what it is, then distinctive feature + tech + technique.";
   return [
     "QUALITY REPAIR PASS. Your previous draft failed these specific checks. Rewrite the flagged experience and project bullets from scratch to fix every one of them while following all original rules (bullet_count_rule still governs experience count and length; projects stay at exactly 2 bullets — purpose, then implementation):",
     ...lines,

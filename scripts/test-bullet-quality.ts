@@ -1083,5 +1083,71 @@ check("Problem Solving stays on Professional", /Problem Solving/.test(pinned));
 check("REST APIs drop when the posting does not ask for APIs", !/REST APIs/i.test(pinned));
 check("Word stays when the posting lists Word", /\bWord\b/.test(pinned), pinned.slice(pinned.indexOf("Skills"), pinned.indexOf("Projects")));
 
+// --------------------------------------- task-counter + count-first rhythm
+// The "two numbered bullets" rule gamed: counting the TASK, not the outcome.
+const taskCounters = auditExperienceBullets(
+  [
+    {
+      company: "INNWIL",
+      bullets: [
+        "Clarified 6 client workflow questions for upcoming sprint work.",
+        "Automated validation checks for extraction outputs, stopping malformed records before partner reviews.",
+        "Walked the ops lead through the new export format at sprint review.",
+      ],
+    },
+  ],
+  { expandedCount: 1 }
+);
+check(
+  "task-counter ('Clarified 6 questions', no outcome) is high severity",
+  taskCounters.some((i) => i.severity === "high" && /counts the task instead of the outcome/.test(i.message)),
+  messages(taskCounters)
+);
+const outcomeCounts = auditExperienceBullets(
+  [
+    {
+      company: "INNWIL",
+      bullets: [
+        "Closed 6 recurring extraction defects before handoff, restoring the weekly partner export.",
+        "Automated validation checks for extraction outputs, stopping malformed records before partner reviews.",
+        "Walked the ops lead through the new export format at sprint review.",
+      ],
+    },
+  ],
+  { expandedCount: 1 }
+);
+check(
+  "count attached to an outcome is NOT flagged as task-counter",
+  !outcomeCounts.some((i) => /counts the task instead of the outcome/.test(i.message)),
+  messages(outcomeCounts)
+);
+// Count-first rhythm: most of the page opens with verb + number.
+const rhythm = auditExperienceBullets(
+  [
+    {
+      company: "A",
+      bullets: [
+        "Clarified 6 platform requirements with partners, then documented the sprint handoff.",
+        "Analyzed 8 service handoffs and summarized operational impacts used during team reviews.",
+        "Reviewed 7 recurring user issues and grouped root causes for the team.",
+      ],
+    },
+    {
+      company: "B",
+      bullets: [
+        "Researched 6 third-party service options against community needs for the integration decision.",
+        "Translated 8 client workflow issues into requirements notes for the team.",
+        "Coordinated 8 integration tasks across client and backend contributors with a release tracker.",
+      ],
+    },
+  ],
+  { expandedCount: 2 }
+);
+check(
+  "count-first rhythm (4+ bullets opening on a count) is high severity",
+  rhythm.some((i) => i.severity === "high" && /open on a count/.test(i.message)),
+  messages(rhythm.filter((i) => i.severity === "high"))
+);
+
 console.log(failures === 0 ? "all bullet-quality checks passed" : `${failures} check(s) failed`);
 process.exitCode = failures === 0 ? 0 : 1;
