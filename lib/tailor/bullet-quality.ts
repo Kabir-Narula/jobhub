@@ -11,6 +11,7 @@
 
 import { isCampusOpsEntry, jdWantsProgramming } from "./role-family";
 import { bulletsTooAlike } from "./projects";
+import { SUB_SPECIALTY_TECHNIQUE_RE } from "./domain-craft";
 
 export interface BulletIssue {
   company: string;
@@ -106,7 +107,7 @@ const BUSINESS_INVENTED_TOOLS =
 
 /** A result is a state change: something stopped, dropped, or went away. */
 const RESULT_SIGNAL =
-  /\b(?:stopped|no longer|eliminat\w+|removed|cut|down to|dropped from|reduced|from \d+[^.]* to \d+|unblock\w+|without manual|by hand|automatic\w*|instead of manually|freed|caught|prevent\w+ the|surfac\w+|replac\w+|restor\w+|resolved|clos\w+|ended|cleared)\b/i;
+  /\b(?:stopped|no longer|eliminat\w+|removed|cut|down to|dropped from|reduced|from \d+[^.]* to \d+|unblock\w+|without manual|by hand|automatic\w*|instead of manually|freed|caught|catching|uncover\w*|isolat\w*|detect\w*|prevent\w+ the|surfac\w+|replac\w+|restor\w+|resolved|clos\w+|ended|cleared)\b/i;
 
 /** Evidence other humans existed: the slot that makes an entry read like a job. */
 const TEAM_SIGNAL =
@@ -168,7 +169,11 @@ const HOLLOW_LLM_LIMIT =
  * a team beat, or a real mechanism.
  */
 const TASK_COUNTER =
-  /^(?:clarified|analyzed|reviewed|coordinated|researched|translated|compared|conducted|tracked|prepared|mapped|integrated|logged|reconciled|grouped|converted|documented|summarized|framed|prioritized|outlined|selected|listed|identified|facilitated|maintained|supported|handled|managed|processed|evaluated|assessed|compiled|gathered|collected|traced)\b[\s\S]{0,45}?\b(?:\d+|two|three|four|five|six|seven|eight|nine|ten)\b/i;
+  /^(?:clarified|analyzed|reviewed|coordinated|researched|translated|compared|conducted|tracked|prepared|mapped|integrated|logged|reconciled|grouped|converted|documented|summarized|framed|prioritized|outlined|selected|listed|identified|facilitated|maintained|supported|handled|managed|processed|evaluated|assessed|compiled|gathered|collected|traced|created|wrote|ran|executed|defined|drafted)\b[\s\S]{0,45}?\b(?:\d+|two|three|four|five|six|seven|eight|nine|ten)\b/i;
+
+/** AI-tell marketing verbs/phrases explicitly banned in SYSTEM_PROMPT. */
+const AI_SLOP =
+  /\b(?:streamlined?|cutting[- ]edge|best[- ]in[- ]class|seamless(?:ly)?|proven track record|instrumental in|aligns with|synerg(?:y|ize)|transformative|world[- ]class|state[- ]of[- ]the[- ]art)\b/i;
 
 function isHollowStub(b: string): boolean {
   const hit = HOLLOW_USE_CASE.test(b) || HOLLOW_SLIDE_BRIEF.test(b) || HOLLOW_LLM_LIMIT.test(b);
@@ -203,6 +208,12 @@ export interface AuditOptions {
    * not ban new tech.
    */
   sourceEntries?: { company: string; bullets: string[] }[];
+  /** Posting's top must-have terms — enables the first-bullet skim check and the skills-without-evidence check. */
+  topMustHaves?: string[];
+  /** Project bullets (used so evidence in Projects satisfies skills-without-evidence). */
+  projectBullets?: string[];
+  /** Analyst title but engineering JD: skim/evidence failures become high severity. */
+  hybrid?: boolean;
 }
 
 function companyKey(s: string): string {
@@ -223,6 +234,9 @@ export function auditExperienceBullets(
     jobDescription = "",
     jobTitle = "",
     sourceEntries = [],
+    topMustHaves = [],
+    projectBullets = [],
+    hybrid = false,
   } = opts;
   const sourceByCompany = new Map(
     sourceEntries.map((e) => [companyKey(e.company), e.bullets.map((b) => b.trim()).filter(Boolean)])
@@ -265,6 +279,9 @@ export function auditExperienceBullets(
 
       const filler = FILLER.exec(b);
       if (filler) add(company, "high", `"${short}" uses filler "${filler[0]}" — state the actual work instead`);
+
+      const slop = !campusOps ? AI_SLOP.exec(b) : null;
+      if (slop) add(company, "high", `"${short}" uses AI-tell phrasing "${slop[0]}" — replace with plain concrete work`);
 
       const vague = VAGUE_EVIDENCE.exec(b);
       if (vague) {
@@ -365,12 +382,12 @@ export function auditExperienceBullets(
       // level below; here it is only advisory, because a per-bullet hard rule
       // forces every line into mechanism-speak and stops the entry reading like
       // a real job.
-      if (techNames.length > 0 && !TECHNIQUE_SIGNAL.test(b) && !business) {
+      if (techNames.length > 0 && !(TECHNIQUE_SIGNAL.test(b) || SUB_SPECIALTY_TECHNIQUE_RE.test(b)) && !business) {
         const excused = RESULT_SIGNAL.test(b) || /\d/.test(b) || TEAM_SIGNAL.test(b);
         add(
           company,
           excused ? "low" : "high",
-          `"${short}" name-drops ${techNames.join(", ")} with no technique and no outcome — say HOW it was used (an index, a partition, a retry, a fixture) or what changed`
+          `"${short}" name-drops ${techNames.join(", ")} with no technique and no outcome — say HOW it was used (an index, a partition, a retry, a fixture, a guard) or what changed`
         );
       }
 
@@ -444,7 +461,7 @@ export function auditExperienceBullets(
       // entry where only one line of three shows a real mechanism reads as
       // keyword-shaped to a staff engineer even when every bullet passes on its
       // own: the technologies are all present, the engineering is not.
-      const withTechnique = bullets.filter((b) => TECHNIQUE_SIGNAL.test(b)).length;
+      const withTechnique = bullets.filter((b) => TECHNIQUE_SIGNAL.test(b) || SUB_SPECIALTY_TECHNIQUE_RE.test(b)).length;
       if (!business && bullets.length >= 3 && withTechnique * 2 < bullets.length) {
         add(
           company,
@@ -545,6 +562,59 @@ export function auditExperienceBullets(
       "high",
       `${countFirst} bullets open on a count — the number-stuffed rhythm reads machine-written; lead with the trigger or the result instead, and keep counts attached to outcomes, not tasks`
     );
+  }
+
+  // ---- HR-psychology + ATS evidence checks against the posting's top requirements ----
+  // (1) First-bullet skim: eye-tracking puts the initial recruiter scan at ~7
+  //     seconds on the name, current title, and the FIRST bullet — that line
+  //     must echo the posting's #1 requirements.
+  // (2) Skills-without-evidence: a top must-have that lives only in the skills
+  //     block is discounted by both parsers and screeners ("a term in skills
+  //     but in no bullet is a flag").
+  const top = topMustHaves.slice(0, 3);
+  if (top.length > 0 && allBulletsForRhythm.length > 0) {
+    const MUST_SURFACE: Record<string, string[]> = {
+      restapi: ["rest api", "rest apis", "restful", "http api", "api"],
+      cicd: ["ci/cd", "ci cd", "github actions", "gitlab ci", "pipeline"],
+      postgresql: ["postgresql", "postgres", "sql"],
+      sql: ["sql", "postgresql", "postgres", "mysql", "sqlite", "bigquery"],
+      googlecloud: ["google cloud", "gcp"],
+      sqlserver: ["sql server", "mssql", "sql"],
+      machinelearning: ["machine learning", "ml", "pytorch", "tensorflow", "sklearn", "inference"],
+      artificialintelligence: ["artificial intelligence", "ai", "llm", "openai"],
+      springboot: ["spring boot", "spring"],
+      copilot: ["copilot", "github copilot"],
+      containerization: ["docker", "kubernetes", "container"],
+      "automated testing": ["test", "tests", "pytest", "jest", "vitest", "playwright", "cypress", "uat"],
+    };
+    const mentioned = (t: string, text: string): boolean => {
+      const k = t.toLowerCase().trim();
+      const hay = text.toLowerCase();
+      const surfaces = MUST_SURFACE[k] ?? [k];
+      for (const s of surfaces) {
+        const words = s.split(/\s+/).filter((w) => w.length >= 2);
+        if (words.length > 0 && words.every((w) => hay.includes(w))) return true;
+      }
+      return false;
+    };
+    const firstBullet = entries[0]?.bullets[0] ?? "";
+    if (!top.some((t) => mentioned(t, firstBullet))) {
+      add(
+        entries[0].company,
+        "high",
+        `the first bullet of the most recent entry doesn't echo the posting's top requirements (${top.join(", ")}) — the ~7 second recruiter scan reads exactly that line`
+      );
+    }
+    const evidenceBullets = [...allBulletsForRhythm, ...projectBullets];
+    for (const t of top) {
+      if (!evidenceBullets.some((b) => mentioned(t, b))) {
+        add(
+          entries[0].company,
+          hybrid ? "high" : "low",
+          `top must-have "${t}" appears only in skills, never in a bullet — parsers and screeners both discount skills without evidence`
+        );
+      }
+    }
   }
 
   // Verbatim reuse of an unusual phrase across bullets is a template tell, and
@@ -791,14 +861,14 @@ export function auditProjectBullets(
     } else if (howTech.length > 2) {
       add(name, "high", `bullet 2 names ${howTech.length} technologies (${howTech.join(", ")}) — max 2, or it reads as a keyword list`);
     }
-    if (!consulting && !TECHNIQUE_SIGNAL.test(how)) {
+    if (!consulting && !(TECHNIQUE_SIGNAL.test(how) || SUB_SPECIALTY_TECHNIQUE_RE.test(how))) {
       add(
         name,
         "high",
         `bullet 2 ("${howShort}") lists tech with no technique — name the index, worker, scheduler, or constraint that made the feature work`
       );
     }
-    if (consulting && !(CONSULTING_ARTIFACT.test(how) || TECHNIQUE_SIGNAL.test(how) || howTech.length > 0)) {
+    if (consulting && !(CONSULTING_ARTIFACT.test(how) || TECHNIQUE_SIGNAL.test(how) || SUB_SPECIALTY_TECHNIQUE_RE.test(how) || howTech.length > 0)) {
       add(
         name,
         "high",
@@ -811,6 +881,15 @@ export function auditProjectBullets(
         "high",
         `business-page project mentions generating tailored resumes — rewrite as the tracker, status data, and follow-up loop (campus/HR recruiters read resume-generation as application spam)`
       );
+    }
+    for (const pb of bullets) {
+      const w = wordCount(pb);
+      const pbShort = pb.length > 50 ? `${pb.slice(0, 50)}...` : pb;
+      if (w < 10) {
+        add(name, "high", `project bullet "${pbShort}" is only ${w} words — write a clear 14-26 word sentence, never a 1-line stub`);
+      } else if (w > 32) {
+        add(name, "low", `project bullet "${pbShort}" is ${w} words (target 14-26) — tighten to keep it skimmable`);
+      }
     }
   }
   return issues;
@@ -873,4 +952,48 @@ export function coverageIssues(uncoveredMustHaves: string[], company: string): B
     severity: "high" as const,
     message: `the posting's must-have requirement "${t}" is not addressed anywhere — put its standard skill name in the skills section (that is what the ATS reads); mention it in a bullet only if it names real work, in your own words — never paste the posting's phrasing into a bullet`,
   }));
+}
+
+const COVER_AI_TELLS =
+  /\b(?:caught my attention|i would welcome the opportunity|i am confident that|aligns with|spearhead\w*|leverag\w+|utiliz\w+|cutting[- ]edge|best[- ]in[- ]class|world[- ]class|fast[- ]paced|passionate|proven track record|synerg\w*|transformative|pivotal|adept at|instrumental in)\b/i;
+
+/**
+ * Deterministic cleanup of cover-letter prose before LaTeX assembly:
+ * replaces em/en-dashes with plain hyphens and strips obvious markdown/filler openers.
+ */
+export function sanitizeCoverLetter(paragraphs: string[]): string[] {
+  return paragraphs
+    .map((p) =>
+      p
+        .replace(/[—–]/g, " - ")
+        .replace(/[*_`]/g, "")
+        .replace(/\b(?:in order to)\b/gi, "to")
+        .replace(/\butilize\b/gi, "use")
+        .replace(/\butilizing\b/gi, "using")
+        .replace(/\butilized\b/gi, "used")
+        .replace(/\bleveraging\b/gi, "using")
+        .replace(/\bleveraged\b/gi, "used")
+        .replace(/\bleverage\b/gi, "use")
+        .replace(/\s{2,}/g, " ")
+        .trim()
+    )
+    .filter(Boolean);
+}
+
+/** Audit cover letter paragraphs for AI tells or placeholder text. */
+export function auditCoverLetter(paragraphs: string[], role: string): string[] {
+  const issues: string[] = [];
+  const joined = paragraphs.join(" ");
+  const tell = COVER_AI_TELLS.exec(joined);
+  if (tell) issues.push(`cover letter used AI-tell phrasing ("${tell[0]}")`);
+  if (paragraphs[0] && /^i am excited\b/i.test(paragraphs[0].trim())) {
+    issues.push(`cover letter opens with "I am excited"`);
+  }
+  if (/\[[^\]]{2,30}\]/.test(joined)) {
+    issues.push("cover letter contains bracketed placeholder text");
+  }
+  if (role && paragraphs.length > 0 && !joined.toLowerCase().includes(role.toLowerCase().split(/\s+/)[0])) {
+    issues.push("cover letter never mentions the target role");
+  }
+  return issues;
 }

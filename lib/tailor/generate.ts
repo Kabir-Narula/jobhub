@@ -8,6 +8,7 @@ import { techniqueBrief } from "./analyst-techniques";
 import type { MetricGuidance } from "./metric-guidance";
 import type { JdAnalysis } from "./match";
 import { detectPostingFlavor, flavorDirective, JD_DEEP_ANALYSIS_PROTOCOL, type PostingFlavor } from "./hiring-screen";
+import { craftBriefFor, detectSubSpecialty, employerWorldContext, recommendedTitleHint, type SubSpecialty } from "./domain-craft";
 
 export interface GeneratedContent {
   experience: {
@@ -30,7 +31,7 @@ const SYSTEM_PROMPT = `You are an elite resume strategist. You have screened 50,
 
 WHAT YOU KNOW ABOUT HOW HIRING ACTUALLY WORKS:
 - The first read is a 6-8 second skim: name, current title, companies, then the FIRST bullet of the most recent role. If nothing relevant pops, the reader moves on. Front-load relevance.
-- An ATS ranks the resume by keyword match BEFORE any human sees it. Mirror the job posting's exact terminology wherever the candidate genuinely has that experience (e.g. if the posting says "CI/CD" and the candidate wrote "pipelines", say "CI/CD pipelines").
+- An ATS ranks the resume by keyword match BEFORE any human sees it. Mirror the job posting's exact terminology wherever the candidate genuinely has that experience (e.g. if the posting says "CI/CD" and the candidate wrote "pipelines", say "CI/CD pipelines"). When the posting uses an acronym or full term (CI/CD, UAT, SSO, ETL, RAG, OOP), pair the acronym and plain English once so both literal and semantic ATS matchers hit.
 - Recruiters trust specifics: real technologies named inside real work. They distrust buzzword soup, superlatives, and "passionate team player".
 - TITLE ALIGNMENT is standard practice: recruiters expect a candidate's past titles to be phrased in the market's vocabulary. For software postings, "Software Engineer (Freelance)" and "Software Developer (Contract)" describe the same work. For consulting/insights postings, BCG recruiters explicitly ask you to tailor headlines so they can compare you to the role — "Business Analyst (Co-op)" is the comparable headline; leaving every title as Software Developer is why the 10-second skim dies.
 
@@ -47,6 +48,8 @@ Write the experience bullets FROM SCRATCH for this specific job. Do not lightly 
 - Follow jd_deep_analysis_protocol in the user payload: read the posting for what the employer cares about (mandatory vs preferred, core vs supporting responsibilities, domain expectations, seniority/behavioral signals, differentiating vs low-value wording) BEFORE choosing skills or bullet framing. Word frequency alone is not analysis.
 
 REQUIREMENT-TO-BULLET MAPPING (ATS lives in SKILLS; experience answers the WORK):
+- HYBRID ROLE: when hybrid_role is set, the posting's own requirements are engineering even though the title says analyst (tech-consulting "Business Analyst" = developer in disguise). The SKILLS section follows the JD's stack fully (Angular, Spring, TypeScript, whatever it names — no analyst suppression). Bullets may name the posting's required technologies as real junior work. Titles stay Analyst-family (Systems Analyst / Business Systems Analyst).
+- FIRST-BULLET RULE: eye-tracking studies (TheLadders) put the initial recruiter scan at ~7 seconds, spent on the name, the current title, and the FIRST bullet of the most recent role. That first bullet must echo the posting's #1 must-have work type or its artifact — it is the single highest-leverage line on the page.
 - The skills section is where ATS parsers and LLM screeners look first. Put claimable posting tools there. Experience bullets answer the work (a pipeline, a slow query, a review) — they are not a second keyword list.
 - Do NOT put a target keyword in every bullet. That is how FastAPI, Spark, and Keras ended up in lines that were about timeouts, indexes, and code review. A 10-second human scan reads that as stuffing; a tuned ATS already scored the skills block.
 - Map the posting's top 2-3 CORE RESPONSIBILITIES / WORK TYPES onto the resume (not every preferred buzzword). Cover evidence axes the posting implies: workflows, problem-solving, collaboration, ownership (junior-scale), delivery, outcomes, operational context, target-role relevance.
@@ -186,7 +189,7 @@ COVER LETTER v2 (this is where interviews are won or lost — the first line dec
 
 HUMAN VOICE / ANTI-AI-DETECTION (2026 recruiters actively screen for AI tells):
 - BANNED words and phrases (instant AI tell): caught my attention, I would welcome the opportunity, I am confident that, aligns with, spearheaded, spearhead, leveraged, leverage (as a verb), orchestrated, cutting-edge, robust, dynamic, results-oriented, synergize, transformative, pivotal, utilize, in order to, fast-paced, passionate, proven track record, best-in-class, seamless, seamlessly, state-of-the-art, innovative, world-class, adept at, instrumental in.
-- Vary sentence shapes naturally (mostly 10-22 words); do NOT make every bullet follow the same identical structure — identical rhythm is a known AI tell.
+- Vary sentence shapes naturally (mostly 14-24 words matching bullet_count_rule — never under-14 stubs); do NOT make every bullet follow the same identical structure — identical rhythm is a known AI tell.
 - Every product name must appear attached to a concrete artifact — never a bare name-drop. Skills may list tools that are not in a bullet; a bullet that names a tool MUST have that tool in skills.
 - Entry-level must SOUND entry-level: no "architected", no software "led the team/design/architecture", no "architecture" scope claims ("shipped event-driven architecture" reads senior), no mastery/expert framing. Exception: Peer Mentor / campus-ops MAY say led or facilitated a student group — that is people leadership for consulting screens.
 - One uniform tone across the whole resume: plain, direct engineering fact. If a phrase sounds like marketing copy, rewrite it as plain fact.
@@ -222,6 +225,10 @@ interface GenerateInput {
   projectCount?: number;
   /** Consulting/BA/insights vs default software doctrine. */
   roleFamily?: RoleFamily;
+  /** Analyst title but engineering JD (Deloitte-style tech BA): skills follow the JD stack, bullets may name JD tech as real work, titles stay Analyst-family. */
+  hybridRole?: boolean;
+  /** Fine-grained craft specialty (ai-ml-rag, security-appsec, data-eng, supply-ops-analyst, etc.). */
+  subSpecialty?: SubSpecialty;
   /** Role-mapped metric shapes + ceilings for invented-but-plausible outcomes. */
   metricGuidance?: MetricGuidance;
   /** Structured JD read (lib/tailor/jd-analysis.ts): must/nice requirements, domain, work types, posting seniority. */
@@ -232,12 +239,23 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
   const family = input.roleFamily ?? "swe";
   const flavor: PostingFlavor = detectPostingFlavor(input.job.title, input.job.description, family);
   const businessFamily = family === "consulting" || family === "analyst" || family === "product";
+  const wantsProgramming = jdWantsProgramming(input.job.description, input.job.title);
   // CS bridge only when the posting asks for programming — a strategy posting
   // with no coding requirement gets ZERO engineering titles (all-Analyst page).
   const bridgeIdx =
-    businessFamily && jdWantsProgramming(input.job.description, input.job.title)
+    businessFamily && wantsProgramming
       ? csBridgeEntryIndex(input.entries)
       : -1;
+  const subSpecialty = input.subSpecialty ?? detectSubSpecialty(input.job.title, input.job.description, family);
+  const craftBrief = craftBriefFor(subSpecialty, family, Boolean(input.hybridRole));
+  const titleHint = recommendedTitleHint({
+    sub: subSpecialty,
+    family,
+    hybrid: Boolean(input.hybridRole),
+    wantsProgramming,
+    flavor,
+  });
+  const employerContext = employerWorldContext(businessFamily);
   const experience = input.entries.map((e, i) => ({
     company: e.company,
     location: e.location,
@@ -258,8 +276,13 @@ export async function generateContent(input: GenerateInput): Promise<GeneratedCo
     candidate_skills_lines: input.skills.lines,
     additional_verified_skills_pool: extraSkillsPool(),
     candidate_project_library: projectBriefs(businessFamily),
+    employer_world_context: employerContext,
     lens_directive: input.lensNote ?? null,
     role_family: family,
+    sub_specialty: subSpecialty,
+    sub_specialty_craft: craftBrief,
+    recommended_title_hint: titleHint,
+    hybrid_role: input.hybridRole === true ? true : null,
     posting_flavor: flavor,
     posting_flavor_directive: flavorDirective(flavor) || null,
     jd_deep_analysis_protocol: JD_DEEP_ANALYSIS_PROTOCOL,

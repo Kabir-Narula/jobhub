@@ -40,6 +40,7 @@ export async function POST(request: Request) {
     company: job.company,
     jobTitle: job.title,
     jobDescription: job.description,
+    postingUrl: job.applyUrl || job.sourceUrl || undefined,
     deep: true,
   });
   await prisma.job.update({

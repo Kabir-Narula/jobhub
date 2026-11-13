@@ -16,22 +16,25 @@ import {
   insertCoursework,
   injectPdfMeta,
   ensureSkillsTerms,
+  skillsPlainText,
   type ResumeUpdate,
 } from "@/lib/tailor/latex";
 import { ACHIEVEMENTS, jdSignalsAchievements } from "@/lib/tailor/achievements";
 import { generateContent, findNewNumbers, type GeneratedContent } from "@/lib/tailor/generate";
 import {
+  auditCoverLetter,
   auditExperienceBullets,
   auditProjectBullets,
   bannedNumberShapes,
   coverageIssues,
   highSeverityCount,
   qualityFeedback,
+  sanitizeCoverLetter,
 } from "@/lib/tailor/bullet-quality";
 import { researchCompany, type CompanyResearch } from "@/lib/tailor/research";
 import { compileLatex } from "@/lib/tailor/compile";
 import { matchScore, missingTerms, claimableJdTerms, isTechTerm, placementGaps, uncoveredTerms, hasWord } from "@/lib/tailor/match";
-import { getJdAnalysis } from "@/lib/tailor/jd-analysis";
+import { getJdAnalysis, isEngineeringDemand } from "@/lib/tailor/jd-analysis";
 import { FILL_TARGET, pageFill } from "@/lib/tailor/fill";
 import { packClampAttempts } from "@/lib/tailor/pack";
 import { PROJECTS, projectSlots, resolveProjects } from "@/lib/tailor/projects";
@@ -67,6 +70,7 @@ async function requireResearch(jobId: string, refresh = false): Promise<CompanyR
       company: job.company,
       jobTitle: job.title,
       jobDescription: job.description,
+      postingUrl: job.applyUrl || job.sourceUrl || undefined,
       deep: true,
     });
     const hiringScreen = mergeScreenLines(
@@ -289,6 +293,13 @@ export async function POST(request: Request) {
   const { detectRoleFamily, isBusinessFamily, selectExperienceEntries, SKILL_SEEDS, isCampusOpsEntry } = await import("@/lib/tailor/role-family");
   const family = detectRoleFamily(jobInput.title, jobInput.company, jobInput.description);
   const business = isBusinessFamily(family);
+  // Hybrid role: title says analyst but the JD's own requirements are
+  // engineering (Deloitte "Business Analyst" wanting Angular/Spring/REST).
+  // The JD's content wins for the skills/coverage layer; bullets and titles
+  // stay family-flavored.
+  const hybrid = business && isEngineeringDemand(jdAnalysis);
+  const { detectSubSpecialty } = await import("@/lib/tailor/domain-craft");
+  const subSpecialty = detectSubSpecialty(jobInput.title, jobInput.description, family);
   const {
     detectPostingFlavor,
     detectEmployerArchetype,
@@ -320,9 +331,11 @@ export async function POST(request: Request) {
   const allowedByLens = (term: string) => {
     const k = term.toLowerCase();
     // A term the posting itself names is never suppressed on engineering
-    // resumes — the lens governs emphasis, never ATS coverage. (Business
-    // families keep strict suppression: vendors map to methods, not skills.)
-    if (!business && hasWord(k, jdLower)) return true;
+    // resumes — the lens governs emphasis, never ATS coverage. Hybrid roles
+    // (analyst title, engineering JD) get the same exemption: suppressing a
+    // JD-named tech term there was the Deloitte BA failure. Pure business
+    // families keep strict suppression (vendors map to methods, not skills).
+    if ((!business || hybrid) && hasWord(k, jdLower)) return true;
     return !lensSuppress.some((s) => {
       const sk = s.toLowerCase();
       return Boolean(sk) && (k.includes(sk) || sk.includes(k));
@@ -375,8 +388,10 @@ export async function POST(request: Request) {
     softSkills,
     targetKeywords,
     projectCount,
+    subSpecialty,
     metricGuidance: metricGuidanceFor(family),
     jdAnalysis,
+    ...(hybrid ? { hybridRole: true } : {}),
     ...(family !== "swe" ? { roleFamily: family } : {}),
   };
 
@@ -485,28 +500,29 @@ export async function POST(request: Request) {
       ? claimableBusinessSkillItems(job!.description, family).filter(allowedByLens)
       : claimableJdTerms(job!.description, 40, companyTokens, job!.title)
           .filter(isTechTerm)
-          .filter((t) => t.split(" ").every((w) => genText.includes(w)))
+          .filter((t) => uncoveredTerms([t], genText).length === 0)
           .filter(allowedByLens);
     // JD technologies with a plausible-adjacency skills home are allowed into
     // the skills section even without a bullet backing them — the section is
     // the ATS keyword home; experience stays coherent (posting-adjacent rule).
-    const jdTechForSkills = business
+    const jdTechForSkills = business && !hybrid
       ? []
-      : claimableJdTerms(job!.description, 60, companyTokens, job!.title)
+      : [...new Set([...jdAnalysis.mustHaves, ...claimableJdTerms(job!.description, 60, companyTokens, job!.title)])]
           .filter((t) => jdTechHome(t) !== undefined)
           .filter(allowedByLens)
           .map(displayTech);
     const allowedExtra = [...new Set([...softSkills, ...hardAllowed, ...jdTechForSkills])];
     tex = assembleSkillsSection(parseSkillsSection(tex), gen.skills ?? null, clamps.compactSkills ?? 0, lensSuppress, allowedExtra);
-    if (business) {
+    if (business && !hybrid) {
       // Keep the model's ranking. Only strip SWE leaks and invented vendors.
-      // Backfill only JD-matched intern-defensible items the model omitted —
-      // never raw placementGaps (those re-injected Excel-function noise).
+      // Backfill only JD-matched intern-defensible items missing from SKILLS
+      // (checking ONLY the Skills section, not bullets or URLs).
       const pinOpts = { professional: softSkills, jobDescription: job!.description };
       tex = pinBusinessSkills(tex, clamps.compactSkills ?? 0, pinOpts);
+      const inSkills = skillsPlainText(tex);
       const businessBackfill = claimableBusinessSkillItems(job!.description, family)
         .filter(allowedByLens)
-        .filter((t) => !tex.toLowerCase().includes(t.toLowerCase()))
+        .filter((t) => !inSkills.includes(t.toLowerCase()))
         .slice(0, 4);
       if (businessBackfill.length) {
         tex = ensureSkillsTerms(tex, businessBackfill, clamps.compactSkills || 7);
@@ -514,12 +530,12 @@ export async function POST(request: Request) {
         tex = pinBusinessSkills(tex, clamps.compactSkills ?? 0, pinOpts);
       }
     } else {
-      // Deterministic backfill: homed JD technologies that are still absent
-      // from the skills block are placed by line affinity (cap 6, JD frequency
-      // order). This is what actually moves coverage — the model may choose
-      // fewer posting-adjacent skills than the ceiling allows.
+      // Deterministic backfill: homed JD technologies absent from SKILLS are
+      // placed by line affinity (cap 12). Checked against skillsPlainText so a
+      // term mentioned in a project bullet or URL is still placed in Skills.
+      const inSkills = skillsPlainText(tex);
       const jdBackfill = jdTechForSkills
-        .filter((t) => !tex.toLowerCase().includes(t.toLowerCase()))
+        .filter((t) => !inSkills.includes(t.toLowerCase()))
         .slice(0, 12);
       tex = ensureSkillsTerms(
         tex,
@@ -636,6 +652,8 @@ export async function POST(request: Request) {
       company: e.company.replace(/\\&/g, "&"),
       bullets: e.bullets.map((b) => b.replace(/\\[&%$#_{}]/g, "$1")),
     })),
+    topMustHaves: jdAnalysis.mustHaves.slice(0, 3),
+    ...(hybrid ? { hybrid: true } : {}),
     ...(business
       ? {
           family: auditFamily,
@@ -651,7 +669,10 @@ export async function POST(request: Request) {
     coverageIssues(uncoveredTerms(jdAnalysis.mustHaves, tex).filter(allowedByLens), job.company);
   const auditAll = (gen: typeof generated, tex: string) => [
     ...coverageFor(tex),
-    ...auditExperienceBullets(gen.experience, auditOpts),
+    ...auditExperienceBullets(gen.experience, {
+      ...auditOpts,
+      projectBullets: (gen.projects ?? []).flatMap((p) => p.bullets ?? []),
+    }),
     ...auditProjectBullets(gen.projects ?? [], business ? { family: auditFamily } : {}),
   ];
   const resumeBullets = (gen: GeneratedContent) => [
@@ -675,7 +696,8 @@ export async function POST(request: Request) {
     ].slice(0, 25);
     // Business: only boost terms that are claimable intern-defensible skills for THIS JD —
     // raw missingTerms re-injected Excel/VLOOKUP pressure and fought method freedom.
-    if (business) {
+    // Hybrid roles skip this gate: their missing terms ARE engineering tech.
+    if (business && !hybrid) {
       const allowed = new Set(
         claimableBusinessSkillItems(job.description, family).map((s) => s.toLowerCase())
       );
@@ -708,15 +730,23 @@ export async function POST(request: Request) {
         const boostedScore = matchScore(job.description, boostedTex, job.company, job.title, jdAnalysis);
         const before = highSeverityCount(preIssues);
         const after = highSeverityCount(auditAll(boosted, boostedTex));
+        const mustBefore = uncoveredTerms(jdAnalysis.mustHaves, resumeTex).filter(allowedByLens).length;
+        const mustAfter = uncoveredTerms(jdAnalysis.mustHaves, boostedTex).filter(allowedByLens).length;
         const scoreUp = boostedScore !== null && (score === null || boostedScore > score);
         const scoreHeld = boostedScore !== null && (score === null || boostedScore >= score);
-        if ((scoreUp && after <= before) || (scoreHeld && after < before)) {
+        const bigAtsJump =
+          boostedScore !== null &&
+          score !== null &&
+          boostedScore >= score + 10 &&
+          mustAfter <= mustBefore &&
+          after <= before + 1;
+        if ((scoreUp && after <= before) || (scoreHeld && after < before) || bigAtsJump) {
           resumeTex = boostedTex;
           resumeResult = boostedResult;
           generated = boosted;
           score = boostedScore;
-          // Only skip the later repair when this draft actually shipped WITH quality in the prompt.
-          if (fixQuality) combinedRepairRan = true;
+          // Only skip the later repair when this draft actually shipped WITH quality in the prompt AND clean.
+          if (fixQuality && after === 0) combinedRepairRan = true;
         }
       }
     }
@@ -762,12 +792,16 @@ export async function POST(request: Request) {
     const expanded = await optionalPass("Page-fill", () => generateContent({ ...refineBase, expand: true }));
     const expandedTex = expanded ? buildTex(expanded, activeClamps) : "";
     const expandedResult = expanded ? await compileLatex(expandedTex) : null;
-    if (expanded && expandedResult && expandedResult.pageCount === 1) {
+    if (expanded && expandedResult && expandedResult.pageCount === 1 && bannedNumberShapes(resumeBullets(expanded)).length === 0) {
       const expandedFill = Math.round((await pageFill(expandedResult.pdf)) * 100);
-      if (expandedFill > fillPct) {
+      const expandedScore = matchScore(job.description, expandedTex, job.company, job.title, jdAnalysis);
+      const qualityHeld = highSeverityCount(auditAll(expanded, expandedTex)) <= highSeverityCount(auditAll(generated, resumeTex));
+      const scoreHeld = score === null || expandedScore === null || expandedScore >= score - 2;
+      if (expandedFill > fillPct && qualityHeld && scoreHeld) {
         resumeTex = expandedTex;
         resumeResult = expandedResult;
         generated = expanded;
+        if (expandedScore !== null) score = expandedScore;
         fillPct = expandedFill;
       }
     }
@@ -799,24 +833,44 @@ export async function POST(request: Request) {
         )
       : null;
   if (repaired) {
-    const repairedTex = buildTex(repaired, activeClamps);
-    const repairedIssues = auditAll(repaired, repairedTex);
+    let candidateTex = buildTex(repaired, activeClamps);
+    let candidateClamps = activeClamps;
+    let candidateIssues = auditAll(repaired, candidateTex);
     if (
-      highSeverityCount(repairedIssues) < highSeverityCount(bulletIssues) &&
+      highSeverityCount(candidateIssues) < highSeverityCount(bulletIssues) &&
       bannedNumberShapes(resumeBullets(repaired)).length === 0
     ) {
-      const repairedResult = await compileLatex(repairedTex);
-      const repairedScore = matchScore(job.description, repairedTex, job.company, job.title, jdAnalysis);
-      // Better prose is not worth falling out of the keyword ranking, and it is
-      // never worth a second page.
+      let repairedResult = await compileLatex(candidateTex);
+      // If fixing a 7-word stub pushed the page by 1 line, step down the
+      // compression ladder before discarding a clean repair.
+      if (repairedResult.pageCount > RESUME_PAGE_LIMIT) {
+        for (const clamps of LADDER.slice(1)) {
+          const tex = buildTex(repaired, clamps);
+          const res = await compileLatex(tex);
+          if (res.pageCount <= RESUME_PAGE_LIMIT) {
+            candidateTex = tex;
+            candidateClamps = clamps;
+            repairedResult = res;
+            candidateIssues = auditAll(repaired, tex);
+            break;
+          }
+        }
+      }
+      const repairedScore = matchScore(job.description, candidateTex, job.company, job.title, jdAnalysis);
+      const mustsBefore = uncoveredTerms(jdAnalysis.mustHaves, resumeTex).filter(allowedByLens).length;
+      const mustsAfter = uncoveredTerms(jdAnalysis.mustHaves, candidateTex).filter(allowedByLens).length;
+      // Allow up to a 2-point nice-to-have fluctuation when style quality
+      // improves AND no must-have coverage regresses.
       if (
         repairedResult.pageCount <= RESUME_PAGE_LIMIT &&
-        (score === null || repairedScore === null || repairedScore >= score)
+        mustsAfter <= mustsBefore &&
+        (score === null || repairedScore === null || repairedScore >= score - 2)
       ) {
-        resumeTex = repairedTex;
+        resumeTex = candidateTex;
         resumeResult = repairedResult;
+        activeClamps = candidateClamps;
         generated = repaired;
-        bulletIssues = repairedIssues;
+        bulletIssues = candidateIssues;
         if (repairedScore !== null) score = repairedScore;
         fillPct = Math.round((await pageFill(repairedResult.pdf)) * 100);
       }
@@ -841,17 +895,26 @@ export async function POST(request: Request) {
 
   // --- cover letter ---
   const parsedCover = parseCover(coverMaster.texContent);
+  const cleanCoverParas = sanitizeCoverLetter(generated.coverLetter.bodyParagraphs);
+  const coverWarnings = auditCoverLetter(cleanCoverParas, job.title);
+  if (coverWarnings.length > 0) warnings.push(...coverWarnings);
   const coverUpdate = {
     addresseeCompany: generated.coverLetter.addresseeCompany || job.company,
     addresseeCity: generated.coverLetter.addresseeCity || job.locationRaw || "Toronto, ON",
     role: generated.coverLetter.role || job.title,
-    bodyParagraphs: generated.coverLetter.bodyParagraphs,
+    bodyParagraphs: cleanCoverParas.length ? cleanCoverParas : generated.coverLetter.bodyParagraphs,
   };
   let coverTex = assembleCover(parsedCover, coverUpdate);
   let coverResult = await compileLatex(coverTex);
   if (coverResult.pageCount > COVER_PAGE_LIMIT) {
     if (coverUpdate.bodyParagraphs.length > 3) {
-      coverTex = assembleCover(parsedCover, { ...coverUpdate, bodyParagraphs: coverUpdate.bodyParagraphs.slice(0, 3) });
+      // Drop the extra middle paragraph, preserving the closing call-to-action.
+      const trimmed = [
+        coverUpdate.bodyParagraphs[0],
+        coverUpdate.bodyParagraphs[1],
+        coverUpdate.bodyParagraphs[coverUpdate.bodyParagraphs.length - 1],
+      ];
+      coverTex = assembleCover(parsedCover, { ...coverUpdate, bodyParagraphs: trimmed });
       coverResult = await compileLatex(coverTex);
     }
     if (coverResult.pageCount > COVER_PAGE_LIMIT) {

@@ -30,44 +30,45 @@ const GUIDANCE: Record<string, Omit<MetricGuidance, "family" | "bannedShapes">> 
     // Shape descriptions deliberately avoid concrete numerals — the model used
     // to parrot the examples verbatim ("40 minutes", "400ms to 120ms") into
     // resumes, where they read as fabricated metrics.
+    // NOTE: percentages are banned by BANNED_NUMBERS in bullet-quality.ts so
+    // guidance stays 100% aligned with the audit gate (counts & durations only).
     allowedShapes: [
       "a before/after duration on something slow or manual (a long manual export cut to minutes)",
       "latency before/after on a slow lookup, in the low hundreds of milliseconds",
-      "a count a junior genuinely knows (test cases, services, team size, release cycles)",
-      "percentage improvement WITH a baseline, within the ceiling below",
+      "a count a junior genuinely knows (test cases closed, services, endpoints, team size, release cycles)",
       "rows or records processed per run (tens of thousands, never millions)",
-      "error or failure counts per cycle (single to double digits)",
+      "error or failure counts per cycle (single to double digits, e.g. 6 recurring defects closed)",
     ],
     ceilings: [
       "users: hundreds max, and only for internal tools",
       "requests per second: tens to low hundreds",
       "time saved: single-digit hours per week",
-      "percentages: 15-60%, always with the baseline named",
+      "no percentage improvements or multipliers (use concrete before/after durations or counts)",
     ],
   },
   "data-ml": {
     allowedShapes: [
       "rows/night processed by a pipeline (tens of thousands)",
       "pipeline or report duration before/after",
-      "model accuracy on a small internal evaluation set, stated as approximate",
+      "evaluation sample size or error-case count on an internal test set (e.g. 14 prompt fixtures)",
       "count of scheduled jobs, sources, or dashboards (single to double digits)",
-      "data-quality issue counts found per review",
+      "data-quality issue counts found and resolved per review",
     ],
     ceilings: [
       "dataset size: tens of thousands of rows, never terabytes",
-      "model metrics: approximate and internal, never production SLOs",
+      "no percentage improvements or production SLO claims",
     ],
   },
   infra: {
     allowedShapes: [
       "deploy or release duration before/after",
-      "count of services, environments, or dashboards maintained",
-      "percentage of manual steps removed from a runbook (15-60%)",
+      "count of services, environments, flaky checks removed, or dashboards maintained",
+      "manual runbook steps cut down to a single command or automated check",
       "incident or alert counts per week reduced to single digits",
-      "cost of one resource reduced by a small absolute amount",
+      "hours saved per week on manual triage or setup",
     ],
     ceilings: [
-      "no fleet-wide SLOs, no cluster scale, no cost figures above a few hundred dollars",
+      "no fleet-wide SLOs, no cluster scale, no percentages or cost figures above a few hundred dollars",
     ],
   },
   consulting: {
@@ -156,10 +157,28 @@ const PROPER_CASE: Record<string, string> = {
   dynamodb: "DynamoDB",
   "rest api": "REST API",
   "rest apis": "REST APIs",
+  restapi: "REST APIs",
   "github actions": "GitHub Actions",
+  "github copilot": "GitHub Copilot",
+  copilot: "GitHub Copilot",
+  chatgpt: "ChatGPT",
+  googlecloud: "Google Cloud",
+  sqlserver: "SQL Server",
+  springboot: "Spring Boot",
+  springframework: "Spring Framework",
+  machinelearning: "Machine Learning",
+  artificialintelligence: "Artificial Intelligence",
+  businessintelligence: "Business Intelligence",
+  marketresearch: "Market Research",
+  powerquery: "Power Query",
+  indexmatch: "INDEX/MATCH",
+  powerbi: "Power BI",
+  html: "HTML",
+  css: "CSS",
+  "ai assisted development": "AI-Assisted Development",
 };
 
-const ACRONYMS = new Set(["aws", "gcp", "api", "apis", "sql", "ci", "cd", "dbt", "php", "go"]);
+const ACRONYMS = new Set(["aws", "gcp", "api", "apis", "sql", "ci", "cd", "dbt", "php", "go", "html", "css", "llm", "nlp", "rag", "etl", "ui", "ux", "uat", "sso"]);
 
 /** Resume-display casing for a JD term entering the skills section. */
 export function displayTech(term: string): string {
@@ -206,6 +225,8 @@ export const JD_TECH_HOME: Record<string, "Languages" | "Infra & Tools" | "Frame
   angular: "Frameworks",
   node: "Frameworks",
   "node.js": "Frameworks",
+  html: "Frameworks",
+  css: "Frameworks",
   vue: "Frameworks",
   svelte: "Frameworks",
   langchain: "Frameworks",
@@ -227,11 +248,20 @@ export const JD_TECH_HOME: Record<string, "Languages" | "Infra & Tools" | "Frame
   elasticsearch: "Cloud & Data",
   dynamodb: "Cloud & Data",
   cassandra: "Cloud & Data",
-  cicd: "Cloud & Data",
+  googlecloud: "Cloud & Data",
+  sqlserver: "Cloud & Data",
+  restapi: "Cloud & Data",
   graphql: "Cloud & Data",
+  cicd: "Infra & Tools",
   kubernetes: "Infra & Tools",
   devops: "Infra & Tools",
   "ci cd": "Infra & Tools",
+  copilot: "Infra & Tools",
+  "github copilot": "Infra & Tools",
+  chatgpt: "Infra & Tools",
+  github: "Infra & Tools",
+  gitlab: "Infra & Tools",
+  "ai assisted development": "Infra & Tools",
   "testing framework": "Infra & Tools",
   "automated testing": "Infra & Tools",
   terraform: "Infra & Tools",

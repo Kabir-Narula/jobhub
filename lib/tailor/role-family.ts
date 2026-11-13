@@ -19,7 +19,7 @@ const SWE_TITLE =
   /\b(software|full[- ]?stack|front[- ]?end|back[- ]?end|sde|swe|site reliability|mlops|android|ios|mobile|firmware|embedded)\b.{0,30}\b(engineer|developer|programmer)\b|\b(software (engineer|developer)|swe|sde|full[- ]?stack developer)\b/i;
 
 const DATA_ML_TITLE =
-  /\b(data engineer|analytics engineer|machine learning engineer|ml engineer|mlops|applied scientist|ai engineer|research scientist)\b/i;
+  /\b(data engineer|analytics engineer|machine learning engineer|ml engineer|mlops|applied scientist|(?:ai|artificial intelligence|genai|gen ai|llm|nlp|computer vision) engineer|research scientist)\b/i;
 
 const CONSULTING_FIRM =
   /\b(mckinsey|boston consulting|\bbcg\b|bain\b|deloitte|pwc|pricewaterhouse|\bey\b|ernst\s*[&+]\s*young|kpmg|oliver wyman|strategy&|kearney|roland berger|\blek\b|accenture|alvarez\s*[&+]\s*marsal|parthenon|\bibm\b|\bzs\b|zs associates)\b/i;

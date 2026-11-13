@@ -17,7 +17,7 @@
  */
 
 import { prisma } from "@/lib/db";
-import { claimableJdTerms, isJunkAtsPhrase, type JdAnalysis } from "./match";
+import { canon, claimableJdTerms, isJunkAtsPhrase, isTechTerm, type JdAnalysis } from "./match";
 import { model, openai, parseJson } from "./research";
 
 // ---------- section parsing (deterministic) ----------
@@ -26,7 +26,7 @@ type SectionKind = "must" | "nice" | "body" | "ignored";
 
 const HEADER_RULES: [RegExp, SectionKind][] = [
   [/nice[- ]?to[- ]?have|preferred (?:qualifications?|skills?|experience)|^bonus|(?:big )?plus|^assets?$|ideally (?:you|we)|an? (?:added|extra) (?:plus|bonus)/i, "nice"],
-  [/(?:minimum|basic|required|key|core|must[- ]?have) (?:qualifications?|requirements?|skills?|experience)|^requirements|qualifications|what (?:you'?ll |we'?re )?(?:need|bring|look(?:ing)? for)|who (?:you are|we'?re looking for)|about you|your (?:background|profile)|skills? (?:&|and) experience|experience (?:&|and) skills|what we expect/i, "must"],
+  [/(?:minimum|basic|required|key|core|must[- ]?have) (?:qualifications?|requirements?|skills?|experience)|^requirements|qualifications|what (?:you'?ll |we'?re )?(?:need|bring|look(?:ing)? for)|what you will bring|who (?:you are|we'?re looking for)|ideal candidate|about you|your (?:background|profile)|core competencies|skills? (?:&|and) (?:experience|qualifications?)|education (?:&|and) experience|experience (?:&|and) skills|what we expect/i, "must"],
   [/benefits?|perks?|what we offer|why (?:join|us|work here)|about (?:us|the company|the team)|our (?:company|story|mission|culture)|compensation|pay (?:range|transparency)|salary|equal opportunit|eeo\b|diversity|accommodation|privacy|legal/i, "ignored"],
   [/responsibilities|what you'?ll (?:do|work on|be doing)|your (?:role|impact|day)|the (?:role|position|opportunity)|day[- ]?to[- ]?day|duties|how you'?ll (?:contribute|make an impact)|in this (?:role|position)/i, "body"],
 ];
@@ -131,7 +131,7 @@ function cleanPhrases(raw: unknown, cap: number): string[] {
   if (!Array.isArray(raw)) return [];
   const out: string[] = [];
   for (const r of raw) {
-    const t = String(r ?? "").trim().toLowerCase().replace(/[.;:]+$/, "");
+    const t = canon(String(r ?? "").trim().toLowerCase().replace(/[.;:]+$/, ""));
     if (!t || t.split(/\s+/).length > 4 || UNCLAIMABLE.test(t) || isJunkAtsPhrase(t)) continue;
     if (!out.includes(t)) out.push(t);
   }
@@ -194,9 +194,14 @@ async function analyzeJobDescription(input: {
   if (!labels) return base;
   // The section parser only knows tech vocabulary; business postings ("Microsoft
   // Suite", "data integrity") came back with zero must-haves and no ATS target.
+  // Canonicalize both sides so "rest apis" + "restapi" or "spring boot" +
+  // "spring" never double-weight 6x or crowd topMustHaves.
   const notDomain = (t: string) => !labels.domain || (t !== labels.domain && !labels.domain.includes(t));
-  const mustHaves = [...new Set([...labels.mustHaves, ...base.mustHaves])].filter(notDomain).slice(0, 12);
-  const niceToHaves = [...new Set([...labels.niceToHaves, ...base.niceToHaves])].filter((t) => !mustHaves.includes(t)).slice(0, 8);
+  const mustHaves = [...new Set([...labels.mustHaves, ...base.mustHaves].map(canon))].filter(notDomain).slice(0, 12);
+  const mustSet = new Set(mustHaves);
+  const niceToHaves = [...new Set([...labels.niceToHaves, ...base.niceToHaves].map(canon))]
+    .filter((t) => !mustSet.has(t))
+    .slice(0, 8);
   return {
     ...base,
     mustHaves,
@@ -210,8 +215,8 @@ async function analyzeJobDescription(input: {
 
 // ---------- cache on the Job row ----------
 
-/** Bump when the analysis shape/meaning changes so cached rows recompute. v4: drop soft-skill must-haves. */
-const JD_ANALYSIS_VERSION = 4;
+/** Bump when the analysis shape/meaning changes so cached rows recompute. v5: canonicalize + dedupe must/nice terms. */
+const JD_ANALYSIS_VERSION = 5;
 
 /**
  * Cached analysis for a job. Recomputed only when stale — currently that means
@@ -240,4 +245,22 @@ export async function getJdAnalysis(
     // Last resort: deterministic-only, unpersisted. Never block generation.
     return heuristicAnalysis(job.description, job.title, job.company);
   }
+}
+
+// ---------- family arbitration: is this "analyst" role actually engineering? ----------
+
+/**
+ * True when the posting's own requirements are materially engineering. Titles
+ * lie: "Business Analyst" at Deloitte/CGI/Accenture tech consulting is often a
+ * developer in disguise (Angular/Spring/REST must-haves), and the analyst
+ * doctrine then suppresses exactly the skills the ATS ranks — the observed
+ * Deloitte BA failure (ATS 36, 9 of 14 terms missing).
+ *
+ * Rule: when ≥3 of the structured must-haves are tech terms, the JD's content
+ * wins over the title for the SKILLS layer (hybrid role). Bullets/titles stay
+ * family-flavored; skills and coverage go engineering.
+ */
+export function isEngineeringDemand(jdAnalysis: JdAnalysis | null | undefined): boolean {
+  if (!jdAnalysis) return false;
+  return jdAnalysis.mustHaves.filter((t) => isTechTerm(t)).length >= 3;
 }

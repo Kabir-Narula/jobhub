@@ -51,9 +51,11 @@ const SYNONYMS: [RegExp, string][] = [
   [/^kpis?$/, "kpi"],
   [/^market research$/, "marketresearch"],
   [/^(db|database|databases)$/, "database"],
+  [/^spring ?boot$/, "springboot"],
+  [/^github copilot$/, "copilot"],
 ];
 
-function canon(term: string): string {
+export function canon(term: string): string {
   const raw = term.toLowerCase().trim();
   // "C/C++" survives tokenization as "c/c", and the [-/] -> " " rewrite below
   // then produced the term "c c" — which matches nothing in any resume, so a
@@ -169,6 +171,7 @@ function stripPdfMeta(tex: string): string {
 
 function plainTex(tex: string): string {
   return stripPdfMeta(tex)
+    .replace(/\\([&#$%_])/g, "$1")
     .replace(/\\[a-zA-Z]+\*?(\[[^\]]*\])?/g, " ")
     .replace(/[{}$]/g, " ")
     .replace(/[-/]+/g, " ")
@@ -197,14 +200,22 @@ function plainTex(tex: string): string {
  * "java" from "javascript" — so they are now enumerated instead of inferred.
  */
 const IMPLIES: Record<string, string[]> = {
-  sql: ["postgresql", "mysql", "sqlserver", "sqlite", "tsql", "plsql", "bigquery", "redshift"],
+  sql: ["postgresql", "mysql", "sqlserver", "sqlite", "tsql", "plsql", "bigquery", "redshift", "snowflake", "duckdb", "mariadb", "oracle", "athena"],
   database: ["postgresql", "mysql", "mongodb", "mongo", "redis", "sqlite", "dynamodb"],
   cloud: ["aws", "azure", "googlecloud", "gcp"],
-  nosql: ["mongodb", "mongo", "dynamodb", "cassandra", "redis"],
+  nosql: ["mongodb", "mongo", "dynamodb", "cassandra", "redis", "elasticsearch"],
   spark: ["pyspark", "sparksql"],
   machinelearning: ["pytorch", "tensorflow", "keras", "sklearn", "xgboost", "lightgbm"],
   statistics: ["statistical"],
   econometrics: ["statistical", "regression"],
+  cicd: ["github actions", "gitlab ci", "circleci", "jenkins"],
+  containerization: ["docker", "kubernetes"],
+  containers: ["docker", "kubernetes"],
+  "automated testing": ["pytest", "jest", "vitest", "playwright", "cypress", "junit"],
+  testing: ["pytest", "jest", "vitest", "playwright", "cypress", "junit"],
+  "version control": ["git", "github", "gitlab"],
+  spring: ["springboot"],
+  springboot: ["spring"],
 };
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -235,7 +246,7 @@ function segmentsOf(plain: string): string[] {
  */
 const CANON_SURFACE: Record<string, string[]> = {
   restapi: ["rest api", "rest apis"],
-  cicd: ["ci cd"],
+  cicd: ["ci cd", "github actions", "gitlab ci"],
   googlecloud: ["google cloud"],
   sqlserver: ["sql server", "microsoft sql server"],
   machinelearning: ["machine learning"],
@@ -245,6 +256,8 @@ const CANON_SURFACE: Record<string, string[]> = {
   powerbi: ["power bi"],
   powerquery: ["power query"],
   indexmatch: ["index match", "index/match"],
+  springboot: ["spring boot"],
+  copilot: ["github copilot", "copilot"],
 };
 
 /**
@@ -283,7 +296,9 @@ const PHRASE_EQUIV: Record<string, string[]> = {
   "generate reports": ["reporting", "reports"],
   "artificial intelligence tools": ["ai tools", "llm", "ai-assisted"],
   "ai tools": ["ai tools", "llm", "ai-assisted"],
+  "ai assisted development": ["copilot", "github copilot", "chatgpt", "ai tools", "llm", "ai assisted"],
   "data entry tools": ["data entry"],
+  containerization: ["docker", "kubernetes"],
 };
 
 function covered(term: string, plain: string, plainSquash: string, segments: string[]): boolean {
@@ -357,8 +372,9 @@ export function isJunkAtsPhrase(term: string): boolean {
 /** Scoring weight of a JD term under a structured analysis (flat 1 without one). */
 function termWeight(term: string, analysis?: JdAnalysis | null): number {
   if (!analysis) return 1;
-  if (analysis.mustHaves.includes(term)) return MUST_WEIGHT;
-  if (analysis.niceToHaves.includes(term)) return NICE_WEIGHT;
+  const c = canon(term);
+  if (analysis.mustHaves.some((m) => canon(m) === c)) return MUST_WEIGHT;
+  if (analysis.niceToHaves.some((n) => canon(n) === c)) return NICE_WEIGHT;
   return 1;
 }
 
@@ -367,7 +383,7 @@ export function uncoveredTerms(terms: string[], resumeTex: string): string[] {
   const plain = plainTex(resumeTex);
   const plainSquash = plain.replace(/\s+/g, "");
   const segments = segmentsOf(plain);
-  return terms.filter((t) => !isJunkAtsPhrase(t) && !covered(t, plain, plainSquash, segments));
+  return terms.filter((t) => !isJunkAtsPhrase(t) && !covered(canon(t), plain, plainSquash, segments));
 }
 
 export function matchScore(
@@ -384,11 +400,13 @@ export function matchScore(
     (Boolean(jobTitle) && !/\b(engineer|developer|software|data engineer|ml engineer)\b/i.test(jobTitle)) ||
     BUSINESS_SIGNAL.test(`${jobTitle}\n${jobDescription.slice(0, 2500)}`);
   const terms = [
-    ...new Set([
-      ...claimableJdTerms(jobDescription, 40, companyName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean), jobTitle),
-      ...(analysis?.mustHaves ?? []),
-      ...(analysis?.niceToHaves ?? []),
-    ]),
+    ...new Set(
+      [
+        ...claimableJdTerms(jobDescription, 40, companyName.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean), jobTitle),
+        ...(analysis?.mustHaves ?? []),
+        ...(analysis?.niceToHaves ?? []),
+      ].map(canon)
+    ),
   ].filter((t) => !isJunkAtsPhrase(t) && !(businessPosting && isUnclaimableBusinessTool(t)));
   if (terms.length === 0) return null;
   const plain = plainTex(resumeTex);
@@ -412,7 +430,7 @@ export function matchScore(
  */
 const TECH_LEXICON = new Set(
   `python java javascript typescript kotlin swift go golang rust ruby scala php perl r matlab c c++ c# haskell sql mysql postgres postgresql sqlite mongodb mongo redis elasticsearch cassandra dynamodb snowflake redshift bigquery databricks spark pyspark hadoop kafka airflow flink etl elt dbt hive presto clickhouse react nextjs next.js node node.js express fastapi django flask spring springboot angular vue svelte rails laravel dotnet .net asp.net graphql rest grpc trpc prisma drizzle sqlalchemy hibernate docker kubernetes k8s terraform ansible jenkins gitlabci circleci cicd ci/cd aws azure gcp ec2 s3 lambda ecs eks rds cloudflare vercel render heroku linux unix bash git github gitlab jira confluence agile scrum devops sre ml ai nlp llm rag openai pytorch tensorflow keras sklearn pandas numpy opencv cuda mlops langchain fastapi supabase firebase stripe bullmq celery rabbitmq nginx prometheus grafana splunk datadog selenium cypress playwright jest vitest pytest junit mockito espresso xctest xcode android ios
-   gemini claude anthropic copilot llamaindex huggingface transformers embeddings embedding bedrock sagemaker vertexai
+   gemini claude anthropic copilot llamaindex huggingface transformers embeddings bedrock sagemaker vertexai
    pinecone weaviate qdrant chromadb chroma faiss milvus pgvector ollama vllm llamacpp mlflow kubeflow triton
    langgraph langsmith autogen crewai spacy nltk xgboost lightgbm onnx tensorrt jax
    powerbi tableau looker dagster prefect kinesis pubsub
@@ -460,9 +478,23 @@ const CLAIM_BLOCKLIST = new Set([
   "best practices",
   "problem solving",
   "problem solver",
-  // IBM Consulting marketing boilerplate — never a real ATS skill for associate screens.
+  // IBM Consulting / Deloitte marketing boilerplate — never real ATS skills.
   "hybrid cloud",
   "software development",
+  "frontier engineering",
+  "modern development",
+  "solution design",
+  "product development",
+  "application development",
+  "software solutions",
+  "business solutions",
+  "technical solutions",
+  "digital transformation",
+  "continuous improvement",
+  "end-to-end solutions",
+  "cloud platforms",
+  "web development",
+  "software systems",
   // ZS program name, not a skill — the resume can never literally contain it.
   "strategy insights",
 ]);

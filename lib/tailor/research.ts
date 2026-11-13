@@ -75,12 +75,70 @@ async function fetchPageText(url: string, maxChars = 3000): Promise<string | nul
   }
 }
 
-/** Best-effort homepage fetch: try .com / .ca / .io derived from the company name. */
-async function fetchHomepageText(company: string): Promise<{ url: string; text: string } | null> {
+const ATS_HOST_RE =
+  /(greenhouse\.io|lever\.co|ashbyhq\.com|myworkdayjobs\.com|workday\.com|smartrecruiters\.com|workable\.com|icims\.com|taleo\.net|bamboohr\.com|jazzhr\.com|jobvite\.com|linkedin\.com|indeed\.com|glassdoor\.|simplyhired\.|ziprecruiter\.|simplify\.jobs)/i;
+
+const KNOWN_COMPANY_DOMAINS: Record<string, string> = {
+  td: "https://www.td.com",
+  tdbank: "https://www.td.com",
+  tdsecurities: "https://www.tdsecurities.com",
+  rbc: "https://www.rbc.com",
+  royalbankofcanada: "https://www.rbc.com",
+  bmo: "https://www.bmo.com",
+  bankofmontreal: "https://www.bmo.com",
+  cibc: "https://www.cibc.com",
+  scotiabank: "https://www.scotiabank.com",
+  bankofnovascotia: "https://www.scotiabank.com",
+  nationalbank: "https://www.nbc.ca",
+  nationalbankofcanada: "https://www.nbc.ca",
+  bcg: "https://www.bcg.com",
+  bostonconsulting: "https://www.bcg.com",
+  bain: "https://www.bain.com",
+  mckinsey: "https://www.mckinsey.com",
+  deloitte: "https://www.deloitte.com",
+  pwc: "https://www.pwc.com",
+  ey: "https://www.ey.com",
+  kpmg: "https://www.kpmg.com",
+  accenture: "https://www.accenture.com",
+  zs: "https://www.zs.com",
+  zsassociates: "https://www.zs.com",
+  ibm: "https://www.ibm.com",
+  cgi: "https://www.cgi.com",
+  aircanada: "https://www.aircanada.com",
+  wealthsimple: "https://www.wealthsimple.com",
+  shopify: "https://www.shopify.com",
+  cppinvestments: "https://www.cppinvestments.com",
+  indigobooksmusic: "https://www.indigo.ca",
+  indigo: "https://www.indigo.ca",
+};
+
+function rootDomainFromPostingUrl(postingUrl?: string): string | null {
+  if (!postingUrl) return null;
+  try {
+    const u = new URL(postingUrl);
+    if (!/^https?:$/.test(u.protocol) || ATS_HOST_RE.test(u.hostname)) return null;
+    const host = u.hostname.replace(/^(?:careers|jobs|apply|talent|work|recruiting)\./i, "");
+    const parts = host.split(".");
+    const root = parts.length >= 2 ? parts.slice(-2).join(".") : host;
+    return `https://www.${root.replace(/^www\./i, "")}`;
+  } catch {
+    return null;
+  }
+}
+
+/** Best-effort homepage fetch: posting domain / known company domains, then .com/.ca/.io/.ai. */
+async function fetchHomepageText(company: string, postingUrl?: string): Promise<{ url: string; text: string } | null> {
   const slug = slugify(company);
-  if (!slug) return null;
-  for (const tld of ["com", "ca", "io", "ai"]) {
-    const url = `https://www.${slug}.${tld}`;
+  const candidates: string[] = [];
+  const fromUrl = rootDomainFromPostingUrl(postingUrl);
+  if (fromUrl) candidates.push(fromUrl);
+  if (slug && KNOWN_COMPANY_DOMAINS[slug]) candidates.push(KNOWN_COMPANY_DOMAINS[slug]);
+  if (slug) {
+    for (const tld of ["com", "ca", "io", "ai"]) {
+      candidates.push(`https://www.${slug}.${tld}`);
+    }
+  }
+  for (const url of [...new Set(candidates)]) {
     const text = await fetchPageText(url);
     if (text) return { url, text };
   }
@@ -109,13 +167,14 @@ export async function researchCompany(input: {
   company: string;
   jobTitle: string;
   jobDescription: string;
+  postingUrl?: string;
   deep?: boolean;
 }): Promise<CompanyResearch> {
   const { fetchRedditIntel, fetchRoleResumeIntel } = await import("./reddit");
   const { detectRoleFamily } = await import("./role-family");
   const family = detectRoleFamily(input.jobTitle, input.company, input.jobDescription);
   const [homepage, redditIntel] = await Promise.all([
-    fetchHomepageText(input.company),
+    fetchHomepageText(input.company, input.postingUrl),
     Promise.all([fetchRoleResumeIntel(family), fetchRedditIntel(input.company, { family })]).then(([resume, company]) =>
       [resume, company].filter(Boolean).join("\n\n")
     ),

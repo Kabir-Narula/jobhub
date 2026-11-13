@@ -472,10 +472,30 @@ export function assembleSkillsSection(
 
   const buckets = new Map<string, string[]>();
   const seen = new Set<string>();
+  const SKILL_ALIAS: Record<string, string> = {
+    postgres: "postgresql",
+    "rest api": "rest apis",
+    restapi: "rest apis",
+    nodejs: "node.js",
+    node: "node.js",
+    nextjs: "next.js",
+    k8s: "kubernetes",
+    "ci cd": "ci/cd",
+    cicd: "ci/cd",
+    "linux/unix": "linux",
+    "spring boot": "spring boot",
+    springboot: "spring boot",
+    copilot: "github copilot",
+    "c\\#": "c#",
+  };
+  const lookupSkill = (raw: string): string | undefined => {
+    const k = String(raw).trim().toLowerCase();
+    return canon.get(k) ?? (SKILL_ALIAS[k] ? canon.get(SKILL_ALIAS[k]) : undefined);
+  };
   for (const u of update ?? []) {
     const targetLine = section.lines.find((l) => l.label.replace(/\\&/g, "&") === u.label.replace(/\\&/g, "&"));
     for (const raw of Array.isArray(u.items) ? u.items : []) {
-      const validated = canon.get(String(raw).trim().toLowerCase());
+      const validated = lookupSkill(String(raw));
       if (!validated) continue;
       const key = unescapeItem(validated).toLowerCase();
       if (seen.has(key)) continue;
@@ -738,4 +758,16 @@ export function ensureSkillsTerms(tex: string, terms: string[], maxPerLine = 7):
     present.add(key);
   }
   return out;
+}
+
+/** Lowercased plain text of ONLY the Skills section (never bullets or URLs). */
+export function skillsPlainText(tex: string): string {
+  try {
+    return parseSkillsSection(tex)
+      .lines.flatMap((l) => l.items)
+      .map((i) => i.replace(/\\([&%$#_{}])/g, "$1").toLowerCase())
+      .join(", ");
+  } catch {
+    return "";
+  }
 }

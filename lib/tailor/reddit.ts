@@ -19,11 +19,12 @@ interface PpComment {
   score: number;
 }
 
-async function searchPosts(query: string, size = 8, subreddit?: string): Promise<PpSubmission[]> {
+async function searchPosts(query: string, size = 8, subreddit?: string, afterEpoch?: number): Promise<PpSubmission[]> {
   try {
     const sub = subreddit ? `&subreddit=${encodeURIComponent(subreddit)}` : "";
+    const after = afterEpoch ? `&after=${afterEpoch}` : "";
     const data = await fetchJson<{ data?: PpSubmission[] }>(
-      `https://api.pullpush.io/reddit/search/submission/?q=${encodeURIComponent(query)}&size=${size}&sort_type=score&sort=desc${sub}`,
+      `https://api.pullpush.io/reddit/search/submission/?q=${encodeURIComponent(query)}&size=${size}&sort_type=score&sort=desc${sub}${after}`,
       {},
       12000
     );
@@ -125,13 +126,26 @@ function digestPosts(posts: PpSubmission[], commentsById: Map<string, string[]>)
   return chunks.join("\n\n");
 }
 
+/** Common-word or short company names easily match unrelated Reddit threads without career context. */
+const AMBIGUOUS_NAME =
+  /^(?:td|ey|zs|rbc|bmo|ibm|cgi|wave|ramp|tulip|ritual|toast|league|clio|klick|indigo|bell|telus|rogers|shaw|sage|loop|bolt|plaid|stripe|scale|notion|linear|vercel|bench)$/i;
+const CAREER_CONTEXT_RE =
+  /\b(?:interview|resume|cv|intern(?:ship)?|co-?op|offer|recruiter|hiring|new grad|oa\b|online assessment|onsite|technical screen|case|salary|compensation|swe|analyst|developer|engineer|consultant)\b/i;
+
 /**
  * Company threads: several subs, then comment trees — not title-only skims.
  */
 export async function fetchRedditIntel(company: string, opts?: { family?: RoleFamily }): Promise<string> {
   const family: RoleFamily = opts?.family ?? "swe";
-  const mention = new RegExp(company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-  const relevant = (p: PpSubmission) => mention.test(`${p.title} ${p.selftext ?? ""}`);
+  const escaped = company.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const mention = new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i");
+  const needsCareerContext = company.trim().length <= 5 || AMBIGUOUS_NAME.test(company.trim());
+  const recentAfter = Math.floor(Date.now() / 1000) - 3 * 365 * 86400;
+  const relevant = (p: PpSubmission) => {
+    const text = `${p.title} ${p.selftext ?? ""}`;
+    if (!mention.test(text)) return false;
+    return !needsCareerContext || CAREER_CONTEXT_RE.test(text);
+  };
 
   const seen = new Set<string>();
   const posts: PpSubmission[] = [];
@@ -145,15 +159,22 @@ export async function fetchRedditIntel(company: string, opts?: { family?: RoleFa
 
   const spec = FAMILY_REDDIT[family];
   const subs = [...spec.subs, ...CAREER_SUBS.filter((s) => !spec.subs.includes(s))];
-  const subBatches = await Promise.all(subs.slice(0, 5).map((sub) => searchPosts(company, 5, sub)));
+  const queryTerm = needsCareerContext ? `"${company}" (interview OR resume OR intern OR offer OR hiring)` : company;
+  const subBatches = await Promise.all(subs.slice(0, 5).map((sub) => searchPosts(queryTerm, 5, sub, recentAfter)));
   for (const batch of subBatches) collect(batch);
+  if (posts.length < 3) {
+    // Broaden past the 3-year window when recent threads are sparse.
+    const olderBatches = await Promise.all(subs.slice(0, 3).map((sub) => searchPosts(queryTerm, 5, sub)));
+    for (const batch of olderBatches) collect(batch);
+  }
   if (posts.length < 4) {
     collect(await searchPosts(`"${company}" (interview OR resume OR offer OR recruiter)`));
   }
   const picked = posts.slice(0, 6);
   if (picked.length === 0) {
     const loose = await searchComments(`"${company}" (interview OR resume OR hiring)`, 10);
-    return loose.length ? `COMMENT HITS:\n- ${loose.join("\n- ")}`.slice(0, 4000) : "";
+    const filteredLoose = loose.filter((c) => mention.test(c) && (!needsCareerContext || CAREER_CONTEXT_RE.test(c)));
+    return filteredLoose.length ? `COMMENT HITS:\n- ${filteredLoose.join("\n- ")}`.slice(0, 4000) : "";
   }
 
   const commentLists = await Promise.all(picked.map((p) => threadComments(p.id, 8)));
